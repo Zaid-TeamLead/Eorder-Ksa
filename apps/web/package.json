@@ -22,9 +22,7 @@
     "tw-animate-css": "^1.3.4",
     "zod": "catalog:",
     "babel-plugin-react-compiler": "^1.0.0",
-    "@tanstack/react-query": "^5.85.5",
-    "better-auth": "catalog:",
-    "@keylooppro/auth": "workspace:*"
+    "@tanstack/react-query": "^5.85.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.10",

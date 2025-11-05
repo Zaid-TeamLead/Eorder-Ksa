@@ -7,21 +7,29 @@
     "check-types": "tsc -b",
     "compile": "bun build --compile --minify --sourcemap --bytecode ./src/index.ts --outfile server",
     "dev": "bun run --hot src/index.ts",
-    "start": "bun run dist/index.js"
+    "start": "bun run dist/index.js",
+    "generate-secrets": "bun run scripts/generate-secrets.ts --write"
   },
   "dependencies": {
-    "express": "^5.1.0",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
-    "better-auth": "catalog:",
     "dotenv": "catalog:",
-    "zod": "catalog:",
-    "@keylooppro/auth": "workspace:*"
+    "express": "^5.1.0",
+    "express-rate-limit": "^7.4.1",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "pino": "^9.6.0",
+    "pino-http": "^10.0.0",
+    "pino-pretty": "^13.0.0",
+    "zod": "catalog:"
   },
   "devDependencies": {
-    "typescript": "catalog:",
-    "@types/express": "^5.0.1",
-    "@types/cors": "^2.8.17",
     "@types/bun": "^1.2.6",
-    "tsdown": "catalog:"
+    "@types/cookie-parser": "^1.4.10",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.1",
+    "@types/jsonwebtoken": "^9.0.10",
+    "tsdown": "catalog:",
+    "typescript": "catalog:"
   }
 }
