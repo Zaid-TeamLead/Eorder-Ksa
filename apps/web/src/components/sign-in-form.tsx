@@ -7,6 +7,7 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { useRouter } from "next/navigation";
 import ButtonLoader from "./loader/button-loader";
+import PageLoader from "./loader/page-loader";
 
 export default function SignInForm() {
   const router = useRouter();
@@ -35,7 +36,7 @@ export default function SignInForm() {
   });
 
   if (isPending) {
-    return <ButtonLoader />;
+    return <PageLoader />;
   }
 
   return (

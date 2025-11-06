@@ -11,7 +11,15 @@ export function errorHandler(
 ) {
   // Log error
   if (err instanceof AppError && err.isOperational) {
-    logger.warn(err, "Operational error occurred");
+    // Don't log expected 401 authentication errors (happens when checking auth status)
+    if (err.statusCode === 401 && err.code === "AUTHENTICATION_ERROR") {
+      // Only log at debug level in development
+      if (env.NODE_ENV === "development") {
+        logger.debug(err, "Authentication check failed (expected)");
+      }
+    } else {
+      logger.warn(err, "Operational error occurred");
+    }
   } else {
     logger.error(err, "Unexpected error occurred");
   }

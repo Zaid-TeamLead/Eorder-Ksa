@@ -25,11 +25,63 @@ export interface Session {
 class AuthClient {
   private accessToken: string | null = null;
   private refreshTokenPromise: Promise<string> | null = null;
+  private refreshInterval: NodeJS.Timeout | null = null;
 
   constructor() {
     if (typeof window !== "undefined") {
       this.accessToken = localStorage.getItem("accessToken");
+      this.startTokenRefreshInterval();
     }
+  }
+
+  /**
+   * Decode JWT token to get expiry time
+   */
+  private getTokenExpiry(token: string): number | null {
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      return payload.exp ? payload.exp * 1000 : null; // Convert to milliseconds
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Check if token is expired or will expire soon (within 2 minutes)
+   */
+  private isTokenExpiringSoon(token: string | null): boolean {
+    if (!token) return true;
+    const expiry = this.getTokenExpiry(token);
+    if (!expiry) return true;
+    const now = Date.now();
+    const twoMinutes = 2 * 60 * 1000; // 2 minutes in milliseconds
+    return expiry - now < twoMinutes;
+  }
+
+  /**
+   * Start interval to check and refresh token before expiry
+   */
+  private startTokenRefreshInterval(): void {
+    if (typeof window === "undefined") return;
+
+    // Clear existing interval
+    if (this.refreshInterval) {
+      clearInterval(this.refreshInterval);
+    }
+
+    // Check every minute if token needs refresh
+    this.refreshInterval = setInterval(() => {
+      if (this.accessToken && this.isTokenExpiringSoon(this.accessToken)) {
+        // Token is expiring soon, refresh it proactively
+        this.refreshAccessToken().catch(() => {
+          // If refresh fails, clear token
+          this.accessToken = null;
+          if (typeof window !== "undefined") {
+            localStorage.removeItem("accessToken");
+          }
+        });
+      }
+    }, 60 * 1000); // Check every minute
   }
 
   /**
@@ -55,6 +107,7 @@ class AuthClient {
 
     if (typeof window !== "undefined") {
       localStorage.setItem("accessToken", this.accessToken);
+      this.startTokenRefreshInterval();
     }
 
     return {
@@ -92,6 +145,7 @@ class AuthClient {
 
         if (typeof window !== "undefined") {
           localStorage.setItem("accessToken", this.accessToken);
+          this.startTokenRefreshInterval();
         }
 
         return this.accessToken;
@@ -107,7 +161,8 @@ class AuthClient {
    * Get current session
    */
   async getSession(): Promise<Session | null> {
-    if (!this.accessToken) {
+    // Check if token exists and is still valid
+    if (!this.accessToken || this.isTokenExpiringSoon(this.accessToken)) {
       // Try to refresh token
       try {
         await this.refreshAccessToken();
@@ -187,6 +242,11 @@ class AuthClient {
       this.accessToken = null;
       if (typeof window !== "undefined") {
         localStorage.removeItem("accessToken");
+      }
+      // Clear refresh interval on sign out
+      if (this.refreshInterval) {
+        clearInterval(this.refreshInterval);
+        this.refreshInterval = null;
       }
     }
   }

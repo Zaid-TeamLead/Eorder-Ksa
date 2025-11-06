@@ -19,12 +19,6 @@ const signInSchema = z.object({
   }),
 });
 
-const refreshTokenSchema = z.object({
-  body: z.object({
-    refreshToken: z.string().optional(),
-  }),
-});
-
 // Routes
 router.post(
   "/sign-in",
@@ -32,11 +26,8 @@ router.post(
   signInController
 );
 
-router.post(
-  "/refresh",
-  validate(refreshTokenSchema.shape.body, "body"),
-  refreshTokenController
-);
+// Refresh token route - no validation needed as token comes from cookies
+router.post("/refresh", refreshTokenController);
 
 router.post("/sign-out", authenticate, signOutController);
 
