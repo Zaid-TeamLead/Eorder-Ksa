@@ -16,6 +16,7 @@ import {
   SalesEnquiryForm,
   type SalesEnquiryFormData,
 } from "@/forms/sales-enquiry";
+import { BookTestDriveForm } from "@/forms/book-test-drive";
 
 const TABS = [
   { id: "customer-information", label: "Customer Information" },
@@ -90,13 +91,13 @@ export default function SalesEnquiry({
         <DialogContent className="max-h-[calc(100vh-2rem)] w-full h-full flex flex-col sm:max-w-7xl p-0 gap-0">
           <DialogHeader className="px-6 pt-6 pb-4 border-b">
             <DialogTitle className="text-xl font-semibold">
-              Create Sales Enquiry
+             Book Test Drive
             </DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground">
-              Fill in all the required information across the tabs below
+              Fill in all the required information to book a test drive
             </DialogDescription>
           </DialogHeader>
-          <SalesEnquiryForm
+          <BookTestDriveForm
             ref={formRef}
             currentTab={currentTab}
             onTabChange={setCurrentTab}

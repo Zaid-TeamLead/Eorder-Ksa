@@ -77,7 +77,9 @@ export function NavMain({
               </Link>
             </CommandItem>
             <CommandItem onSelect={() => setQuickCreateModal(false)}>
-              Purchase Order
+              <Link href="/dashboard/test-drive?action=create">
+                Book Test Drive
+              </Link>
             </CommandItem>
           </CommandGroup>
           <CommandSeparator />

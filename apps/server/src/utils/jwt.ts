@@ -1,10 +1,5 @@
 import jwt from "jsonwebtoken";
-
-const JWT_SECRET =
-  process.env.JWT_SECRET || "your-secret-key-change-in-production";
-const JWT_REFRESH_SECRET =
-  process.env.JWT_REFRESH_SECRET ||
-  "your-refresh-secret-key-change-in-production";
+import { env } from "@/config/env";
 
 // Access token expires in 15 minutes
 const ACCESS_TOKEN_EXPIRY = "15m";
@@ -28,7 +23,7 @@ export interface RefreshTokenPayload {
  * Generate access token
  */
 export function generateAccessToken(payload: TokenPayload): string {
-  return jwt.sign(payload, JWT_SECRET, {
+  return jwt.sign(payload, env.JWT_SECRET, {
     expiresIn: ACCESS_TOKEN_EXPIRY,
   });
 }
@@ -37,7 +32,7 @@ export function generateAccessToken(payload: TokenPayload): string {
  * Generate refresh token
  */
 export function generateRefreshToken(payload: RefreshTokenPayload): string {
-  return jwt.sign(payload, JWT_REFRESH_SECRET, {
+  return jwt.sign(payload, env.JWT_REFRESH_SECRET, {
     expiresIn: REFRESH_TOKEN_EXPIRY,
   });
 }
@@ -47,7 +42,7 @@ export function generateRefreshToken(payload: RefreshTokenPayload): string {
  */
 export function verifyAccessToken(token: string): TokenPayload | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as TokenPayload;
+    return jwt.verify(token, env.JWT_SECRET) as TokenPayload;
   } catch (error) {
     return null;
   }
@@ -58,7 +53,7 @@ export function verifyAccessToken(token: string): TokenPayload | null {
  */
 export function verifyRefreshToken(token: string): RefreshTokenPayload | null {
   try {
-    return jwt.verify(token, JWT_REFRESH_SECRET) as RefreshTokenPayload;
+    return jwt.verify(token, env.JWT_REFRESH_SECRET) as RefreshTokenPayload;
   } catch (error) {
     return null;
   }

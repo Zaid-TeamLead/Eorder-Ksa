@@ -29,7 +29,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             >
               <a href="#">
                 <IconInnerShadowTop className="size-5!" />
-                <span className="text-base font-semibold">Keyloop Pro.</span>
+                <span className="text-base font-semibold">Neweast DMS.</span>
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>

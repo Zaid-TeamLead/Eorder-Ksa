@@ -11,6 +11,7 @@
     "generate-secrets": "bun run scripts/generate-secrets.ts --write"
   },
   "dependencies": {
+    "@sap/hana-client": "^2.26.25",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "catalog:",

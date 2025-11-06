@@ -28,6 +28,21 @@ const envSchema = z.object({
     .regex(/^\d+$/)
     .default("100")
     .transform((val) => Number(val)),
+  // SAP HANA Database Configuration
+  SERVERNODE: z.string().min(1, "SERVERNODE is required"),
+  USERID: z.string().min(1, "USERID is required"),
+  PASSWORD: z.string().min(1, "PASSWORD is required"),
+  CURRENTSCHEMA: z.string().optional(),
+  POOLING: z
+    .string()
+    .regex(/^(true|false)$/i)
+    .default("true")
+    .transform((val) => val.toLowerCase() === "true"),
+  CONNECTIONLIFETIME: z
+    .string()
+    .regex(/^\d+$/)
+    .default("30000")
+    .transform((val) => Number(val)),
 });
 
 export type Env = z.infer<typeof envSchema>;
