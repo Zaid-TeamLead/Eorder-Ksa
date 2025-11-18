@@ -5,6 +5,7 @@ import {
   IconNotification,
   IconUserCircle,
 } from "@tabler/icons-react";
+import { useRouter } from "next/navigation";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -22,11 +23,12 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { useSession } from "@/lib/auth-client";
+import { authClient, useSession } from "@/lib/auth-client";
 
 export function NavUser() {
   const { data: session, isPending } = useSession();
   const { isMobile } = useSidebar();
+  const router = useRouter();
 
   const randomAvatar = `https://api.dicebear.com/7.x/pixel-art/svg?seed=${Math.random()
     .toString(36)
@@ -94,7 +96,12 @@ export function NavUser() {
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={async () => {
+                await authClient.signOut();
+                router.push("/login");
+              }}
+            >
               <IconLogout />
               Log out
             </DropdownMenuItem>

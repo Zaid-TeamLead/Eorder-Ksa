@@ -26,7 +26,7 @@ type TabId = (typeof TABS)[number]["id"];
 interface SalesEnquiryFormProps {
   currentTab?: TabId;
   onTabChange?: (tab: TabId) => void;
-  onCustomerSearch?: (query: string) => void;
+  onCustomerSearch?: (query: string) => Promise<{ success: boolean; data: any[] } | undefined>;
   onNewCustomer?: () => void;
   onSubmit?: (data: SalesEnquiryFormData) => void | Promise<void>;
   defaultValues?: Partial<SalesEnquiryFormData>;
@@ -50,6 +50,39 @@ export const SalesEnquiryForm = React.forwardRef<
     const form = useForm<SalesEnquiryFormData>({
       resolver: zodResolver(salesEnquirySchema),
       defaultValues: {
+        // Customer Information
+        customerName: "",
+        address: "",
+        postcode: "",
+        homePhone: "",
+        workPhone: "",
+        mobile: "",
+        homeEmail: "",
+        // Vehicle Details
+        make: "",
+        model: "",
+        variant: "",
+        year: "",
+        color: "",
+        suppCatNum: "",
+        modelCode: "",
+        quantity: undefined,
+        // Enquiry Details
+        budget: "",
+        financing: undefined,
+        preferredContact: undefined,
+        preferredTime: undefined,
+        preferredDelivery: "",
+        source: "",
+        // Trade-in Vehicle
+        tradeInMake: "",
+        tradeInModel: "",
+        tradeInYear: "",
+        tradeInKms: "",
+        tradeInExpectedPrice: "",
+        // Additional Information
+        salesperson: "",
+        notes: "",
         ...defaultValues,
       },
     });
@@ -72,14 +105,75 @@ export const SalesEnquiryForm = React.forwardRef<
       [handleSubmit]
     );
 
-    const handleCustomerSearch = (query: string) => {
+    const handleCustomerSearch = async (query: string) => {
       if (onCustomerSearch) {
-        onCustomerSearch(query);
+        return await onCustomerSearch(query);
       }
+      return undefined;
+    };
+
+    const handleCustomerSelect = (customer: any) => {
+      const addressParts = [
+        customer.Street,
+        customer.Block,
+        customer.StreetNo,
+        customer.Address2,
+        customer.Address3,
+      ]
+        .filter(Boolean)
+        .join(", ");
+
+      const fullAddress = [addressParts, customer.City, customer.County]
+        .filter(Boolean)
+        .join(", ");
+
+      form.setValue("customerName", customer.CardName || "");
+      form.setValue("address", fullAddress || "");
+      form.setValue("postcode", customer.ZipCode || "");
+      form.setValue("homePhone", customer.Phone1 || "");
+      form.setValue("workPhone", customer.Phone2 || "");
+      form.setValue("mobile", customer.Cellular || "");
+      form.setValue("homeEmail", customer.E_Mail || "");
     };
 
     const handleNewCustomer = () => {
       setCustomerSearch("");
+      form.reset({
+        // Customer Information
+        customerName: "",
+        address: "",
+        postcode: "",
+        homePhone: "",
+        workPhone: "",
+        mobile: "",
+        homeEmail: "",
+        // Vehicle Details
+        make: "",
+        model: "",
+        variant: "",
+        year: "",
+        color: "",
+        suppCatNum: "",
+        modelCode: "",
+        quantity: undefined,
+        // Enquiry Details
+        budget: "",
+        financing: undefined,
+        preferredContact: undefined,
+        preferredTime: undefined,
+        preferredDelivery: "",
+        source: "",
+        // Trade-in Vehicle
+        tradeInMake: "",
+        tradeInModel: "",
+        tradeInYear: "",
+        tradeInKms: "",
+        tradeInExpectedPrice: "",
+        // Additional Information
+        salesperson: "",
+        notes: "",
+        ...defaultValues,
+      });
       if (onNewCustomer) {
         onNewCustomer();
       }
@@ -120,7 +214,7 @@ export const SalesEnquiryForm = React.forwardRef<
                   onChange={setCustomerSearch}
                   onSearch={handleCustomerSearch}
                   onNewCustomer={handleNewCustomer}
-                  resultCount={customerSearch ? 2 : undefined}
+                  onCustomerSelect={handleCustomerSelect}
                 />
                 <CustomerInformation />
               </TabsContent>
@@ -162,6 +256,5 @@ export const SalesEnquiryForm = React.forwardRef<
 
 SalesEnquiryForm.displayName = "SalesEnquiryForm";
 
-// Export form methods for external use
 export { useFormContext } from "react-hook-form";
 export type { SalesEnquiryFormData } from "./schema";

@@ -9,7 +9,11 @@ const envSchema = z.object({
     .regex(/^\d+$/)
     .default("3000")
     .transform((val) => Number(val)),
-  CORS_ORIGIN: z.string().url().default("http://localhost:3001"),
+  CORS_ORIGIN: z
+    .string()
+    .url()
+    .default("http://localhost:3001")
+    .transform((val) => val.replace(/\/$/, "")), // Remove trailing slash
   JWT_SECRET: z.string().min(32, "JWT_SECRET must be at least 32 characters"),
   JWT_REFRESH_SECRET: z
     .string()

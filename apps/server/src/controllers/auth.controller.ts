@@ -1,38 +1,60 @@
-import type { Request, Response, NextFunction } from "express";
-import {
-  signIn,
-  refreshAccessToken,
-  signOut,
-} from "../services/auth.service.js";
-import { logger } from "../utils/logger.js";
-import { AuthenticationError } from "../types/errors.js";
+import type { Request, Response, NextFunction } from 'express';
+import { generateOtp, verifyOtp } from '../services/auth.service.js';
+import { AuthenticationError } from '../types/errors.js';
 
 /**
- * Sign in controller
+ * Helper to set access token as httpOnly cookie
  */
-export async function signInController(
+function setAccessTokenCookie(res: Response, accessToken: string): void {
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  res.cookie('accessToken', accessToken, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    path: '/',
+    ...(isProduction ? {} : { domain: undefined }),
+  });
+
+  // Debug log in development
+  if (!isProduction) {
+    console.log('Cookie set:', {
+      name: 'accessToken',
+      httpOnly: true,
+      secure: false,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: '7 days',
+    });
+  }
+}
+
+/**
+ * Generate OTP controller
+ */
+export async function generateOtpController(
   req: Request,
   res: Response,
   next: NextFunction
 ) {
   try {
-    const { email, password } = req.body;
+    const { userId } = req.body;
 
-    const { user, tokens } = await signIn(email, password);
+    if (!userId) {
+      return res.status(400).json({
+        error: {
+          message: 'User ID is required',
+          code: 'MISSING_USER_ID',
+        },
+      });
+    }
 
-    // Set refresh token as httpOnly cookie
-    res.cookie("refreshToken", tokens.refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "none",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      path: "/",
-    });
+    await generateOtp(userId);
 
     return res.json({
       data: {
-        user,
-        accessToken: tokens.accessToken,
+        message: 'OTP generated successfully',
       },
     });
   } catch (error) {
@@ -49,30 +71,33 @@ export async function signInController(
 }
 
 /**
- * Refresh token controller
+ * Verify OTP controller
  */
-export async function refreshTokenController(
+export async function verifyOtpController(
   req: Request,
   res: Response,
   next: NextFunction
 ) {
   try {
-    const refreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
+    const { userId, otp } = req.body;
 
-    if (!refreshToken) {
-      return res.status(401).json({
+    if (!userId || !otp) {
+      return res.status(400).json({
         error: {
-          message: "Refresh token not provided",
-          code: "NO_REFRESH_TOKEN",
+          message: 'User ID and OTP are required',
+          code: 'MISSING_CREDENTIALS',
         },
       });
     }
 
-    const accessToken = await refreshAccessToken(refreshToken);
+    const { user, tokens } = await verifyOtp(userId, otp);
+
+    // Set access token as httpOnly cookie
+    setAccessTokenCookie(res, tokens.accessToken);
 
     return res.json({
       data: {
-        accessToken,
+        user,
       },
     });
   } catch (error) {
@@ -92,45 +117,23 @@ export async function refreshTokenController(
  * Sign out controller
  */
 export async function signOutController(
-  req: Request,
+  _req: Request,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ) {
-  try {
-    const refreshToken = req.cookies?.refreshToken;
+  // Clear access token cookie
+  res.clearCookie('accessToken', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    path: '/',
+  });
 
-    if (refreshToken) {
-      // Extract token ID from refresh token
-      try {
-        const { verifyRefreshToken } = await import("../utils/jwt.js");
-        const payload = verifyRefreshToken(refreshToken);
-        if (payload) {
-          await signOut(payload.tokenId);
-        }
-      } catch (error) {
-        logger.warn(
-          error,
-          "Failed to extract refresh token ID during sign out"
-        );
-      }
-    }
-
-    // Clear refresh token cookie
-    res.clearCookie("refreshToken", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "none",
-      path: "/",
-    });
-
-    return res.json({
-      data: {
-        message: "Signed out successfully",
-      },
-    });
-  } catch (error) {
-    next(error);
-  }
+  return res.json({
+    data: {
+      message: 'Signed out successfully',
+    },
+  });
 }
 
 /**
@@ -143,16 +146,16 @@ export async function getCurrentUserController(
 ) {
   try {
     if (!req.user) {
-      throw new AuthenticationError("User not authenticated");
+      throw new AuthenticationError('User not authenticated');
     }
 
     return res.json({
       data: {
         user: {
-          id: req.user.userId,
+          slpCode: req.user.SlpCode,
+          name: req.user.name,
           email: req.user.email,
           role: req.user.role,
-          permissions: req.user.permissions,
         },
       },
     });

@@ -1,163 +1,184 @@
-import { randomUUID } from "crypto";
 import {
   generateAccessToken,
-  generateRefreshToken,
-  verifyRefreshToken,
   type TokenPayload,
-  type RefreshTokenPayload,
 } from "../utils/jwt.js";
-import { refreshTokenService } from "./refresh-token.service.js";
 import { logger } from "../utils/logger.js";
-import { env } from "../config/env.js";
 import { AuthenticationError, InternalServerError } from "../types/errors.js";
+import { db } from "./database.service.js";
+
+const EXTERNAL_AUTH_URL = "https://auth.neweast.cloud";
+const COMPANY_CODE = "BI_NEGT_KSA";
 
 export interface UserData {
   email: string;
   name: string;
   role: string;
   permissions: string[];
+  SlpCode: string;
 }
 
 export interface AuthTokens {
   accessToken: string;
-  refreshToken: string;
-  refreshTokenId: string;
 }
 
 /**
- * Verify user credentials with external API
+ * Generate OTP for user via external API
  */
-async function verifyUserCredentials(
-  email: string,
-  password: string
-): Promise<UserData> {
+export async function generateOtp(userId: string): Promise<void> {
   try {
-    const response = await fetch(`${env.EXTERNAL_API_URL}/verify-user`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ email, password }),
-    });
+    const response = await fetch(
+      `${EXTERNAL_AUTH_URL}/auth/generate-otp?co=${COMPANY_CODE}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ userId }),
+      }
+    );
 
     if (!response.ok) {
-      throw new AuthenticationError("Invalid email or password");
+      let errorMessage = "Failed to generate OTP";
+      try {
+        const errorData = (await response.json()) as {
+          result?: { message?: string };
+          message?: string;
+        };
+        if (errorData.result?.message) {
+          errorMessage = errorData.result.message;
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        }
+      } catch {
+        errorMessage = response.statusText || `HTTP ${response.status}`;
+      }
+      throw new AuthenticationError(errorMessage);
     }
 
-    const result = (await response.json()) as {
-      success: boolean;
-      user?: UserData;
-      message?: string;
+    const data = (await response.json()) as {
+      result?: { status?: string; message?: string };
     };
-
-    if (!result.success || !result.user) {
+    if (data.result?.status !== "success") {
       throw new AuthenticationError(
-        result.message || "Invalid email or password"
+        data.result?.message || "Failed to generate OTP"
       );
     }
-
-    return result.user;
   } catch (error) {
     if (error instanceof AuthenticationError) {
       throw error;
     }
-    logger.error(error, "Failed to verify user credentials");
-    throw new InternalServerError("Failed to verify credentials");
+    logger.error(error, "Failed to generate OTP");
+    throw new InternalServerError("Failed to generate OTP");
   }
 }
 
 /**
- * Sign in a user and generate tokens
+ * Verify OTP and create session
  */
-export async function signIn(
-  email: string,
-  password: string
-): Promise<{ user: UserData & { id: string }; tokens: AuthTokens }> {
-  const user = await verifyUserCredentials(email, password);
-  const userId = randomUUID(); // In production, get from external API
+export async function verifyOtp(
+  userId: string,
+  otp: string
+): Promise<{ user: UserData; tokens: AuthTokens }> {
+  try {
+    const response = await fetch(
+      `${EXTERNAL_AUTH_URL}/auth/verify-otp?co=${COMPANY_CODE}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ userId, otp }),
+      }
+    );
 
-  // Generate tokens
-  const accessTokenPayload: TokenPayload = {
-    userId,
-    email: user.email,
-    role: user.role,
-    permissions: user.permissions,
-  };
+    if (!response.ok) {
+      let errorMessage = "Failed to verify OTP";
+      try {
+        const errorData = (await response.json()) as {
+          result?: { message?: string };
+          message?: string;
+        };
+        if (errorData.result?.message) {
+          errorMessage = errorData.result.message;
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        }
+      } catch {
+        errorMessage = response.statusText || `HTTP ${response.status}`;
+      }
+      throw new AuthenticationError(errorMessage);
+    }
 
-  const refreshTokenId = randomUUID();
-  const refreshTokenPayload: RefreshTokenPayload = {
-    userId,
-    email: user.email,
-    tokenId: refreshTokenId,
-  };
+    const data = (await response.json()) as {
+      result?: {
+        success?: boolean;
+        message?: string;
+        user?: {
+          USER_ID?: string;
+          SLNO?: number;
+          USER_NAME?: string;
+          EMP_FULLNAME?: string;
+          USER_EMAIL?: string;
+        };
+      };
+    };
 
-  const accessToken = generateAccessToken(accessTokenPayload);
-  const refreshToken = generateRefreshToken(refreshTokenPayload);
+    if (!data.result) {
+      throw new AuthenticationError("Invalid response format from server");
+    }
 
-  // Store refresh token
-  const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
-  await refreshTokenService.store(refreshTokenId, {
-    userId,
-    email: user.email,
-    expiresAt,
-  });
+    if (!data.result.success) {
+      throw new AuthenticationError(
+        data.result.message || "OTP verification failed"
+      );
+    }
+    
+    const apiUser = data.result.user;
 
-  logger.info({ userId, email: user.email }, "User signed in");
+    if (!apiUser) {
+      throw new AuthenticationError("User data not found in response");
+    }
 
-  return {
-    user: {
-      id: userId,
-      ...user,
-    },
-    tokens: {
-      accessToken,
-      refreshToken,
-      refreshTokenId,
-    },
-  };
-}
+    const user: UserData = {
+      email: apiUser.USER_EMAIL || "",
+      name: apiUser.EMP_FULLNAME || "",
+      role: "user",
+      permissions: [],
+      SlpCode: "",
+    };
 
-/**
- * Refresh access token
- */
-export async function refreshAccessToken(
-  refreshToken: string
-): Promise<string> {
-  const payload = verifyRefreshToken(refreshToken);
+    const userIdFromApi = apiUser.USER_ID || userId;
 
-  if (!payload) {
-    throw new AuthenticationError("Invalid or expired refresh token");
-  }
+    const sql = `CALL "BI_NEGT_KSA".DMS_KSA_100001('${userIdFromApi}')`;
+    const slpCode = await db.query(sql);
+ 
 
-  // Check if refresh token exists in store
-  const storedToken = await refreshTokenService.get(payload.tokenId);
+    // Generate access token
+    const accessTokenPayload: TokenPayload = {
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      SlpCode: slpCode[0]?.SlpCode,
+      permissions: user.permissions,
+    };
 
-  if (!storedToken) {
-    throw new AuthenticationError("Refresh token expired or revoked");
-  }
+    const accessToken = generateAccessToken(accessTokenPayload);
+    logger.info({ userId: userIdFromApi, email: user.email, name: user.name }, "User signed in via OTP");
 
-  // Generate new access token
-  // Note: In production, fetch latest user data from external API
-  const accessTokenPayload: TokenPayload = {
-    userId: payload.userId,
-    email: payload.email,
-    role: "admin", // In production, fetch from external API
-    permissions: ["read", "write", "delete"], // In production, fetch from external API
-  };
-
-  const newAccessToken = generateAccessToken(accessTokenPayload);
-
-  logger.debug({ userId: payload.userId }, "Access token refreshed");
-
-  return newAccessToken;
-}
-
-/**
- * Sign out a user (revoke refresh token)
- */
-export async function signOut(refreshTokenId?: string): Promise<void> {
-  if (refreshTokenId) {
-    await refreshTokenService.delete(refreshTokenId);
-    logger.debug({ refreshTokenId }, "User signed out");
+    return {
+      user: {
+        ...user,
+          SlpCode: slpCode[0]?.SlpCode,
+      },
+      tokens: {
+        accessToken,
+      },
+    };
+  } catch (error) {
+    if (error instanceof AuthenticationError) {
+      throw error;
+    }
+    logger.error(error, "Failed to verify OTP");
+    throw new InternalServerError("Failed to verify OTP");
   }
 }

@@ -8,220 +8,111 @@ export interface User {
   name: string;
   role: string;
   permissions: string[];
-}
-
-export interface AuthResponse {
-  data: {
-    user: User;
-    accessToken: string;
-  };
+  SlpCode: string;
 }
 
 export interface Session {
   user: User;
-  accessToken: string;
 }
 
 class AuthClient {
-  private accessToken: string | null = null;
-  private refreshTokenPromise: Promise<string> | null = null;
-  private refreshInterval: NodeJS.Timeout | null = null;
-
-  constructor() {
-    if (typeof window !== "undefined") {
-      this.accessToken = localStorage.getItem("accessToken");
-      this.startTokenRefreshInterval();
-    }
-  }
+  private sessionListeners: Set<() => void> = new Set();
+  private currentSession: Session | null = null;
 
   /**
-   * Decode JWT token to get expiry time
+   * Subscribe to session changes
    */
-  private getTokenExpiry(token: string): number | null {
-    try {
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      return payload.exp ? payload.exp * 1000 : null; // Convert to milliseconds
-    } catch {
-      return null;
-    }
-  }
-
-  /**
-   * Check if token is expired or will expire soon (within 2 minutes)
-   */
-  private isTokenExpiringSoon(token: string | null): boolean {
-    if (!token) return true;
-    const expiry = this.getTokenExpiry(token);
-    if (!expiry) return true;
-    const now = Date.now();
-    const twoMinutes = 2 * 60 * 1000; // 2 minutes in milliseconds
-    return expiry - now < twoMinutes;
-  }
-
-  /**
-   * Start interval to check and refresh token before expiry
-   */
-  private startTokenRefreshInterval(): void {
-    if (typeof window === "undefined") return;
-
-    // Clear existing interval
-    if (this.refreshInterval) {
-      clearInterval(this.refreshInterval);
-    }
-
-    // Check every minute if token needs refresh
-    this.refreshInterval = setInterval(() => {
-      if (this.accessToken && this.isTokenExpiringSoon(this.accessToken)) {
-        // Token is expiring soon, refresh it proactively
-        this.refreshAccessToken().catch(() => {
-          // If refresh fails, clear token
-          this.accessToken = null;
-          if (typeof window !== "undefined") {
-            localStorage.removeItem("accessToken");
-          }
-        });
-      }
-    }, 60 * 1000); // Check every minute
-  }
-
-  /**
-   * Sign in with email and password
-   */
-  async signIn(email: string, password: string): Promise<Session> {
-    const response = await fetch(`${API_URL}/api/auth/sign-in`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      credentials: "include", // Important for cookies
-      body: JSON.stringify({ email, password }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || "Sign in failed");
-    }
-
-    const data: AuthResponse = await response.json();
-    this.accessToken = data.data.accessToken;
-
-    if (typeof window !== "undefined") {
-      localStorage.setItem("accessToken", this.accessToken);
-      this.startTokenRefreshInterval();
-    }
-
-    return {
-      user: data.data.user,
-      accessToken: this.accessToken,
+  onSessionChange(callback: () => void): () => void {
+    this.sessionListeners.add(callback);
+    return () => {
+      this.sessionListeners.delete(callback);
     };
   }
 
   /**
-   * Refresh access token
+   * Notify all listeners of session changes
    */
-  async refreshAccessToken(): Promise<string> {
-    // Prevent multiple simultaneous refresh requests
-    if (this.refreshTokenPromise) {
-      return this.refreshTokenPromise;
+  private notifySessionChange(): void {
+    this.sessionListeners.forEach((callback) => callback());
+  }
+
+  /**
+   * Generate OTP for user
+   */
+  async generateOtp(userId: string): Promise<void> {
+    const response = await fetch(`${API_URL}/api/auth/generate-otp`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify({ userId }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error?.message || "Failed to generate OTP");
+    }
+  }
+
+  /**
+   * Verify OTP and sign in
+   */
+  async verifyOtp(userId: string, otp: string): Promise<Session> {
+    const response = await fetch(`${API_URL}/api/auth/verify-otp`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify({ userId, otp }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error?.message || "Failed to verify OTP");
     }
 
-    this.refreshTokenPromise = (async () => {
-      try {
-        const response = await fetch(`${API_URL}/api/auth/refresh`, {
-          method: "POST",
-          credentials: "include", // Important for cookies
-        });
+    const data = await response.json();
 
-        if (!response.ok) {
-          throw new Error("Failed to refresh token");
-        }
+    // Store session in memory
+    this.currentSession = {
+      user: data.data.user,
+    };
 
-        const data = await response.json();
-        this.accessToken = data.data.accessToken;
+    // Store in localStorage for persistence across page reloads
+    if (typeof window !== "undefined") {
+      localStorage.setItem("userSession", JSON.stringify(this.currentSession));
+    }
 
-        if (!this.accessToken) {
-          throw new Error("No access token received");
-        }
+    this.notifySessionChange();
 
-        if (typeof window !== "undefined") {
-          localStorage.setItem("accessToken", this.accessToken);
-          this.startTokenRefreshInterval();
-        }
-
-        return this.accessToken;
-      } finally {
-        this.refreshTokenPromise = null;
-      }
-    })();
-
-    return this.refreshTokenPromise;
+    return this.currentSession;
   }
 
   /**
    * Get current session
    */
   async getSession(): Promise<Session | null> {
-    // Check if token exists and is still valid
-    if (!this.accessToken || this.isTokenExpiringSoon(this.accessToken)) {
-      // Try to refresh token
+    // Return cached session if available
+    if (this.currentSession) {
+      return this.currentSession;
+    }
+
+    // Try to load from localStorage
+    if (typeof window !== "undefined") {
       try {
-        await this.refreshAccessToken();
-      } catch {
-        return null;
-      }
-    }
-
-    try {
-      const response = await fetch(`${API_URL}/api/auth/me`, {
-        headers: {
-          Authorization: `Bearer ${this.accessToken}`,
-        },
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          // Token expired, try to refresh
-          try {
-            const newToken = await this.refreshAccessToken();
-            if (!newToken) {
-              return null;
-            }
-            // Retry the request
-            const retryResponse = await fetch(`${API_URL}/api/auth/me`, {
-              headers: {
-                Authorization: `Bearer ${newToken}`,
-              },
-              credentials: "include",
-            });
-
-            if (!retryResponse.ok) {
-              return null;
-            }
-
-            const retryData = await retryResponse.json();
-            return {
-              user: retryData.data.user,
-              accessToken: newToken,
-            };
-          } catch {
-            return null;
-          }
+        const stored = localStorage.getItem("userSession");
+        if (stored) {
+          this.currentSession = JSON.parse(stored) as Session;
+          return this.currentSession;
         }
-        return null;
+      } catch {
+        // Ignore parse errors
       }
-
-      const data = await response.json();
-      if (!this.accessToken) {
-        return null;
-      }
-      return {
-        user: data.data.user,
-        accessToken: this.accessToken,
-      };
-    } catch {
-      return null;
     }
+
+    return null;
   }
 
   /**
@@ -231,31 +122,18 @@ class AuthClient {
     try {
       await fetch(`${API_URL}/api/auth/sign-out`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${this.accessToken}`,
-        },
         credentials: "include",
       });
     } catch (error) {
       console.error("Error signing out:", error);
     } finally {
-      this.accessToken = null;
+      // Clear session
+      this.currentSession = null;
       if (typeof window !== "undefined") {
-        localStorage.removeItem("accessToken");
+        localStorage.removeItem("userSession");
       }
-      // Clear refresh interval on sign out
-      if (this.refreshInterval) {
-        clearInterval(this.refreshInterval);
-        this.refreshInterval = null;
-      }
+      this.notifySessionChange();
     }
-  }
-
-  /**
-   * Get access token
-   */
-  getAccessToken(): string | null {
-    return this.accessToken;
   }
 }
 
@@ -272,23 +150,30 @@ export function useSession() {
   useEffect(() => {
     let mounted = true;
 
-    authClient
-      .getSession()
-      .then((sess) => {
+    const updateSession = async () => {
+      try {
+        const sess = await authClient.getSession();
         if (mounted) {
           setSession(sess);
           setIsPending(false);
         }
-      })
-      .catch(() => {
+      } catch {
         if (mounted) {
           setSession(null);
           setIsPending(false);
         }
-      });
+      }
+    };
+
+    updateSession();
+
+    const unsubscribe = authClient.onSessionChange(() => {
+      updateSession();
+    });
 
     return () => {
       mounted = false;
+      unsubscribe();
     };
   }, []);
 

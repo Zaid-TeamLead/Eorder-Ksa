@@ -5,12 +5,7 @@ import cookieParser from "cookie-parser";
 import { env } from "./config/env.js";
 import { setupSecurity } from "./middleware/security.js";
 import { errorHandler, notFoundHandler } from "./middleware/error-handler.js";
-import { apiRateLimiter, authRateLimiter } from "./middleware/rate-limiter.js";
-
-// Routes
-import authRoutes from "./routes/auth.routes.js";
-import healthRoutes from "./routes/health.routes.js";
-import protectedRoutes from "./routes/protected.routes.js";
+import { registerRoutes } from "./routes/index.js";
 
 /**
  * Create and configure Express application
@@ -39,48 +34,8 @@ export function createApp(): express.Application {
   app.use(express.urlencoded({ extended: true, limit: "10mb" }));
   app.use(cookieParser());
 
-  // Health check routes (no rate limiting)
-  app.use("/", healthRoutes);
-
-  // API routes with rate limiting (excluding auth routes)
-  app.use("/api", (req, res, next) => {
-    if (req.path.startsWith("/api/auth")) {
-      return next();
-    }
-    return apiRateLimiter(req, res, next);
-  });
-
-  // Auth routes with stricter rate limiting
-  app.use("/api/auth", authRateLimiter, authRoutes);
-
-  // Protected routes
-  app.use("/api/protected", protectedRoutes);
-
-  // Mock verify-user endpoint (for development/testing)
-  // In production, this should be removed and replaced with actual external API
-  if (env.NODE_ENV !== "production") {
-    app.post("/verify-user", async (req, res) => {
-      const { email, password } = req.body;
-
-      // Default credentials check (replace this with your external API call)
-      if (email === "admin@example.com" && password === "password@123") {
-        return res.json({
-          success: true,
-          user: {
-            email: "admin@example.com",
-            name: "Admin User",
-            role: "admin",
-            permissions: ["read", "write", "delete"],
-          },
-        });
-      }
-
-      return res.status(401).json({
-        success: false,
-        message: "Invalid credentials",
-      });
-    });
-  }
+  // Register all routes (centralized route management)
+  registerRoutes(app);
 
   // 404 handler
   app.use(notFoundHandler);

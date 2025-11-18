@@ -16,6 +16,8 @@ import {
   SalesEnquiryForm,
   type SalesEnquiryFormData,
 } from "@/forms/sales-enquiry";
+import axios from "axios";
+import { useSession, authClient } from "@/lib/auth-client";
 
 const TABS = [
   { id: "customer-information", label: "Customer Information" },
@@ -34,6 +36,8 @@ export default function SalesEnquiry({
 }) {
   const params = use(searchParams);
   const action = params.action;
+  const { data: session } = useSession();
+  const slpCode = session?.user.SlpCode;
   const [isCreate, setIsCreate] = useState(action === "create");
   const [currentTab, setCurrentTab] = useState<TabId>("customer-information");
   const formRef = useRef<{ submit: () => void }>(null);
@@ -65,9 +69,40 @@ export default function SalesEnquiry({
     setIsCreate(false);
   };
 
-  const handleCustomerSearch = (query: string) => {
+  const handleCustomerSearch = async (query: string) => {
     console.log("Searching for:", query);
-    // Implement customer search logic
+    
+    try {
+      // Get session to check if user is authenticated
+      const currentSession = await authClient.getSession();
+      
+      if (!currentSession) {
+        console.error("User not authenticated");
+        return;
+      }
+
+      const response = await axios.post(
+        `${process.env.NEXT_PUBLIC_SERVER_URL}/api/customers/search`,
+        {
+          search: query,
+          slpCode: slpCode?.toString() || "",
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+          withCredentials: true,
+        }
+      );
+      
+      return response.data as { success: boolean; data: any[] };
+    } catch (error: any) {
+      console.error("Error searching customers:", error);
+      if (error.response?.status === 401) {
+        console.error("Authentication failed. Please log in again.");
+      }
+      throw error;
+    }
   };
 
   const handleNewCustomer = () => {

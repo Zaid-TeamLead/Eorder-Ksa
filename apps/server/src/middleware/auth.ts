@@ -13,17 +13,35 @@ declare global {
 
 /**
  * Middleware to authenticate requests using JWT access token
+ * Checks httpOnly cookie first, then Authorization header as fallback
  */
 export function authenticate(req: Request, _res: Response, next: NextFunction) {
   try {
-    // Get token from Authorization header
-    const authHeader = req.headers.authorization;
+    // Get token from httpOnly cookie first (preferred method)
+    let token = req.cookies?.accessToken;
 
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    // Debug: Log cookie information (only in development)
+    if (process.env.NODE_ENV === "development") {
+      console.log("Auth Debug:", {
+        hasCookies: !!req.cookies,
+        cookieKeys: req.cookies ? Object.keys(req.cookies) : [],
+        hasAccessToken: !!token,
+        authorizationHeader: req.headers.authorization ? "present" : "missing",
+      });
+    }
+
+    // Fallback to Authorization header if cookie is not present
+    if (!token) {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith("Bearer ")) {
+        token = authHeader.substring(7); // Remove "Bearer " prefix
+      }
+    }
+
+    if (!token) {
       throw new AuthenticationError("No token provided");
     }
 
-    const token = authHeader.substring(7); // Remove "Bearer " prefix
     const payload = verifyAccessToken(token);
 
     if (!payload) {

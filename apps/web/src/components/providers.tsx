@@ -2,6 +2,7 @@
 
 import { ThemeProvider } from "./theme-provider";
 import { Toaster } from "./ui/sonner";
+import { CartProvider } from "@/lib/cart-context";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -11,8 +12,10 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       enableSystem
       disableTransitionOnChange
     >
-      {children}
-      <Toaster richColors />
+      <CartProvider>
+        {children}
+        <Toaster richColors />
+      </CartProvider>
     </ThemeProvider>
   );
 }

@@ -3,6 +3,7 @@ import { logger } from "../utils/logger.js";
 export interface RefreshTokenData {
   userId: string;
   email: string;
+  name: string;
   expiresAt: number;
 }
 

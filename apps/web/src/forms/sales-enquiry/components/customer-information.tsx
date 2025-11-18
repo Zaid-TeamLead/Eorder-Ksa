@@ -2,14 +2,6 @@
 
 import { useFormContext } from "react-hook-form";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   FormControl,
   FormField,
@@ -27,8 +19,8 @@ export function CustomerInformation() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Customer Details - Compact Three Column Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      {/* Customer Details - Compact Two Column Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Left Column - Basic Info */}
         <div className="space-y-3">
           <FormField
@@ -79,7 +71,7 @@ export function CustomerInformation() {
               </FormItem>
             )}
           />
-          <div className="flex gap-1.5 pt-1">
+          {/* <div className="flex gap-1.5 pt-1">
             <Button
               type="button"
               variant="ghost"
@@ -107,7 +99,7 @@ export function CustomerInformation() {
               <FileText className="w-3 h-3 mr-1" />
               Letter
             </Button>
-          </div>
+          </div> */}
         </div>
 
         {/* Middle Column - Contact Information */}
@@ -163,7 +155,7 @@ export function CustomerInformation() {
             render={({ field }) => (
               <FormItem>
                 <FormLabel className="text-xs font-medium">
-                  Home Email
+                  Email
                 </FormLabel>
                 <FormControl>
                   <Input type="email" className="h-8 text-sm" {...field} />
@@ -172,156 +164,6 @@ export function CustomerInformation() {
               </FormItem>
             )}
           />
-          <FormField
-            control={form.control}
-            name="workEmail"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-xs font-medium">
-                  Work Email
-                </FormLabel>
-                <FormControl>
-                  <Input type="email" className="h-8 text-sm" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-
-        {/* Right Column - Additional Details */}
-        <div className="space-y-3">
-          <FormField
-            control={form.control}
-            name="previousName"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-xs font-medium">
-                  Previous Name
-                </FormLabel>
-                <FormControl>
-                  <Input className="h-8 text-sm" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="jobTitle"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-xs font-medium">Job Title</FormLabel>
-                <FormControl>
-                  <Input className="h-8 text-sm" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="companyPosition"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-xs font-medium">
-                  Company Position
-                </FormLabel>
-                <FormControl>
-                  <Input className="h-8 text-sm" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="businessType"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-xs font-medium">
-                  Business Type
-                </FormLabel>
-                <FormControl>
-                  <Input className="h-8 text-sm" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="sourceOfInfo"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-xs font-medium">
-                  Source of Info
-                </FormLabel>
-                <Select
-                  onValueChange={field.onChange}
-                  defaultValue={field.value}
-                >
-                  <FormControl>
-                    <SelectTrigger className="h-8 text-sm">
-                      <SelectValue placeholder="Select source" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="walk-in">Walk-in</SelectItem>
-                    <SelectItem value="phone">Phone</SelectItem>
-                    <SelectItem value="website">Website</SelectItem>
-                    <SelectItem value="social-media">Social Media</SelectItem>
-                    <SelectItem value="referral">Referral</SelectItem>
-                    <SelectItem value="advertisement">Advertisement</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <div className="grid grid-cols-2 gap-2">
-            <FormField
-              control={form.control}
-              name="gender"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xs font-medium">Gender</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                  >
-                    <FormControl>
-                      <SelectTrigger className="h-8 text-sm">
-                        <SelectValue placeholder="Select" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="male">Male</SelectItem>
-                      <SelectItem value="female">Female</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="dateOfBirth"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xs font-medium">
-                    Date of Birth
-                  </FormLabel>
-                  <FormControl>
-                    <Input type="date" className="h-8 text-sm" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
         </div>
       </div>
     </div>
