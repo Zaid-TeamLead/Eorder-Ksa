@@ -22,14 +22,10 @@ export const searchVehicles = async (search?: string) => {
   }
 };
 
-export const getVinNumber = async (ProductCode: string, SlpCode: string) => {
+export const getVinNumber = async (ProductCode: string, customerId: string) => {
   try {
     const vinNumber = await db.query(
-      `CALL "BI_NEGT_KSA".DMS_KSA_100014(0,'${SlpCode}','${ProductCode}')`
-    );
-
-    console.log(
-      `CALL "BI_NEGT_KSA".DMS_KSA_100014(0,'${SlpCode}','${ProductCode}')`
+      `CALL "BI_NEGT_KSA".DMS_KSA_100014(0,'${customerId}','${ProductCode}')`
     );
     return vinNumber;
   } catch (error) {

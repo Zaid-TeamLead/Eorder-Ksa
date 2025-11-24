@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form } from "@/components/ui/form";
@@ -51,6 +51,7 @@ export const SalesEnquiryForm = React.forwardRef<
       resolver: zodResolver(salesEnquirySchema),
       defaultValues: {
         // Customer Information
+        customerId: "",
         customerName: "",
         address: "",
         postcode: "",
@@ -67,6 +68,8 @@ export const SalesEnquiryForm = React.forwardRef<
         suppCatNum: "",
         modelCode: "",
         quantity: undefined,
+        vinNumber: "",
+        vinDetails: undefined,
         // Enquiry Details
         budget: "",
         financing: undefined,
@@ -112,7 +115,7 @@ export const SalesEnquiryForm = React.forwardRef<
       return undefined;
     };
 
-    const handleCustomerSelect = (customer: any) => {
+    const handleCustomerSelect = async (customer: any) => {
       const addressParts = [
         customer.Street,
         customer.Block,
@@ -127,6 +130,8 @@ export const SalesEnquiryForm = React.forwardRef<
         .filter(Boolean)
         .join(", ");
 
+      // Store customer information including CardCode
+      form.setValue("customerId", customer.CardCode || "");
       form.setValue("customerName", customer.CardName || "");
       form.setValue("address", fullAddress || "");
       form.setValue("postcode", customer.ZipCode || "");
@@ -140,6 +145,7 @@ export const SalesEnquiryForm = React.forwardRef<
       setCustomerSearch("");
       form.reset({
         // Customer Information
+        customerId: "",
         customerName: "",
         address: "",
         postcode: "",
@@ -156,6 +162,8 @@ export const SalesEnquiryForm = React.forwardRef<
         suppCatNum: "",
         modelCode: "",
         quantity: undefined,
+        vinNumber: "",
+        vinDetails: undefined,
         // Enquiry Details
         budget: "",
         financing: undefined,

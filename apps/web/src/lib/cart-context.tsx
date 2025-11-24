@@ -15,6 +15,10 @@ export interface CartItem {
     modelCode?: string;
     quantity: number;
     available: number;
+    price?: string;
+    currency?: string;
+    discPrice?: string;
+    vinNumber?: string;
     customerName?: string;
     mobile?: string;
     email?: string;
@@ -26,6 +30,7 @@ interface CartContextType {
     removeItem: (id: string) => void;
     clearCart: () => void;
     getTotalItems: () => number;
+    getTotalPrice: () => number;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -56,14 +61,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
     const addItem = (item: CartItem) => {
         setItems((prev) => {
-            // Check if item already exists (by itemCode)
-            const existingIndex = prev.findIndex((i) => i.itemCode === item.itemCode);
+            // Check if item already exists by VIN number only
+            // Each VIN should have its own quantity, independent of item code
+            const existingIndex = prev.findIndex((i) =>
+                i.vinNumber && item.vinNumber && i.vinNumber === item.vinNumber
+            );
             if (existingIndex >= 0) {
-                // Update quantity if exists
+                // Replace quantity for the same VIN (user explicitly set the quantity)
                 const updated = [...prev];
                 updated[existingIndex] = {
                     ...updated[existingIndex],
-                    quantity: updated[existingIndex].quantity + item.quantity,
+                    quantity: item.quantity, // Use the new quantity directly
                 };
                 return updated;
             }
@@ -84,9 +92,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         return items.reduce((sum, item) => sum + item.quantity, 0);
     };
 
+    const getTotalPrice = () => {
+        return items.reduce((sum, item) => {
+            const price = parseFloat(item.discPrice || item.price || "0");
+            return sum + price * item.quantity;
+        }, 0);
+    };
+
     return (
         <CartContext.Provider
-            value={{ items, addItem, removeItem, clearCart, getTotalItems }}
+            value={{ items, addItem, removeItem, clearCart, getTotalItems, getTotalPrice }}
         >
             {children}
         </CartContext.Provider>

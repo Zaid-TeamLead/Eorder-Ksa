@@ -26,14 +26,15 @@ router.post(
   '/get-vin-number',
   validate(
     z.object({
-      ProductCode: z.string().optional(),
+      ProductCode: z.string().min(1, 'ProductCode is required'),
+      customerId: z.string().min(1, 'customerId is required'),
     }),
     'body'
   ),
   asyncHandler(async (req, res) => {
     const ProductCode = req.body.ProductCode as string;
-    const SlpCode = req.user?.SlpCode as string;
-    const vinNumber = await getVinNumber(ProductCode, SlpCode);
+    const customerId = req.body.customerId as string;
+    const vinNumber = await getVinNumber(ProductCode, customerId);
     return sendSuccess(res, vinNumber);
   })
 );
