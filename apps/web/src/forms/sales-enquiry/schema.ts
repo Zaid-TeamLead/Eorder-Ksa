@@ -51,6 +51,7 @@ export const salesEnquirySchema = z.object({
     .optional(),
 
   // Enquiry Details
+  branch: z.string().optional(),
   budget: z.string().optional(),
   financing: z.enum(['yes', 'no', 'maybe']).optional(),
   preferredContact: z.enum(['phone', 'email', 'whatsapp', 'sms']).optional(),
@@ -59,7 +60,7 @@ export const salesEnquirySchema = z.object({
     .optional(),
   preferredDelivery: z.string().optional(),
   source: z.string().optional(),
-
+  sales_type: z.string().optional(),
   // Trade-in Vehicle
   tradeInMake: z.string().optional(),
   tradeInModel: z.string().optional(),

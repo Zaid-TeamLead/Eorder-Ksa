@@ -26,6 +26,32 @@ export function EnquiryDetails() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
         <FormField
           control={form.control}
+          name="branch"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-xs font-medium">
+                Branch
+              </FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger className="h-7 text-sm w-full">
+                    <SelectValue placeholder="Select branch" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="Riyadh">Riyadh</SelectItem>
+                  <SelectItem value="Jeddah">Jeddah</SelectItem>
+                  <SelectItem value="Mecca">Mecca</SelectItem>
+                  <SelectItem value="Medina">Medina</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
           name="budget"
           render={({ field }) => (
             <FormItem>
@@ -69,9 +95,32 @@ export function EnquiryDetails() {
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="yes">Yes</SelectItem>
-                  <SelectItem value="no">No</SelectItem>
-                  <SelectItem value="maybe">Maybe</SelectItem>
+                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="bank">Bank</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="sales_type"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-xs font-medium">
+                Sales Type
+              </FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger className="h-7 text-sm w-full">
+                    <SelectValue placeholder="Select option" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="retail">Retail</SelectItem>
+                  <SelectItem value="fleet">Fleet</SelectItem>
+                  <SelectItem value="broker">Broker</SelectItem>
                 </SelectContent>
               </Select>
               <FormMessage />

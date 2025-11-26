@@ -32,7 +32,7 @@ export const SIDEBAR_MENU = {
   navSecondary: [
     {
       title: 'Settings',
-      url: '#',
+      url: '/dashboard/settings',
       icon: IconSettings,
     },
     {

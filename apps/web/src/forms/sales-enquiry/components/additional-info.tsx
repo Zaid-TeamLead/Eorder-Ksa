@@ -38,7 +38,7 @@ export function AdditionalInfo() {
               <FormControl>
                 <Input
                   placeholder="Salesperson name"
-                  className="h-8 text-sm"
+                  className="h-7 text-xs"
                   {...field}
                   value={field.value || session?.data?.user.name || ""}
                   onChange={(e) => field.onChange(e.target.value)}

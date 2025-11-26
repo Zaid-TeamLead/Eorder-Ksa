@@ -327,15 +327,6 @@ export function VehicleDetails() {
               key={vinValue}
               vin={vin}
               vinValue={vinValue}
-              quantity={quantity}
-              onQuantityChange={(v, q) => {
-                const newMap = new Map(selectedVinsWithQuantity);
-                const existing = newMap.get(v);
-                if (existing) {
-                  newMap.set(v, { vin: existing.vin, quantity: q });
-                  setSelectedVinsWithQuantity(newMap);
-                }
-              }}
               onRemove={(v) => {
                 const newMap = new Map(selectedVinsWithQuantity);
                 newMap.delete(v);
@@ -525,7 +516,65 @@ export function VehicleDetails() {
             </FormItem>
           )}
         />
+        {selectedVehicle && (
+          <FormField
+            control={form.control}
+            name="quantity"
+            render={({ field }) => {
+              const available = selectedVehicle.Available || 0;
+              const quantity = field.value || 0;
+              const exceedsAvailable = quantity > available;
+
+              return (
+                <FormItem>
+                  <FormLabel className="text-xs font-medium">
+                    Quantity{" "}
+                    <span className="text-muted-foreground text-xs font-normal">
+                      (Available: {available})
+                    </span>
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={available}
+                      placeholder="Enter quantity"
+                      className={cn(
+                        "h-8 text-sm",
+                        exceedsAvailable && "border-destructive"
+                      )}
+                      {...field}
+                      value={field.value || ""}
+                      onChange={(e) => {
+                        const value = e.target.value
+                          ? parseInt(e.target.value, 10)
+                          : undefined;
+                        field.onChange(value);
+                        // Trigger validation
+                        if (value && value > available) {
+                          form.setError("quantity", {
+                            type: "manual",
+                            message: `Quantity cannot exceed available stock (${available})`,
+                          });
+                        } else {
+                          form.clearErrors("quantity");
+                        }
+                      }}
+                    />
+                  </FormControl>
+                  {exceedsAvailable && (
+                    <p className="text-xs text-destructive">
+                      Quantity cannot exceed available stock ({available})
+                    </p>
+                  )}
+                  <FormMessage />
+                </FormItem>
+              );
+            }}
+          />
+        )}
       </div>
+
       {selectedVehicle && (
         <div className="flex justify-end pt-2">
           <Button
