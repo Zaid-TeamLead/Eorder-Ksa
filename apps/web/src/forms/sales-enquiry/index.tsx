@@ -12,6 +12,8 @@ import { EnquiryDetails } from "./components/enquiry-details";
 import { TradeIn } from "./components/trade-in";
 import { AdditionalInfo } from "./components/additional-info";
 import { salesEnquirySchema, type SalesEnquiryFormData } from "./schema";
+import { useSession } from "@/lib/auth-client";
+import { useCart, type CartItem } from "@/lib/cart-context";
 
 const TABS = [
   { id: "customer-information", label: "Customer Information" },
@@ -23,12 +25,16 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]["id"];
 
+export type SalesEnquiryFormSubmission = SalesEnquiryFormData & {
+  cartItems: CartItem[];
+};
+
 interface SalesEnquiryFormProps {
   currentTab?: TabId;
   onTabChange?: (tab: TabId) => void;
   onCustomerSearch?: (query: string) => Promise<{ success: boolean; data: any[] } | undefined>;
   onNewCustomer?: () => void;
-  onSubmit?: (data: SalesEnquiryFormData) => void | Promise<void>;
+  onSubmit?: (data: SalesEnquiryFormSubmission) => void | Promise<void>;
   defaultValues?: Partial<SalesEnquiryFormData>;
 }
 
@@ -47,6 +53,9 @@ export const SalesEnquiryForm = React.forwardRef<
     },
     ref
   ) => {
+    const session = useSession();
+    const { items: cartItems } = useCart();
+
     const form = useForm<SalesEnquiryFormData>({
       resolver: zodResolver(salesEnquirySchema),
       defaultValues: {
@@ -84,7 +93,8 @@ export const SalesEnquiryForm = React.forwardRef<
         tradeInKms: "",
         tradeInExpectedPrice: "",
         // Additional Information
-        salesperson: "",
+        salesperson: session?.data?.user.name || "",
+        slpCode: session?.data?.user.SlpCode || "",
         notes: "",
         ...defaultValues,
       },
@@ -94,7 +104,10 @@ export const SalesEnquiryForm = React.forwardRef<
 
     const handleSubmit = form.handleSubmit(async (data) => {
       if (onSubmit) {
-        await onSubmit(data);
+        await onSubmit({
+          ...data,
+          cartItems: [...cartItems],
+        });
       }
     });
 
@@ -180,7 +193,6 @@ export const SalesEnquiryForm = React.forwardRef<
         // Additional Information
         salesperson: "",
         notes: "",
-        ...defaultValues,
       });
       if (onNewCustomer) {
         onNewCustomer();

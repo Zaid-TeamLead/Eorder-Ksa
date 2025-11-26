@@ -15,12 +15,14 @@ import { cn } from "@/lib/utils";
 import type { SalesEnquiryFormData } from "../schema";
 import { useCart } from "@/lib/cart-context";
 import { Trash2 } from "lucide-react";
+import { useSession } from "@/lib/auth-client";
 
 export function AdditionalInfo() {
   const form = useFormContext<SalesEnquiryFormData>();
   const { items, removeItem, getTotalPrice, clearCart } = useCart();
   const totalPrice = getTotalPrice();
   const currency = items[0]?.currency || "SAR";
+  const session = useSession();
 
   return (
     <div className="space-y-4">
@@ -38,6 +40,9 @@ export function AdditionalInfo() {
                   placeholder="Salesperson name"
                   className="h-8 text-sm"
                   {...field}
+                  value={field.value || session?.data?.user.name || ""}
+                  onChange={(e) => field.onChange(e.target.value)}
+                  disabled={!!field.value}
                 />
               </FormControl>
               <FormMessage />

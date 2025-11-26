@@ -12,8 +12,8 @@ export const salesEnquirySchema = z.object({
   homeEmail: z.string().email('Invalid email').optional().or(z.literal('')),
 
   // Vehicle Details
-  make: z.string().min(1, 'Make is required'),
-  model: z.string().min(1, 'Model is required'),
+  make: z.string().optional(),
+  model: z.string().optional(),
   variant: z.string().optional(),
   year: z.string().optional(),
   color: z.string().optional(),
@@ -69,6 +69,7 @@ export const salesEnquirySchema = z.object({
 
   // Additional Information
   salesperson: z.string().optional(),
+  slpCode: z.string().optional(),
   notes: z.string().optional(),
 });
 

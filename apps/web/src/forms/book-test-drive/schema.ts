@@ -1,53 +1,34 @@
-import { z } from "zod";
+import { z } from 'zod';
 
 export const bookTestDriveSchema = z.object({
   // Customer Information
-  customerName: z.string().optional(),
-  address: z.string().optional(),
-  postcode: z.string().optional(),
-  homePhone: z.string().optional(),
-  workPhone: z.string().optional(),
-  mobile: z.string().min(1, "Mobile is required"),
-  homeEmail: z.string().email("Invalid email").optional().or(z.literal("")),
-  workEmail: z.string().email("Invalid email").optional().or(z.literal("")),
-  previousName: z.string().optional(),
-  jobTitle: z.string().optional(),
-  companyPosition: z.string().optional(),
-  businessType: z.string().optional(),
-  sourceOfInfo: z.string().optional(),
-  gender: z.enum(["male", "female", "other"]).optional(),
-  dateOfBirth: z.string().optional(),
+  customerName: z.string().min(1, 'Customer name is required'),
+  address: z.string().min(1, 'Address is required'),
+  phoneNumber: z.string().min(1, 'Phone number is required'),
+  email: z.string().email('Invalid email address').optional().or(z.literal('')),
 
-  // Vehicle Details
-  make: z.string().min(1, "Make is required"),
-  model: z.string().min(1, "Model is required"),
-  variant: z.string().optional(),
-  year: z.string().optional(),
-  color: z.string().optional(),
-  fuelType: z
-    .enum(["petrol", "diesel", "cng", "electric", "hybrid"])
-    .optional(),
-  transmission: z.enum(["manual", "automatic", "amt", "cvt"]).optional(),
+  // Contact Preferences
+  modeOfContact: z
+    .enum(['phone', 'email', 'whatsapp', 'sms'])
+    .refine((val) => val !== undefined, {
+      message: 'Please select a mode of contact',
+    }),
 
-  // Enquiry Details
-  budget: z.string().optional(),
-  financing: z.enum(["yes", "no", "maybe"]).optional(),
-  preferredContact: z.enum(["phone", "email", "whatsapp", "sms"]).optional(),
-  preferredTime: z
-    .enum(["morning", "afternoon", "evening", "anytime"])
-    .optional(),
-  preferredDelivery: z.string().optional(),
-  source: z.string().optional(),
+  // Booking Details
+  bookingDate: z
+    .string()
+    .min(1, 'Booking date is required')
+    .refine((val) => val !== undefined, {
+      message: 'Booking date is required',
+    }),
+  timeSlot: z
+    .string()
+    .min(1, 'Time slot is required')
+    .refine((val) => val !== undefined, {
+      message: 'Time slot is required',
+    }),
 
-  // Trade-in Vehicle
-  tradeInMake: z.string().optional(),
-  tradeInModel: z.string().optional(),
-  tradeInYear: z.string().optional(),
-  tradeInKms: z.string().optional(),
-  tradeInExpectedPrice: z.string().optional(),
-
-  // Additional Information
-  salesperson: z.string().optional(),
+  // Optional Notes
   notes: z.string().optional(),
 });
 

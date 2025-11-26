@@ -8,68 +8,58 @@ import {
   IconReport,
   IconSearch,
   IconSettings,
-  IconUsers
-} from "@tabler/icons-react";
+  IconUsers,
+} from '@tabler/icons-react';
 
 export const SIDEBAR_MENU = {
   navMain: [
     {
-      title: "Dashboard",
-      url: "/dashboard",
+      title: 'Dashboard',
+      url: '/dashboard',
       icon: IconDashboard,
     },
     {
-      title: "Lifecycle",
-      url: "#",
+      title: 'Sales Enquiry',
+      url: '/dashboard/sales-enquiry',
       icon: IconListDetails,
     },
     {
-      title: "Analytics",
-      url: "#",
-      icon: IconChartBar,
-    },
-    {
-      title: "Projects",
-      url: "#",
-      icon: IconFolder,
-    },
-    {
-      title: "Team",
-      url: "#",
-      icon: IconUsers,
+      title: ' Book Test Drive',
+      url: '/dashboard/test-drive',
+      icon: IconCar,
     },
   ],
   navSecondary: [
     {
-      title: "Settings",
-      url: "#",
+      title: 'Settings',
+      url: '#',
       icon: IconSettings,
     },
     {
-      title: "Get Help",
-      url: "#",
+      title: 'Get Help',
+      url: '#',
       icon: IconHelp,
     },
     {
-      title: "Search",
-      url: "#",
+      title: 'Search',
+      url: '#',
       icon: IconSearch,
     },
   ],
   documents: [
     {
-      name: "Reports",
-      url: "#",
+      name: 'Reports',
+      url: '#',
       icon: IconReport,
     },
     {
-      name: "Customer Master",
-      url: "#",
+      name: 'Customer Master',
+      url: '#',
       icon: IconUsers,
     },
     {
-      name: "Vehicle Inventory",
-      url: "#",
+      name: 'Vehicle Inventory',
+      url: '#',
       icon: IconCar,
     },
   ],

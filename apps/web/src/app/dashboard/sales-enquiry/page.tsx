@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   SalesEnquiryForm,
-  type SalesEnquiryFormData,
+  type SalesEnquiryFormSubmission,
 } from "@/forms/sales-enquiry";
 import axios from "axios";
 import { useSession, authClient } from "@/lib/auth-client";
@@ -63,24 +63,15 @@ export default function SalesEnquiry({
     }
   };
 
-  const handleSubmit = async (data: SalesEnquiryFormData) => {
+  const handleSubmit = async (data: SalesEnquiryFormSubmission) => {
     console.log("Form data:", data);
+    console.log("Cart items submitted:", data.cartItems);
     // Handle form submission here
     setIsCreate(false);
   };
 
   const handleCustomerSearch = async (query: string) => {
-    console.log("Searching for:", query);
-    
     try {
-      // Get session to check if user is authenticated
-      const currentSession = await authClient.getSession();
-      
-      if (!currentSession) {
-        console.error("User not authenticated");
-        return;
-      }
-
       const response = await axios.post(
         `${process.env.NEXT_PUBLIC_SERVER_URL}/api/customers/search`,
         {
@@ -94,7 +85,7 @@ export default function SalesEnquiry({
           withCredentials: true,
         }
       );
-      
+
       return response.data as { success: boolean; data: any[] };
     } catch (error: any) {
       console.error("Error searching customers:", error);
@@ -110,9 +101,13 @@ export default function SalesEnquiry({
     // Implement new customer logic
   };
 
+  const handleNewEnquiry = () => {
+    setIsCreate(true);
+  };
+
   return (
     <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-      <DataTable data={data} />
+      <DataTable data={data} onNewEnquiry={handleNewEnquiry} buttonName="Create New Sales Enquiry" />
       <Dialog
         open={isCreate}
         onOpenChange={(open) => {
@@ -154,15 +149,15 @@ export default function SalesEnquiry({
               )}
               {TABS.findIndex((tab) => tab.id === currentTab) <
                 TABS.length - 1 && (
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={handleNext}
-                  className="h-8"
-                >
-                  Next
-                </Button>
-              )}
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleNext}
+                    className="h-8"
+                  >
+                    Next
+                  </Button>
+                )}
             </div>
             <div className="flex gap-2">
               <DialogClose asChild>

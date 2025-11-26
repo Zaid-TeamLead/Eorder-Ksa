@@ -6,22 +6,23 @@ export interface CartItem {
     id: string;
     itemCode: string;
     itemName: string;
-    make: string;
-    model: string;
+    make: string | undefined;
+    model: string | undefined;
     variant?: string;
     year?: string;
-    color?: string;
+    color?: string | undefined;
     suppCatNum?: string;
     modelCode?: string;
     quantity: number;
     available: number;
-    price?: string;
+    price?: string | undefined;
     currency?: string;
     discPrice?: string;
     vinNumber?: string;
     customerName?: string;
     mobile?: string;
     email?: string;
+    slpCode?: string;
 }
 
 interface CartContextType {

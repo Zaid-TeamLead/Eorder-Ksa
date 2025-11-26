@@ -23,7 +23,7 @@ export function VinDetailsCard({
             <div className="flex items-center justify-between">
                 <h4 className="text-xs font-semibold text-foreground">VIN: {vinValue}</h4>
                 <div className="flex items-center gap-2">
-                    <label className="text-[10px] text-muted-foreground whitespace-nowrap">Qty:</label>
+                    <label className="text-xs text-muted-foreground whitespace-nowrap">Qty:</label>
                     <Input
                         type="number"
                         min={1}
@@ -52,7 +52,7 @@ export function VinDetailsCard({
                     </Button>
                 </div>
             </div>
-            <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-3 gap-y-1.5 text-[10px]">
+            <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-3 gap-y-1.5 text-xs">
                 {vin.Location && (
                     <div>
                         <span className="text-muted-foreground">Location:</span>
@@ -90,7 +90,7 @@ export function VinDetailsCard({
                 {vin.WhsName && (
                     <div>
                         <span className="text-muted-foreground">Warehouse:</span>
-                        <p className="font-medium truncate text-[9px]">{vin.WhsName}</p>
+                        <p className="font-medium truncate text-xs">{vin.WhsName}</p>
                     </div>
                 )}
             </div>
