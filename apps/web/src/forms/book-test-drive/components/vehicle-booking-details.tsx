@@ -1,6 +1,5 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
 import {
     FormControl,
     FormField,
@@ -17,7 +16,6 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { getAllTestVehicles } from "@/services/vehicles";
-import { IconDots } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useFormContext } from "react-hook-form";
 import type { BookTestDriveFormData } from "../schema";
@@ -110,14 +108,6 @@ export function VehicleBookingDetails() {
                             <FormControl>
                                 <div className="flex gap-1">
                                     <Input className="h-8 text-xs flex-1" placeholder="Auto-filled" {...field} />
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-8 w-8 p-0 shrink-0"
-                                    >
-                                        <IconDots className="h-3.5 w-3.5" />
-                                    </Button>
                                 </div>
                             </FormControl>
                             <FormMessage className="text-[10px]" />
@@ -134,14 +124,6 @@ export function VehicleBookingDetails() {
                             <FormControl>
                                 <div className="flex gap-1">
                                     <Input className="h-8 text-xs flex-1" placeholder="Auto-filled" {...field} />
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-8 w-8 p-0 shrink-0"
-                                    >
-                                        <IconDots className="h-3.5 w-3.5" />
-                                    </Button>
                                 </div>
                             </FormControl>
                             <FormMessage className="text-[10px]" />
@@ -160,14 +142,6 @@ export function VehicleBookingDetails() {
                             <FormControl>
                                 <div className="flex gap-1">
                                     <Input className="h-8 text-xs flex-1" placeholder="Auto-filled" {...field} />
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-8 w-8 p-0 shrink-0"
-                                    >
-                                        <IconDots className="h-3.5 w-3.5" />
-                                    </Button>
                                 </div>
                             </FormControl>
                             <FormMessage className="text-[10px]" />

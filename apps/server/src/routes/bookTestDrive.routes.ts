@@ -65,6 +65,10 @@ router.post(
 
       // Optional Notes
       notes: z.string().optional(),
+      fuelOut: z.string().optional(),
+      fuelIn: z.string().optional(),
+      mileageOut: z.string().optional(),
+      mileageIn: z.string().optional(),
     }),
     'body'
   ),
@@ -143,6 +147,10 @@ router.put(
 
       // Optional Notes
       notes: z.string().optional(),
+      fuelOut: z.string().optional(),
+      fuelIn: z.string().optional(),
+      mileageOut: z.string().optional(),
+      mileageIn: z.string().optional(),
     }),
     'body'
   ),

@@ -13,6 +13,29 @@ export interface TestVehicle {
   CREATEDBY?: string;
 }
 
+export interface VehicleInventory {
+  Location: string;
+  VIN: string;
+  WhsCode: string;
+  WhsName: string;
+  ItemCode: string;
+  InDate: string;
+  U_Veh_StockID: string | null;
+  U_Veh_Brand: string | null;
+  U_Veh_Model: string | null;
+  U_Veh_Color: string | null;
+  U_Veh_Transmutation: string | null;
+  U_Veh_ModelDescr: string | null;
+  U_Veh_ModelFull: string | null;
+  U_Veh_EngineNo: string | null;
+  U_Veh_MY: string | null;
+  U_Vehicle_MC: string | null;
+  U_Veh_OrderNo: string | null;
+  U_Veh_DispDate: string | null;
+  U_Veh_IC: string | null;
+  AgeinDays: number;
+}
+
 export interface CreateTestVehicleData {
   REGISTRATIONNUM?: string;
   MANUFACTURER?: string;
@@ -97,4 +120,14 @@ export const updateTestVehicleStatus = async (
     }
   );
   return response.data.data;
+};
+
+export const getAllVehicleInventory = async (): Promise<VehicleInventory[]> => {
+  const response = await axios.get(`${API_BASE}/get-all-vehicle-inventory`, {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    withCredentials: true,
+  });
+  return response.data?.data || [];
 };

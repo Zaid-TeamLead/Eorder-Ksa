@@ -190,6 +190,10 @@ export default function BookTestDrive({
       newOrUsed: booking.NEWORUSED as "N" | "U" | undefined,
       newOrUsedLabel: booking.NEWORUSEDLABEL || "",
       notes: booking.NOTES || "",
+      fuelOut: booking.FUELOUT || "",
+      fuelIn: booking.FUELIN || "",
+      mileageOut: booking.MILEAGEOUT || "",
+      mileageIn: booking.MILEAGEIN || "",
     };
   };
 

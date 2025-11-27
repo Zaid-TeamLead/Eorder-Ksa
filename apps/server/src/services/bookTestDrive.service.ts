@@ -41,6 +41,11 @@ export interface BookTestDriveData {
   // Optional Notes
   notes?: string;
 
+  fuelOut?: string;
+  fuelIn?: string;
+  mileageOut?: string;
+  mileageIn?: string;
+
   // Audit
   createdBy: string;
 }
@@ -78,6 +83,10 @@ export interface BookTestDrive {
   NEWORUSED?: string;
   NEWORUSEDLABEL?: string;
   NOTES?: string;
+  FUELOUT?: string;
+  FUELIN?: string;
+  MILEAGEOUT?: string;
+  MILEAGEIN?: string;
   CREATEDDATE?: string;
   CREATEDBY?: string;
   UPDATEDDATE?: string;
@@ -138,9 +147,9 @@ export const createBookTestDrive = async (
          "DATEOUT", "TIMEOUT", "DATEIN", "TIMEIN",
           "OUTBRANCH", "OUTBRANCHNAME", "INBRANCH", "INBRANCHNAME", 
           "SALESEXECUTIVE", "APPROVEDBY", "QUICKBOOKING", "NEWORUSED",
-           "NEWORUSEDLABEL", "NOTES", "CREATEDDATE", "CREATEDBY", "STATUS"
+           "NEWORUSEDLABEL", "NOTES", "CREATEDDATE", "CREATEDBY", "STATUS",  "FUELOUT", "FUELIN", "MILEAGEOUT", "MILEAGEIN"
        )
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         data.customerId ?? null,
         data.customerName ?? null,
@@ -171,6 +180,10 @@ export const createBookTestDrive = async (
         now,
         createdBy,
         'active', // Default status
+        data.fuelOut ?? null,
+        data.fuelIn ?? null,
+        data.mileageOut ?? null,
+        data.mileageIn ?? null,
       ]
     );
 
@@ -212,7 +225,6 @@ export interface UpdateBookTestDriveData {
   // Customer Information
   customerId?: string;
   customerName?: string;
-  companyName?: string;
   postcode?: string;
   address?: string;
   phoneNumber?: string;
@@ -247,6 +259,10 @@ export interface UpdateBookTestDriveData {
 
   // Optional Notes
   notes?: string;
+  fuelOut?: string;
+  fuelIn?: string;
+  mileageOut?: string;
+  mileageIn?: string;
 }
 
 export const updateBookTestDrive = async (
@@ -294,10 +310,6 @@ export const updateBookTestDrive = async (
     if (data.customerName !== undefined) {
       updates.push('"CUSTOMERNAME" = ?');
       values.push(data.customerName || null);
-    }
-    if (data.companyName !== undefined) {
-      updates.push('"COMPANYNAME" = ?');
-      values.push(data.companyName || null);
     }
     if (data.postcode !== undefined) {
       updates.push('"POSTCODE" = ?');
@@ -418,6 +430,32 @@ export const updateBookTestDrive = async (
       values.push(data.notes || null);
     }
 
+    if (data.fuelOut !== undefined) {
+      updates.push('"FUELOUT" = ?');
+      values.push(
+        data.fuelOut && data.fuelOut.trim() !== '' ? data.fuelOut : null
+      );
+    }
+    if (data.fuelIn !== undefined) {
+      updates.push('"FUELIN" = ?');
+      values.push(
+        data.fuelIn && data.fuelIn.trim() !== '' ? data.fuelIn : null
+      );
+    }
+    if (data.mileageOut !== undefined) {
+      updates.push('"MILEAGEOUT" = ?');
+      values.push(
+        data.mileageOut && data.mileageOut.trim() !== ''
+          ? data.mileageOut
+          : null
+      );
+    }
+    if (data.mileageIn !== undefined) {
+      updates.push('"MILEAGEIN" = ?');
+      values.push(
+        data.mileageIn && data.mileageIn.trim() !== '' ? data.mileageIn : null
+      );
+    }
     if (updates.length === 0) {
       return existing; // No updates to make
     }

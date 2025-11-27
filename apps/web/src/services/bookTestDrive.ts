@@ -35,6 +35,10 @@ export interface BookTestDrive {
   NEWORUSED?: string;
   NEWORUSEDLABEL?: string;
   NOTES?: string;
+  FUELOUT?: string;
+  FUELIN?: string;
+  MILEAGEOUT?: string;
+  MILEAGEIN?: string;
   CREATEDDATE?: string;
   CREATEDBY?: string;
   UPDATEDDATE?: string;
@@ -96,6 +100,10 @@ export interface UpdateBookTestDriveData {
   newOrUsed?: 'N' | 'U';
   newOrUsedLabel?: string;
   notes?: string;
+  fuelOut?: string;
+  fuelIn?: string;
+  mileageOut?: string;
+  mileageIn?: string;
 }
 
 export const updateBookTestDrive = async (

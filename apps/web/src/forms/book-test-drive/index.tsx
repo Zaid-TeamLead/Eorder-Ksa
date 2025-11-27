@@ -54,6 +54,10 @@ const BookTestDriveForm = React.forwardRef<
       newOrUsed: undefined,
       newOrUsedLabel: "",
       notes: "",
+      fuelOut: "",
+      fuelIn: "",
+      mileageOut: "",
+      mileageIn: "",
       ...defaultValues,
     },
   });
@@ -89,6 +93,10 @@ const BookTestDriveForm = React.forwardRef<
         newOrUsed: undefined,
         newOrUsedLabel: "",
         notes: "",
+        fuelOut: "",
+        fuelIn: "",
+        mileageOut: "",
+        mileageIn: "",
         ...defaultValues,
       });
     }
@@ -135,6 +143,10 @@ const BookTestDriveForm = React.forwardRef<
           newOrUsed: undefined,
           newOrUsedLabel: "",
           notes: "",
+          fuelOut: "",
+          fuelIn: "",
+          mileageOut: "",
+          mileageIn: "",
         });
         setCustomerSearch("");
       },

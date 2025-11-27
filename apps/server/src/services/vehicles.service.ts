@@ -46,6 +46,16 @@ export const getAllTestVehicles = async () => {
   }
 };
 
+export const getAllVehicleInventory = async () => {
+  try {
+    const vehicles = await db.query(`CALL "BI_NEGT_KSA".DMS_KSA_100016()`);
+    return vehicles;
+  } catch (error) {
+    logger.error(error, 'Failed to get all vehicle inventory');
+    throw new Error('Failed to get all vehicle inventory');
+  }
+};
+
 export const getTestVehicleById = async (id: number) => {
   try {
     const vehicle = await db.queryOne(

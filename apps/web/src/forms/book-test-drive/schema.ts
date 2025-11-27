@@ -34,6 +34,12 @@ export const bookTestDriveSchema = z.object({
   newOrUsed: z.enum(['N', 'U']).optional(),
   newOrUsedLabel: z.string().optional(),
 
+  fuelOut: z.string().optional(),
+  fuelIn: z.string().optional(),
+
+  mileageOut: z.string().optional(),
+  mileageIn: z.string().optional(),
+
   // Optional Notes
   notes: z.string().optional(),
 });

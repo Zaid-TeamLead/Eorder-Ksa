@@ -27,6 +27,14 @@ const branches = [
     { code: "0003", name: "03 Jeddah Branch" },
 ];
 
+const fuelLevels = [
+    { value: "full", label: "Full 4/4", color: "bg-green-500" },
+    { value: "high", label: "High 3/4", color: "bg-[#59ffff]" },
+    { value: "half", label: "Half 1/2", color: "bg-blue-500" },
+    { value: "low", label: "Low 1/4", color: "bg-yellow-500" },
+    { value: "empty", label: "Empty", color: "bg-red-500" },
+];
+
 export function BookingDetails() {
     const form = useFormContext<BookTestDriveFormData>();
     const today = new Date().toISOString().split("T")[0];
@@ -34,6 +42,42 @@ export function BookingDetails() {
     return (
         <div className="space-y-3">
             <div className="grid grid-cols-4 gap-3">
+                <FormField
+                    control={form.control}
+                    name="dateIn"
+                    render={({ field }) => (
+                        <FormItem className="space-y-1.5">
+                            <FormLabel className="text-xs font-medium text-muted-foreground">Date In</FormLabel>
+                            <FormControl>
+                                <Input
+                                    type="date"
+                                    min={today}
+                                    className="h-8 text-xs"
+                                    {...field}
+                                />
+                            </FormControl>
+                            <FormMessage className="text-[10px]" />
+                        </FormItem>
+                    )}
+                />
+
+                <FormField
+                    control={form.control}
+                    name="timeIn"
+                    render={({ field }) => (
+                        <FormItem className="space-y-1.5">
+                            <FormLabel className="text-xs font-medium text-muted-foreground">Time In</FormLabel>
+                            <FormControl>
+                                <Input
+                                    type="time"
+                                    className="h-8 text-xs"
+                                    {...field}
+                                />
+                            </FormControl>
+                            <FormMessage className="text-[10px]" />
+                        </FormItem>
+                    )}
+                />
                 <FormField
                     control={form.control}
                     name="dateOut"
@@ -71,45 +115,41 @@ export function BookingDetails() {
                     )}
                 />
 
-                <FormField
-                    control={form.control}
-                    name="dateIn"
-                    render={({ field }) => (
-                        <FormItem className="space-y-1.5">
-                            <FormLabel className="text-xs font-medium text-muted-foreground">Date In</FormLabel>
-                            <FormControl>
-                                <Input
-                                    type="date"
-                                    min={today}
-                                    className="h-8 text-xs"
-                                    {...field}
-                                />
-                            </FormControl>
-                            <FormMessage className="text-[10px]" />
-                        </FormItem>
-                    )}
-                />
 
-                <FormField
-                    control={form.control}
-                    name="timeIn"
-                    render={({ field }) => (
-                        <FormItem className="space-y-1.5">
-                            <FormLabel className="text-xs font-medium text-muted-foreground">Time In</FormLabel>
-                            <FormControl>
-                                <Input
-                                    type="time"
-                                    className="h-8 text-xs"
-                                    {...field}
-                                />
-                            </FormControl>
-                            <FormMessage className="text-[10px]" />
-                        </FormItem>
-                    )}
-                />
             </div>
 
             <div className="grid grid-cols-4 gap-3">
+                <FormField
+                    control={form.control}
+                    name="inBranch"
+                    render={({ field }) => (
+                        <FormItem className="space-y-1.5">
+                            <FormLabel className="text-xs font-medium text-muted-foreground">In Branch</FormLabel>
+                            <Select
+                                onValueChange={(value) => {
+                                    const branch = branches.find((b) => b.code === value);
+                                    field.onChange(value);
+                                    form.setValue("inBranchName", branch?.name || "");
+                                }}
+                                value={field.value || undefined}
+                            >
+                                <FormControl>
+                                    <SelectTrigger className="h-8 text-xs">
+                                        <SelectValue placeholder="Select branch" />
+                                    </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    {branches.map((branch) => (
+                                        <SelectItem key={branch.code} value={branch.code}>
+                                            {branch.code} - {branch.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <FormMessage className="text-[10px]" />
+                        </FormItem>
+                    )}
+                />
                 <FormField
                     control={form.control}
                     name="outBranch"
@@ -142,37 +182,7 @@ export function BookingDetails() {
                     )}
                 />
 
-                <FormField
-                    control={form.control}
-                    name="inBranch"
-                    render={({ field }) => (
-                        <FormItem className="space-y-1.5">
-                            <FormLabel className="text-xs font-medium text-muted-foreground">In Branch</FormLabel>
-                            <Select
-                                onValueChange={(value) => {
-                                    const branch = branches.find((b) => b.code === value);
-                                    field.onChange(value);
-                                    form.setValue("inBranchName", branch?.name || "");
-                                }}
-                                value={field.value || undefined}
-                            >
-                                <FormControl>
-                                    <SelectTrigger className="h-8 text-xs">
-                                        <SelectValue placeholder="Select branch" />
-                                    </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                    {branches.map((branch) => (
-                                        <SelectItem key={branch.code} value={branch.code}>
-                                            {branch.code} - {branch.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            <FormMessage className="text-[10px]" />
-                        </FormItem>
-                    )}
-                />
+
 
                 <FormField
                     control={form.control}
@@ -183,14 +193,6 @@ export function BookingDetails() {
                             <FormControl>
                                 <div className="flex gap-1">
                                     <Input className="h-8 text-xs flex-1" placeholder="Enter code" {...field} />
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-8 w-8 p-0 shrink-0"
-                                    >
-                                        <IconDots className="h-3.5 w-3.5" />
-                                    </Button>
                                 </div>
                             </FormControl>
                             <FormMessage className="text-[10px]" />
@@ -207,14 +209,6 @@ export function BookingDetails() {
                             <FormControl>
                                 <div className="flex gap-1">
                                     <Input className="h-8 text-xs flex-1" placeholder="Enter code" {...field} />
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-8 w-8 p-0 shrink-0"
-                                    >
-                                        <IconDots className="h-3.5 w-3.5" />
-                                    </Button>
                                 </div>
                             </FormControl>
                             <FormMessage className="text-[10px]" />
@@ -276,6 +270,114 @@ export function BookingDetails() {
                         )}
                     />
                 </div>
+                <FormField
+                    control={form.control}
+                    name="fuelOut"
+                    render={({ field }) => (
+                        <FormItem className="space-y-1.5">
+                            <FormLabel className="text-xs font-medium text-muted-foreground">Fuel Out</FormLabel>
+                            <Select
+                                onValueChange={field.onChange}
+                                value={field.value && field.value.trim() !== "" ? field.value : undefined}
+                            >
+                                <FormControl>
+                                    <SelectTrigger className="h-8 text-xs w-[140px]">
+                                        <SelectValue placeholder="Select fuel level" />
+                                    </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    {fuelLevels.map((level) => (
+                                        <SelectItem
+                                            key={level.value}
+                                            value={level.value}
+                                            className="cursor-pointer"
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <div className={`w-3 h-3 rounded-full ${level.color}`} />
+                                                <span>{level.label}</span>
+                                            </div>
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <FormMessage className="text-[10px]" />
+                        </FormItem>
+                    )}
+                />
+                <FormField
+                    control={form.control}
+                    name="fuelIn"
+                    render={({ field }) => (
+                        <FormItem className="space-y-1.5">
+                            <FormLabel className="text-xs font-medium text-muted-foreground">Fuel In</FormLabel>
+                            <Select
+                                onValueChange={field.onChange}
+                                value={field.value && field.value.trim() !== "" ? field.value : undefined}
+                            >
+                                <FormControl>
+                                    <SelectTrigger className="h-8 text-xs w-[140px]">
+                                        <SelectValue placeholder="Select fuel level" />
+                                    </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    {fuelLevels.map((level) => (
+                                        <SelectItem
+                                            key={level.value}
+                                            value={level.value}
+                                            className="cursor-pointer"
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <div className={`w-3 h-3 rounded-full ${level.color}`} />
+                                                <span>{level.label}</span>
+                                            </div>
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <FormMessage className="text-[10px]" />
+                        </FormItem>
+                    )}
+                />
+
+                <FormField
+                    control={form.control}
+                    name="mileageOut"
+                    render={({ field }) => (
+                        <FormItem className="space-y-1.5">
+                            <FormLabel className="text-xs font-medium text-muted-foreground">Mileage Out</FormLabel>
+                            <FormControl>
+                                <Input
+                                    type="number"
+                                    className="h-8 text-xs w-[140px]"
+                                    placeholder="Enter mileage"
+                                    {...field}
+                                    value={field.value || ""}
+                                />
+                            </FormControl>
+                            <FormMessage className="text-[10px]" />
+                        </FormItem>
+                    )}
+                />
+
+                <FormField
+                    control={form.control}
+                    name="mileageIn"
+                    render={({ field }) => (
+                        <FormItem className="space-y-1.5">
+                            <FormLabel className="text-xs font-medium text-muted-foreground">Mileage In</FormLabel>
+                            <FormControl>
+                                <Input
+                                    type="number"
+                                    className="h-8 text-xs w-[140px]"
+                                    placeholder="Enter mileage"
+                                    {...field}
+                                    value={field.value || ""}
+                                />
+                            </FormControl>
+                            <FormMessage className="text-[10px]" />
+                        </FormItem>
+                    )}
+                />
             </div>
         </div>
     );

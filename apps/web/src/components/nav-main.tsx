@@ -17,6 +17,7 @@ import {
 import { IconCirclePlusFilled, type Icon } from "@tabler/icons-react";
 import { useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 export function NavMain({
   items,
@@ -28,6 +29,7 @@ export function NavMain({
   }[];
 }) {
   const [quickCreateModal, setQuickCreateModal] = useState(false);
+  const pathname = usePathname();
 
   return (
     <>
@@ -46,16 +48,26 @@ export function NavMain({
             </SidebarMenuItem>
           </SidebarMenu>
           <SidebarMenu>
-            {items.map((item) => (
-              <SidebarMenuItem key={item.title}>
-                <SidebarMenuButton tooltip={item.title} asChild>
-                  <Link href={item.url as any}>
-                    {item.icon && <item.icon />}
-                    <span>{item.title}</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            ))}
+            {items.map((item) => {
+              // For /dashboard, only match exactly. For other routes, match exactly or sub-routes
+              const isActive = item.url === "/dashboard"
+                ? pathname === item.url
+                : pathname === item.url || pathname?.startsWith(item.url + "/");
+              return (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    tooltip={item.title}
+                    asChild
+                    isActive={isActive}
+                  >
+                    <Link href={item.url as any}>
+                      {item.icon && <item.icon />}
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              );
+            })}
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>

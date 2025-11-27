@@ -5,6 +5,7 @@ import {
   IconFolder,
   IconHelp,
   IconListDetails,
+  IconReceipt,
   IconReport,
   IconSearch,
   IconSettings,
@@ -22,6 +23,11 @@ export const SIDEBAR_MENU = {
       title: 'Sales Enquiry',
       url: '/dashboard/sales-enquiry',
       icon: IconListDetails,
+    },
+    {
+      title: 'Sales Order',
+      url: '/dashboard/sales-order',
+      icon: IconReceipt,
     },
     {
       title: ' Book Test Drive',
@@ -54,12 +60,12 @@ export const SIDEBAR_MENU = {
     },
     {
       name: 'Customer Master',
-      url: '#',
+      url: '/dashboard/customer-master',
       icon: IconUsers,
     },
     {
       name: 'Vehicle Inventory',
-      url: '#',
+      url: '/dashboard/vehicle-inventory',
       icon: IconCar,
     },
   ],

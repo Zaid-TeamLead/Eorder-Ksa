@@ -12,6 +12,7 @@ import {
   updateTestVehicleStatus,
   getVinNumber,
   searchVehicles,
+  getAllVehicleInventory,
 } from '@/services/vehicles.service.js';
 
 const router: RouterType = Router();
@@ -52,6 +53,14 @@ router.get(
   '/get-all-test-vehicles',
   asyncHandler(async (_req, res) => {
     const vehicles = await getAllTestVehicles();
+    return sendSuccess(res, vehicles);
+  })
+);
+
+router.get(
+  '/get-all-vehicle-inventory',
+  asyncHandler(async (_req, res) => {
+    const vehicles = await getAllVehicleInventory();
     return sendSuccess(res, vehicles);
   })
 );
