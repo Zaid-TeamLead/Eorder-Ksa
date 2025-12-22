@@ -34,7 +34,7 @@ import {
 interface DataTableProps<TData, TValue> {
     columns: ColumnDef<TData, TValue>[];
     data: TData[];
-    onAdd: () => void;
+    onAdd?: () => void;
     buttonName?: string;
 }
 
@@ -114,10 +114,12 @@ export function DataTable<TData, TValue>({
                                 })}
                         </DropdownMenuContent>
                     </DropdownMenu>
-                    <Button onClick={onAdd} size="sm" className="h-8">
-                        <IconPlus className="mr-2 h-4 w-4" />
-                        {buttonName}
-                    </Button>
+                    {onAdd && (
+                        <Button onClick={onAdd} size="sm" className="h-8">
+                            <IconPlus className="mr-2 h-4 w-4" />
+                            {buttonName}
+                        </Button>
+                    )}
                 </div>
             </div>
             <div className="rounded-md border">

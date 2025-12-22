@@ -7,6 +7,7 @@ import {
   createBookTestDrive,
   getAllBookTestDrives,
   updateBookTestDrive,
+  getCurrentlyBookedVehicles,
 } from '@/services/bookTestDrive.service.js';
 
 const router: RouterType = Router();
@@ -16,6 +17,14 @@ router.get(
   asyncHandler(async (_req, res) => {
     const bookings = await getAllBookTestDrives();
     return sendSuccess(res, bookings);
+  })
+);
+
+router.get(
+  '/currently-booked',
+  asyncHandler(async (_req, res) => {
+    const bookedVehicles = await getCurrentlyBookedVehicles();
+    return sendSuccess(res, bookedVehicles);
   })
 );
 

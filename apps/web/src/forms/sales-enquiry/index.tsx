@@ -35,6 +35,7 @@ interface SalesEnquiryFormProps {
   onCustomerSearch?: (query: string) => Promise<{ success: boolean; data: any[] } | undefined>;
   onNewCustomer?: () => void;
   onSubmit?: (data: SalesEnquiryFormSubmission) => void | Promise<void>;
+  onSelectFromInventory?: () => void;
   defaultValues?: Partial<SalesEnquiryFormData>;
 }
 
@@ -49,6 +50,7 @@ export const SalesEnquiryForm = React.forwardRef<
       onCustomerSearch,
       onNewCustomer,
       onSubmit,
+      onSelectFromInventory,
       defaultValues,
     },
     ref

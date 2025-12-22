@@ -20,22 +20,28 @@ import { toast } from "sonner";
 import { DataTable } from "./components/data-table";
 import { createColumns } from "./components/columns";
 import { ViewDetailsDialog } from "./components/view-details-dialog";
+import { TestDriveCalendar } from "./components/test-drive-calendar";
 import { getAllBookTestDrives, updateBookTestDrive, type BookTestDrive } from "@/services/bookTestDrive";
 import { useMutation } from "@tanstack/react-query";
+import { IconTable, IconCalendar } from "@tabler/icons-react";
+import type { SlotInfo } from "react-big-calendar";
 
 export default function BookTestDrive({
   searchParams,
 }: {
-  searchParams: Promise<{ action?: string }>;
+  searchParams: Promise<{ action?: string; immediate?: string }>;
 }) {
   const params = use(searchParams);
   const action = params.action;
+  const immediate = params.immediate === "true";
   const { data: session } = useSession();
   const slpCode = session?.user.SlpCode;
   const [isCreate, setIsCreate] = useState(action === "create");
   const [isViewOpen, setIsViewOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<BookTestDrive | null>(null);
   const [editingBooking, setEditingBooking] = useState<BookTestDrive | null>(null);
+  const [isImmediateBooking, setIsImmediateBooking] = useState(immediate);
+  const [viewMode, setViewMode] = useState<"table" | "calendar">("table");
   const formRef = useRef<{ submit: () => void; reset: () => void }>(null);
   const queryClient = useQueryClient();
 
@@ -142,13 +148,145 @@ export default function BookTestDrive({
     setIsCreate(true);
   };
 
+  const handleSlotSelect = (slotInfo: SlotInfo) => {
+    // Create a new booking with the selected time slot
+    setEditingBooking(null);
+    setIsCreate(true);
+    // Could potentially pre-fill date/time from slotInfo if needed
+  };
+
+  // Check for booking conflicts
+  const checkConflict = (
+    start: Date,
+    end: Date,
+    excludeId?: number,
+    registrationNum?: string
+  ): boolean => {
+    return bookings.some((booking) => {
+      // Skip if it's the same booking being edited
+      if (excludeId && booking.SLNO === excludeId) return false;
+
+      // Only check conflicts for the same vehicle
+      if (registrationNum && booking.REGISTRATIONNUM !== registrationNum) return false;
+
+      const bookingStart = new Date(booking.DATEOUT);
+      const bookingEnd = new Date(booking.DATEIN);
+
+      // Add time if available
+      if (booking.TIMEOUT) {
+        const [hours, minutes] = booking.TIMEOUT.split(":");
+        bookingStart.setHours(parseInt(hours), parseInt(minutes));
+      }
+      if (booking.TIMEIN) {
+        const [hours, minutes] = booking.TIMEIN.split(":");
+        bookingEnd.setHours(parseInt(hours), parseInt(minutes));
+      }
+
+      // Check for overlap
+      return (
+        (start >= bookingStart && start < bookingEnd) ||
+        (end > bookingStart && end <= bookingEnd) ||
+        (start <= bookingStart && end >= bookingEnd)
+      );
+    });
+  };
+
+  const handleEventDrop = async (
+    event: { id: number; resource: BookTestDrive },
+    start: Date,
+    end: Date
+  ) => {
+    // Check for conflicts
+    const hasConflict = checkConflict(
+      start,
+      end,
+      event.id,
+      event.resource.REGISTRATIONNUM
+    );
+
+    if (hasConflict) {
+      toast.error(
+        "Cannot reschedule: This time slot conflicts with another booking for the same vehicle"
+      );
+      return;
+    }
+
+    try {
+      // Extract time components
+      const startTime = start.toTimeString().slice(0, 5);
+      const endTime = end.toTimeString().slice(0, 5);
+      const startDate = start.toISOString().split("T")[0];
+      const endDate = end.toISOString().split("T")[0];
+
+      // Update the booking with new dates/times
+      const updateData: Partial<BookTestDriveFormData> = {
+        dateOut: startDate,
+        timeOut: startTime,
+        dateIn: endDate,
+        timeIn: endTime,
+      };
+
+      await updateBookTestDrive(event.id, updateData as BookTestDriveFormData);
+      queryClient.invalidateQueries({ queryKey: ["book-test-drives"] });
+      toast.success("Test drive rescheduled successfully");
+    } catch (error: any) {
+      console.error("Error rescheduling test drive:", error);
+      toast.error("Failed to reschedule test drive");
+    }
+  };
+
   const columns = useMemo(
     () => createColumns(handleView, handleEdit),
     [handleView, handleEdit]
   );
 
+  // Get immediate booking defaults
+  const getImmediateBookingDefaults = (): Partial<BookTestDriveFormData> | undefined => {
+    if (!isImmediateBooking) return undefined;
+
+    try {
+      const selectedVehicleStr = sessionStorage.getItem('selectedVehicle');
+      if (!selectedVehicleStr) return undefined;
+
+      const vehicle = JSON.parse(selectedVehicleStr);
+      const now = new Date();
+      const currentDate = now.toISOString().split('T')[0];
+      const currentTime = now.toTimeString().slice(0, 5);
+
+      // Default end time: 2 hours from now
+      const endTime = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+      const endDate = endTime.toISOString().split('T')[0];
+      const endTimeStr = endTime.toTimeString().slice(0, 5);
+
+      return {
+        registrationNumber: vehicle.VIN || "",
+        manufacturer: vehicle.U_Veh_Brand || "",
+        model: vehicle.U_Veh_Model || "",
+        variant: vehicle.U_Veh_ModelDescr || "",
+        description: vehicle.U_Veh_ModelFull || "",
+        bodyStyle: vehicle.U_Veh_Color || "",
+        dateOut: currentDate,
+        timeOut: currentTime,
+        dateIn: endDate,
+        timeIn: endTimeStr,
+        quickBooking: true,
+        newOrUsed: "N",
+        newOrUsedLabel: "New",
+        salesExecutive: session?.data?.user.name || "",
+      };
+    } catch (error) {
+      console.error("Error parsing selected vehicle:", error);
+      return undefined;
+    }
+  };
+
   // Convert booking to form default values
   const getFormDefaultValues = (booking: BookTestDrive | null): Partial<BookTestDriveFormData> | undefined => {
+    // If immediate booking, use immediate defaults
+    if (isImmediateBooking && !booking) {
+      return getImmediateBookingDefaults();
+    }
+
     if (!booking) return undefined;
 
     // Extract date and time from DATEOUT and DATEIN
@@ -218,17 +356,52 @@ export default function BookTestDrive({
   return (
     <div className="space-y-6 p-6">
       <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-        <DataTable
-          columns={columns}
-          data={bookings}
-          onAdd={handleNewEnquiry}
-          buttonName="Book Test Drive"
-        />
+        {/* View Toggle */}
+        <div className="flex items-center justify-end">
+          <div className="flex gap-2">
+            <Button
+              variant={viewMode === "table" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setViewMode("table")}
+            >
+              <IconTable className="mr-2 h-4 w-4" />
+              Table View
+            </Button>
+            <Button
+              variant={viewMode === "calendar" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setViewMode("calendar")}
+            >
+              <IconCalendar className="mr-2 h-4 w-4" />
+              Calendar View
+            </Button>
+            <Button size="sm" onClick={handleNewEnquiry}>
+              Book Test Drive
+            </Button>
+          </div>
+        </div>
+
+        {/* Table or Calendar View */}
+        {viewMode === "table" ? (
+          <DataTable
+            columns={columns}
+            data={bookings}
+          />
+        ) : (
+          <TestDriveCalendar
+            bookings={bookings}
+            onEventClick={handleView}
+            onSlotSelect={handleSlotSelect}
+            onEventDrop={handleEventDrop}
+          />
+        )}
         <Dialog
           open={isCreate}
           onOpenChange={(open) => {
             if (!open) {
               setEditingBooking(null);
+              setIsImmediateBooking(false);
+              sessionStorage.removeItem('selectedVehicle');
               formRef.current?.reset();
             }
             setIsCreate(open);
@@ -237,8 +410,17 @@ export default function BookTestDrive({
           <DialogContent className="max-h-[calc(100vh-2rem)] w-full h-full flex flex-col sm:max-w-7xl p-0 gap-0">
             <DialogHeader className="px-6 pt-6 pb-4 border-b">
               <DialogTitle className="text-xl font-semibold">
-                {editingBooking ? "Edit Booking" : "Booking"}
+                {editingBooking
+                  ? "Edit Booking"
+                  : isImmediateBooking
+                  ? "Immediate Test Drive Booking"
+                  : "Booking"}
               </DialogTitle>
+              {isImmediateBooking && (
+                <DialogDescription className="text-sm text-muted-foreground">
+                  Quick booking starting now - Vehicle and time pre-filled
+                </DialogDescription>
+              )}
             </DialogHeader>
             <div className="flex-1 overflow-hidden">
               <BookTestDriveForm

@@ -65,6 +65,7 @@ export async function generateOtp(userId: string): Promise<void> {
     }
   } catch (error) {
     if (error instanceof AuthenticationError) {
+      logger.warn({ message: error.message, code: error.code }, "Authentication error during OTP generation");
       throw error;
     }
     logger.error(error, "Failed to generate OTP");

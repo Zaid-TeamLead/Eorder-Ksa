@@ -1,14 +1,18 @@
 "use client";
-import { getAllVehicleInventory } from '@/services/vehicles';
+import { getAllVehicleInventory, type VehicleInventory } from '@/services/vehicles';
 import { useQuery } from "@tanstack/react-query";
 import { DataTable } from "./components/data-table";
-import { columns } from "./components/columns";
+import { createColumns } from "./components/columns";
 import { Card, CardHeader, CardTitle, CardDescription, CardAction, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { IconAlertTriangle } from "@tabler/icons-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 const VehicleInventoryPage = () => {
+    const router = useRouter();
+    const [selectedVehicle, setSelectedVehicle] = useState<VehicleInventory | null>(null);
+
     const { data: vehicles = [], isLoading, error } = useQuery({
         queryKey: ["vehicle-inventory"],
         queryFn: getAllVehicleInventory,
@@ -17,6 +21,15 @@ const VehicleInventoryPage = () => {
     const vehiclesOver100Days = useMemo(() => {
         return vehicles.filter((vehicle) => vehicle.AgeinDays > 100).length;
     }, [vehicles]);
+
+    const handleBookTestDrive = (vehicle: VehicleInventory) => {
+        // Store vehicle in sessionStorage for the test drive form
+        sessionStorage.setItem('selectedVehicle', JSON.stringify(vehicle));
+        // Navigate to test drive page with immediate booking flag
+        router.push('/dashboard/test-drive?action=create&immediate=true');
+    };
+
+    const columns = useMemo(() => createColumns(handleBookTestDrive), []);
 
     if (isLoading) {
         return (

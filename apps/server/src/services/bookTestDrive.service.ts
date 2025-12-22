@@ -498,3 +498,69 @@ export const getBookTestDriveById = async (
     throw new Error('Failed to get book test drive by id');
   }
 };
+
+/**
+ * Check vehicle availability for a specific time period
+ */
+export const checkVehicleAvailability = async (
+  registrationNum: string,
+  dateOut: string,
+  dateIn: string
+): Promise<boolean> => {
+  try {
+    const query = `
+      SELECT COUNT(*) as "COUNT"
+      FROM "BI_NEGT_KSA"."DMS_BOOKTESTDRIVE"
+      WHERE "REGISTRATIONNUM" = ?
+        AND "STATUS" NOT IN ('Cancelled', 'Completed', 'Returned')
+        AND (
+          ("DATEOUT" <= ? AND "DATEIN" >= ?) OR
+          ("DATEOUT" <= ? AND "DATEIN" >= ?) OR
+          ("DATEOUT" >= ? AND "DATEIN" <= ?)
+        )
+    `;
+
+    const result = await db.query(query, [
+      registrationNum,
+      dateIn,
+      dateOut,
+      dateIn,
+      dateIn,
+      dateOut,
+      dateIn,
+    ]);
+
+    const count = result[0]?.COUNT || 0;
+    return count === 0; // Available if no overlapping bookings
+  } catch (error) {
+    logger.error(error, 'Error checking vehicle availability');
+    throw new Error('Failed to check vehicle availability');
+  }
+};
+
+/**
+ * Get all vehicles that are currently on test drive
+ */
+export const getCurrentlyBookedVehicles = async (): Promise<string[]> => {
+  try {
+    const currentDateTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
+
+    const query = `
+      SELECT DISTINCT "REGISTRATIONNUM"
+      FROM "BI_NEGT_KSA"."DMS_BOOKTESTDRIVE"
+      WHERE "STATUS" NOT IN ('Cancelled', 'Completed', 'Returned')
+        AND "DATEOUT" <= ?
+        AND "DATEIN" >= ?
+    `;
+
+    const result = await db.query<{ REGISTRATIONNUM: string }>(query, [
+      currentDateTime,
+      currentDateTime,
+    ]);
+
+    return result.map((row) => row.REGISTRATIONNUM).filter(Boolean);
+  } catch (error) {
+    logger.error(error, 'Error getting currently booked vehicles');
+    throw new Error('Failed to get currently booked vehicles');
+  }
+};

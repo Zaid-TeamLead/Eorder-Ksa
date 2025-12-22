@@ -17,9 +17,10 @@ import { VinDetailsCard } from "./vin-details-card";
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { useCart } from "@/lib/cart-context";
-import { ShoppingCart } from "lucide-react";
+import { ShoppingCart, Package } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import type { VehicleInventory } from "@/services/vehicles";
 
 export function VehicleDetails() {
   const form = useFormContext<SalesEnquiryFormData>();
@@ -81,6 +82,30 @@ export function VehicleDetails() {
   const customerId = form.watch("customerId");
   const variant = form.watch("variant");
   const vinDetails = form.watch("vinDetails");
+
+  // Listen for vehicle selection from inventory modal
+  useEffect(() => {
+    const handleVehicleSelected = (event: any) => {
+      const vehicle: VehicleInventory = event.detail;
+      if (vehicle) {
+        // Populate form fields with inventory vehicle data
+        const options = { shouldDirty: false };
+        form.setValue("make", vehicle.U_Veh_Brand || "", options);
+        form.setValue("model", vehicle.U_Veh_Model || "", options);
+        form.setValue("variant", vehicle.ItemCode || "", options);
+        form.setValue("year", vehicle.U_Veh_MY || "", options);
+        form.setValue("color", vehicle.U_Veh_Color || "", options);
+        form.setValue("modelCode", vehicle.U_Vehicle_MC || "", options);
+        form.setValue("vinNumber", vehicle.VIN || "", options);
+        form.setValue("quantity", 1, options);
+
+        toast.success("Vehicle selected from inventory");
+      }
+    };
+
+    window.addEventListener('vehicleSelected', handleVehicleSelected);
+    return () => window.removeEventListener('vehicleSelected', handleVehicleSelected);
+  }, [form]);
 
   useEffect(() => {
     if (customerId && variant) {
@@ -265,6 +290,11 @@ export function VehicleDetails() {
     }
   };
 
+  const handleSelectFromInventory = () => {
+    // Trigger event to open the vehicle selection modal
+    window.dispatchEvent(new CustomEvent('openVehicleInventoryModal'));
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-start gap-4">
@@ -275,7 +305,19 @@ export function VehicleDetails() {
             onSearch={handleSearchVehicles}
             onVehicleSelect={handleVehicleSelect}
           />
+        </div>
 
+        <div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleSelectFromInventory}
+            className="h-8 text-sm"
+          >
+            <Package className="w-4 h-4 mr-2" />
+            Browse Inventory
+          </Button>
         </div>
 
         <div className="w-[280px]">
