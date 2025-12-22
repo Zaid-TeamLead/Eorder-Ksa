@@ -9,9 +9,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Mail, MessageSquare, FileText } from "lucide-react";
 import type { SalesEnquiryFormData } from "../schema";
 
 export function CustomerInformation() {
@@ -28,7 +26,9 @@ export function CustomerInformation() {
             name="customerName"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-xs font-medium">Name</FormLabel>
+                <FormLabel className="text-xs font-medium">
+                  Name <span className="text-destructive">*</span>
+                </FormLabel>
                 <FormControl>
                   <Input className="h-8 text-sm" {...field} />
                 </FormControl>
@@ -71,35 +71,6 @@ export function CustomerInformation() {
               </FormItem>
             )}
           />
-          {/* <div className="flex gap-1.5 pt-1">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs px-2 flex-1"
-            >
-              <Mail className="w-3 h-3 mr-1" />
-              Email
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs px-2 flex-1"
-            >
-              <MessageSquare className="w-3 h-3 mr-1" />
-              SMS
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs px-2 flex-1"
-            >
-              <FileText className="w-3 h-3 mr-1" />
-              Letter
-            </Button>
-          </div> */}
         </div>
 
         {/* Middle Column - Contact Information */}

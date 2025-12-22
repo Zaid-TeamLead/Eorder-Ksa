@@ -1,9 +1,10 @@
 import type { Request, Response } from 'express';
-import EnquiryService from '../services/enquiry.service.js';
+import EnquiryService, { type CreateEnquiryData, type UpdateEnquiryData } from '../services/enquiry.service.js';
 import { sendSuccess } from '../utils/api-response.js';
+import { AuthorizationError, NotFoundError } from '../types/errors.js';
 
 export const createEnquiry = async (req: Request, res: Response) => {
-  const enquiryData = {
+  const enquiryData: CreateEnquiryData = {
     ...req.body,
     createdBy: req.user?.name || 'System',
     slpCode: req.body.slpCode || req.user?.slpCode,
@@ -23,8 +24,16 @@ export const getAllEnquiries = async (req: Request, res: Response) => {
     toDate: req.query.toDate as string,
   };
 
-  // If no slpCode filter provided and user is not admin, filter by user's slpCode
-  if (!filters.slpCode && req.user?.slpCode) {
+  // Authorization: Users can only view their own enquiries unless they have admin role
+  // If user tries to filter by different slpCode, verify they have permission
+  if (filters.slpCode && req.user?.slpCode) {
+    if (filters.slpCode !== req.user.slpCode && req.user.role !== 'admin') {
+      throw new AuthorizationError('You can only view your own enquiries');
+    }
+  }
+
+  // Enforce slpCode filter for non-admin users
+  if (!filters.slpCode && req.user?.slpCode && req.user.role !== 'admin') {
     filters.slpCode = req.user.slpCode;
   }
 
@@ -35,14 +44,36 @@ export const getAllEnquiries = async (req: Request, res: Response) => {
 export const getEnquiryById = async (req: Request, res: Response) => {
   const id = parseInt(req.params.id);
   const enquiry = await EnquiryService.getEnquiryById(id);
+
+  if (!enquiry) {
+    throw new NotFoundError('Enquiry not found');
+  }
+
+  // Authorization: Users can only view their own enquiries unless they're admin
+  if (req.user?.role !== 'admin' && enquiry.SLPCODE !== req.user?.slpCode) {
+    throw new AuthorizationError('You can only view your own enquiries');
+  }
+
   sendSuccess(res, enquiry);
 };
 
 export const updateEnquiry = async (req: Request, res: Response) => {
   const id = parseInt(req.params.id);
   const updatedBy = req.user?.name || 'System';
+  const updateData: UpdateEnquiryData = req.body;
 
-  const result = await EnquiryService.updateEnquiry(id, req.body, updatedBy);
+  // Authorization: Verify the enquiry belongs to the user before updating
+  const existingEnquiry = await EnquiryService.getEnquiryById(id);
+  if (!existingEnquiry) {
+    throw new NotFoundError('Enquiry not found');
+  }
+
+  // Check ownership unless user is admin
+  if (req.user?.role !== 'admin' && existingEnquiry.SLPCODE !== req.user?.slpCode) {
+    throw new AuthorizationError('You can only update your own enquiries');
+  }
+
+  const result = await EnquiryService.updateEnquiry(id, updateData, updatedBy);
   sendSuccess(res, result);
 };
 
@@ -50,6 +81,17 @@ export const updateEnquiryStatus = async (req: Request, res: Response) => {
   const id = parseInt(req.params.id);
   const { status, notes } = req.body;
   const updatedBy = req.user?.name || 'System';
+
+  // Authorization: Verify the enquiry belongs to the user before updating status
+  const existingEnquiry = await EnquiryService.getEnquiryById(id);
+  if (!existingEnquiry) {
+    throw new NotFoundError('Enquiry not found');
+  }
+
+  // Check ownership unless user is admin
+  if (req.user?.role !== 'admin' && existingEnquiry.SLPCODE !== req.user?.slpCode) {
+    throw new AuthorizationError('You can only update your own enquiries');
+  }
 
   const result = await EnquiryService.updateEnquiryStatus(
     id,
@@ -63,6 +105,17 @@ export const updateEnquiryStatus = async (req: Request, res: Response) => {
 export const deleteEnquiry = async (req: Request, res: Response) => {
   const id = parseInt(req.params.id);
   const deletedBy = req.user?.name || 'System';
+
+  // Authorization: Verify the enquiry belongs to the user before deleting
+  const existingEnquiry = await EnquiryService.getEnquiryById(id);
+  if (!existingEnquiry) {
+    throw new NotFoundError('Enquiry not found');
+  }
+
+  // Check ownership unless user is admin
+  if (req.user?.role !== 'admin' && existingEnquiry.SLPCODE !== req.user?.slpCode) {
+    throw new AuthorizationError('You can only delete your own enquiries');
+  }
 
   const result = await EnquiryService.deleteEnquiry(id, deletedBy);
   sendSuccess(res, result);

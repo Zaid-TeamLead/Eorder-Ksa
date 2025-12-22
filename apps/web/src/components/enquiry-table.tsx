@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   IconDotsVertical,
   IconEye,
@@ -82,7 +82,7 @@ export function EnquiryTable({
     pageSize: 10,
   });
 
-  const columns: ColumnDef<SalesEnquiry>[] = [
+  const columns: ColumnDef<SalesEnquiry>[] = useMemo(() => [
     {
       accessorKey: "SLNO",
       header: "ID",
@@ -231,7 +231,7 @@ export function EnquiryTable({
         </DropdownMenu>
       ),
     },
-  ];
+  ], [onStatusChange, onViewEnquiry, onEditEnquiry, onDeleteEnquiry]);
 
   const table = useReactTable({
     data,

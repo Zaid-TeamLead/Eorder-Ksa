@@ -1,11 +1,123 @@
 import { db } from './database.service.js';
 import { logger } from '../utils/logger.js';
+import {
+  buildUpdateQuery,
+  validateUpdateQuery,
+  addAuditFields,
+} from '../utils/db-helpers.js';
+import {
+  enquiryFieldMapping,
+  enquiryValueTransformers,
+} from '../schemas/shared/field-mappings.js';
+
+export interface CreateEnquiryData {
+  // Customer Information
+  customerId?: string;
+  customerName: string; // Required
+  address?: string;
+  postcode?: string;
+  homePhone?: string;
+  workPhone?: string;
+  mobile: string; // Required
+  homeEmail?: string;
+
+  // Vehicle Details
+  make: string; // Required
+  makeName?: string;
+  model: string; // Required
+  modelName?: string;
+  variant?: string;
+  variantName?: string;
+  year?: string;
+  color?: string;
+  suppCatNum?: string;
+  modelCode?: string;
+  quantity?: number;
+  vinNumber?: string;
+  vinDetails?: any; // JSON object
+
+  // Enquiry Details
+  branch?: string;
+  branchName?: string;
+  budget?: string;
+  financing?: string;
+  preferredContact?: string;
+  preferredTime?: string;
+  preferredDelivery?: string;
+  source?: string;
+  salesType?: string;
+
+  // Trade-in
+  tradeInMake?: string;
+  tradeInModel?: string;
+  tradeInYear?: string;
+  tradeInKms?: string;
+  tradeInExpectedPrice?: string;
+
+  // Additional
+  salesperson?: string;
+  slpCode?: string;
+  notes?: string;
+  status?: string;
+  priority?: string;
+  followUpDate?: string;
+  followUpNotes?: string;
+
+  // Audit
+  createdBy: string;
+}
+
+export interface UpdateEnquiryData {
+  // All fields optional for partial updates
+  customerId?: string;
+  customerName?: string;
+  address?: string;
+  postcode?: string;
+  homePhone?: string;
+  workPhone?: string;
+  mobile?: string;
+  homeEmail?: string;
+  make?: string;
+  makeName?: string;
+  model?: string;
+  modelName?: string;
+  variant?: string;
+  variantName?: string;
+  year?: string;
+  color?: string;
+  suppCatNum?: string;
+  modelCode?: string;
+  quantity?: number;
+  vinNumber?: string;
+  vinDetails?: any;
+  branch?: string;
+  branchName?: string;
+  budget?: string;
+  financing?: string;
+  preferredContact?: string;
+  preferredTime?: string;
+  preferredDelivery?: string;
+  source?: string;
+  salesType?: string;
+  tradeInMake?: string;
+  tradeInModel?: string;
+  tradeInYear?: string;
+  tradeInKms?: string;
+  tradeInExpectedPrice?: string;
+  salesperson?: string;
+  slpCode?: string;
+  notes?: string;
+  status?: string;
+  priority?: string;
+  followUpDate?: string;
+  followUpNotes?: string;
+}
 
 class EnquiryService {
   /**
    * Create a new sales enquiry
    */
-  async createEnquiry(data: any) {
+  async createEnquiry(data: CreateEnquiryData) {
     try {
       const currentDateTime = new Date()
         .toISOString()
@@ -180,81 +292,38 @@ class EnquiryService {
   }
 
   /**
-   * Update an existing sales enquiry
+   * Update an existing sales enquiry (PATCH semantics - only update provided fields)
    */
-  async updateEnquiry(id: number, data: any, updatedBy: string) {
+  async updateEnquiry(id: number, data: UpdateEnquiryData, updatedBy: string) {
     try {
-      const currentDateTime = new Date()
-        .toISOString()
-        .replace('T', ' ')
-        .substring(0, 19);
+      // Check if enquiry exists
+      const existing = await this.getEnquiryById(id);
+      if (!existing) {
+        throw new Error('Sales enquiry not found');
+      }
+
+      // Use generic update utility
+      const { updates, parameters } = buildUpdateQuery(
+        data,
+        enquiryFieldMapping,
+        enquiryValueTransformers
+      );
+
+      if (!validateUpdateQuery(updates)) {
+        return { success: true, message: 'No fields to update' };
+      }
+
+      // Add audit fields
+      addAuditFields(updates, parameters, updatedBy);
+
+      // Add ID for WHERE clause
+      parameters.push(id);
 
       const query = `
         UPDATE "BI_NEGT_KSA"."DMS_SALESENQUIRY"
-        SET
-          "CUSTOMERID" = ?, "CUSTOMERNAME" = ?, "ADDRESS" = ?, "POSTCODE" = ?,
-          "HOMEPHONE" = ?, "WORKPHONE" = ?, "MOBILE" = ?, "HOMEEMAIL" = ?,
-          "MAKE" = ?, "MAKENAME" = ?, "MODEL" = ?, "MODELNAME" = ?,
-          "VARIANT" = ?, "VARIANTNAME" = ?, "YEAR" = ?, "COLOR" = ?,
-          "SUPPCATNUM" = ?, "MODELCODE" = ?, "QUANTITY" = ?, "VINNUMBER" = ?, "VINDETAILS" = ?,
-          "BRANCH" = ?, "BRANCHNAME" = ?, "BUDGET" = ?, "FINANCING" = ?,
-          "PREFERREDCONTACT" = ?, "PREFERREDTIME" = ?, "PREFERREDDELIVERY" = ?,
-          "SOURCE" = ?, "SALESTYPE" = ?,
-          "TRADEINMAKE" = ?, "TRADEINMODEL" = ?, "TRADEINYEAR" = ?,
-          "TRADEINKMS" = ?, "TRADEINEXPECTEDPRICE" = ?,
-          "SALESPERSON" = ?, "SLPCODE" = ?, "NOTES" = ?,
-          "STATUS" = ?, "PRIORITY" = ?, "FOLLOWUPDATE" = ?, "FOLLOWUPNOTES" = ?,
-          "UPDATEDDATE" = ?, "UPDATEDBY" = ?
+        SET ${updates.join(', ')}
         WHERE "SLNO" = ?
       `;
-
-      const parameters = [
-        data.customerId || null,
-        data.customerName || null,
-        data.address || null,
-        data.postcode || null,
-        data.homePhone || null,
-        data.workPhone || null,
-        data.mobile,
-        data.homeEmail || null,
-        data.make || null,
-        data.makeName || null,
-        data.model || null,
-        data.modelName || null,
-        data.variant || null,
-        data.variantName || null,
-        data.year || null,
-        data.color || null,
-        data.suppCatNum || null,
-        data.modelCode || null,
-        data.quantity || 1,
-        data.vinNumber || null,
-        data.vinDetails ? JSON.stringify(data.vinDetails) : null,
-        data.branch || null,
-        data.branchName || null,
-        data.budget || null,
-        data.financing || null,
-        data.preferredContact || null,
-        data.preferredTime || null,
-        data.preferredDelivery || null,
-        data.source || null,
-        data.salesType || null,
-        data.tradeInMake || null,
-        data.tradeInModel || null,
-        data.tradeInYear || null,
-        data.tradeInKms || null,
-        data.tradeInExpectedPrice || null,
-        data.salesperson || null,
-        data.slpCode || null,
-        data.notes || null,
-        data.status || 'Active',
-        data.priority || 'Medium',
-        data.followUpDate || null,
-        data.followUpNotes || null,
-        currentDateTime,
-        updatedBy,
-        id,
-      ];
 
       await db.execute(query, parameters);
 

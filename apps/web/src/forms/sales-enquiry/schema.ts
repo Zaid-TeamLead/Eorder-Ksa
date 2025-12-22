@@ -1,77 +1,102 @@
 import { z } from 'zod';
+import {
+  customerBaseSchema,
+  customerEnquiryContactSchema,
+  optionalString,
+  positiveNumber,
+  financingOptions,
+  preferredContactOptions,
+  preferredTimeOptions,
+  createEnumValidator,
+} from '@/lib/validation';
 
-export const salesEnquirySchema = z.object({
-  // Customer Information
-  customerId: z.string().optional(),
-  customerName: z.string().optional(),
-  address: z.string().optional(),
-  postcode: z.string().optional(),
-  homePhone: z.string().optional(),
-  workPhone: z.string().optional(),
-  mobile: z.string().min(1, 'Mobile is required'),
-  homeEmail: z.string().email('Invalid email').optional().or(z.literal('')),
+// VIN Details Schema (same as before)
+const vinDetailsSchema = z
+  .object({
+    Location: optionalString,
+    VIN: optionalString,
+    WhsCode: optionalString,
+    WhsName: optionalString,
+    ItemCode: optionalString,
+    InDate: optionalString,
+    U_Veh_StockID: z.string().nullable().optional(),
+    U_Veh_Brand: z.string().nullable().optional(),
+    U_Veh_Model: z.string().nullable().optional(),
+    U_Veh_Color: z.string().nullable().optional(),
+    U_Veh_Transmutation: z.string().nullable().optional(),
+    U_Veh_ModelDescr: z.string().nullable().optional(),
+    U_Veh_ModelFull: z.string().nullable().optional(),
+    U_Veh_EngineNo: z.string().nullable().optional(),
+    U_Veh_MY: z.string().nullable().optional(),
+    U_Vehicle_MC: z.string().nullable().optional(),
+    U_Veh_OrderNo: z.string().nullable().optional(),
+    U_Veh_DispDate: z.string().nullable().optional(),
+    U_Veh_IC: z.string().nullable().optional(),
+    AgeinDays: z.number().optional(),
+    Price: optionalString,
+    Discount: z.string().nullable().optional(),
+    Discprice: z.string().nullable().optional(),
+    Currency: optionalString,
+  })
+  .optional();
 
-  // Vehicle Details
-  make: z.string().optional(),
-  model: z.string().optional(),
-  variant: z.string().optional(),
-  year: z.string().optional(),
-  color: z.string().optional(),
-  suppCatNum: z.string().optional(),
-  modelCode: z.string().optional(),
-  quantity: z.number().min(1, 'Quantity must be at least 1').optional(),
-  vinNumber: z.string().optional(),
-  vinDetails: z
-    .object({
-      Location: z.string().optional(),
-      VIN: z.string().optional(),
-      WhsCode: z.string().optional(),
-      WhsName: z.string().optional(),
-      ItemCode: z.string().optional(),
-      InDate: z.string().optional(),
-      U_Veh_StockID: z.string().nullable().optional(),
-      U_Veh_Brand: z.string().nullable().optional(),
-      U_Veh_Model: z.string().nullable().optional(),
-      U_Veh_Color: z.string().nullable().optional(),
-      U_Veh_Transmutation: z.string().nullable().optional(),
-      U_Veh_ModelDescr: z.string().nullable().optional(),
-      U_Veh_ModelFull: z.string().nullable().optional(),
-      U_Veh_EngineNo: z.string().nullable().optional(),
-      U_Veh_MY: z.string().nullable().optional(),
-      U_Vehicle_MC: z.string().nullable().optional(),
-      U_Veh_OrderNo: z.string().nullable().optional(),
-      U_Veh_DispDate: z.string().nullable().optional(),
-      U_Veh_IC: z.string().nullable().optional(),
-      AgeinDays: z.number().optional(),
-      Price: z.string().optional(),
-      Discount: z.string().nullable().optional(),
-      Discprice: z.string().nullable().optional(),
-      Currency: z.string().optional(),
-    })
-    .optional(),
-
-  // Enquiry Details
-  branch: z.string().optional(),
-  budget: z.string().optional(),
-  financing: z.enum(['yes', 'no', 'maybe']).optional(),
-  preferredContact: z.enum(['phone', 'email', 'whatsapp', 'sms']).optional(),
-  preferredTime: z
-    .enum(['morning', 'afternoon', 'evening', 'anytime'])
-    .optional(),
-  preferredDelivery: z.string().optional(),
-  source: z.string().optional(),
-  sales_type: z.string().optional(),
-  // Trade-in Vehicle
-  tradeInMake: z.string().optional(),
-  tradeInModel: z.string().optional(),
-  tradeInYear: z.string().optional(),
-  tradeInKms: z.string().optional(),
-  tradeInExpectedPrice: z.string().optional(),
-
-  // Additional Information
-  salesperson: z.string().optional(),
-  slpCode: z.string().optional(),
-  notes: z.string().optional(),
+// Vehicle details
+const vehicleSchema = z.object({
+  make: z.string().trim().min(1, 'Make is required'),
+  model: z.string().trim().min(1, 'Model is required'),
+  variant: optionalString,
+  year: optionalString,
+  color: optionalString,
+  suppCatNum: optionalString,
+  modelCode: optionalString,
+  quantity: positiveNumber('Quantity').optional(),
+  vinNumber: optionalString,
+  vinDetails: vinDetailsSchema,
 });
+
+// Trade-in information
+const tradeInSchema = z.object({
+  tradeInMake: optionalString,
+  tradeInModel: optionalString,
+  tradeInYear: optionalString,
+  tradeInKms: optionalString,
+  tradeInExpectedPrice: optionalString,
+});
+
+// Enquiry details
+const enquiryDetailsSchema = z.object({
+  branch: optionalString,
+  budget: optionalString,
+  financing: createEnumValidator(financingOptions, 'financing option').optional(),
+  preferredContact: createEnumValidator(
+    preferredContactOptions,
+    'contact method'
+  ).optional(),
+  preferredTime: createEnumValidator(
+    preferredTimeOptions,
+    'preferred time'
+  ).optional(),
+  preferredDelivery: optionalString,
+  source: optionalString,
+  sales_type: optionalString,
+});
+
+// Salesperson
+const salespersonSchema = z.object({
+  salesperson: optionalString,
+  slpCode: optionalString,
+  notes: optionalString,
+});
+
+// ============================================================================
+// Main Schema
+// ============================================================================
+
+export const salesEnquirySchema = customerBaseSchema
+  .merge(customerEnquiryContactSchema)
+  .merge(vehicleSchema)
+  .merge(tradeInSchema)
+  .merge(enquiryDetailsSchema)
+  .merge(salespersonSchema);
 
 export type SalesEnquiryFormData = z.infer<typeof salesEnquirySchema>;

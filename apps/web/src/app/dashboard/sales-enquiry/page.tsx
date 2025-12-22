@@ -247,11 +247,12 @@ export default function SalesEnquiry({
 
   const handleCustomerSearch = async (query: string) => {
     try {
+      // Search ALL customers by BP code, name, phone, or email (no sales person filter)
       const response = await axios.post(
         `${process.env.NEXT_PUBLIC_SERVER_URL}/api/customers/search`,
         {
           search: query,
-          slpCode: slpCode?.toString() || "",
+          // slpCode removed - search all customers without filtering by sales person
         },
         {
           headers: {

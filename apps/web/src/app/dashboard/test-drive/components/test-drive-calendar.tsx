@@ -105,45 +105,33 @@ export function TestDriveCalendar({
     []
   );
 
-  const handleSelectEvent = useCallback(
-    (event: TestDriveEvent) => {
-      onEventClick?.(event.resource);
-    },
-    [onEventClick]
-  );
+  const handleSelectEvent = (event: TestDriveEvent) => {
+    onEventClick?.(event.resource);
+  };
 
-  const handleSelectSlot = useCallback(
-    (slotInfo: SlotInfo) => {
-      onSlotSelect?.(slotInfo);
-    },
-    [onSlotSelect]
-  );
+  const handleSelectSlot = (slotInfo: SlotInfo) => {
+    onSlotSelect?.(slotInfo);
+  };
 
-  const handleNavigate = useCallback((newDate: Date) => {
+  const handleNavigate = (newDate: Date) => {
     setDate(newDate);
-  }, []);
+  };
 
-  const handleViewChange = useCallback((newView: View) => {
+  const handleViewChange = (newView: View) => {
     setView(newView);
-  }, []);
+  };
 
-  const handleEventDrop = useCallback(
-    ({ event, start, end }: { event: TestDriveEvent; start: Date; end: Date }) => {
-      if (onEventDrop) {
-        onEventDrop(event, start, end);
-      }
-    },
-    [onEventDrop]
-  );
+  const handleEventDrop = ({ event, start, end }: { event: TestDriveEvent; start: Date; end: Date }) => {
+    if (onEventDrop) {
+      onEventDrop(event, start, end);
+    }
+  };
 
-  const handleEventResize = useCallback(
-    ({ event, start, end }: { event: TestDriveEvent; start: Date; end: Date }) => {
-      if (onEventDrop) {
-        onEventDrop(event, start, end);
-      }
-    },
-    [onEventDrop]
-  );
+  const handleEventResize = ({ event, start, end }: { event: TestDriveEvent; start: Date; end: Date }) => {
+    if (onEventDrop) {
+      onEventDrop(event, start, end);
+    }
+  };
 
   return (
     <div className="h-full flex flex-col">

@@ -1,5 +1,15 @@
 import { logger } from '@/utils/logger';
 import { db } from './database.service';
+import {
+  buildUpdateQuery,
+  validateUpdateQuery,
+  addAuditFields,
+  getCurrentTimestamp,
+} from '../utils/db-helpers.js';
+import {
+  bookTestDriveFieldMapping,
+  bookTestDriveValueTransformers,
+} from '../schemas/shared/field-mappings.js';
 
 export interface BookTestDriveData {
   // Customer Information
@@ -265,6 +275,28 @@ export interface UpdateBookTestDriveData {
   mileageIn?: string;
 }
 
+// Helper function for date formatting
+function formatDateTime(date: string, time?: string): string | null {
+  if (!date) return null;
+  let timePart = '00:00:00';
+  if (time) {
+    // If time already has seconds (HH:MM:SS), use it as is
+    // Otherwise, append :00 to make it HH:MM:00
+    const timeParts = time.split(':');
+    if (timeParts.length === 2) {
+      // HH:MM format, append :00
+      timePart = `${time}:00`;
+    } else if (timeParts.length === 3) {
+      // HH:MM:SS format, use as is
+      timePart = time;
+    } else {
+      // Invalid format, default to 00:00:00
+      timePart = '00:00:00';
+    }
+  }
+  return `${date} ${timePart}`;
+}
+
 export const updateBookTestDrive = async (
   id: number,
   data: UpdateBookTestDriveData,
@@ -277,205 +309,43 @@ export const updateBookTestDrive = async (
       throw new Error('Book test drive not found');
     }
 
-    const updates: string[] = [];
-    const values: any[] = [];
-
-    // Format date/time if provided
-    const formatDateTime = (date: string, time?: string): string | null => {
-      if (!date) return null;
-      let timePart = '00:00:00';
-      if (time) {
-        // If time already has seconds (HH:MM:SS), use it as is
-        // Otherwise, append :00 to make it HH:MM:00
-        const timeParts = time.split(':');
-        if (timeParts.length === 2) {
-          // HH:MM format, append :00
-          timePart = `${time}:00`;
-        } else if (timeParts.length === 3) {
-          // HH:MM:SS format, use as is
-          timePart = time;
-        } else {
-          // Invalid format, default to 00:00:00
-          timePart = '00:00:00';
-        }
-      }
-      return `${date} ${timePart}`;
-    };
-
-    // Customer Information
-    if (data.customerId !== undefined) {
-      updates.push('"CUSTOMERID" = ?');
-      values.push(data.customerId || null);
-    }
-    if (data.customerName !== undefined) {
-      updates.push('"CUSTOMERNAME" = ?');
-      values.push(data.customerName || null);
-    }
-    if (data.postcode !== undefined) {
-      updates.push('"POSTCODE" = ?');
-      values.push(data.postcode || null);
-    }
-    if (data.address !== undefined) {
-      updates.push('"ADDRESS" = ?');
-      values.push(data.address || null);
-    }
-    if (data.phoneNumber !== undefined) {
-      updates.push('"PHONENUMBER" = ?');
-      values.push(data.phoneNumber || null);
-    }
-    if (data.email !== undefined) {
-      updates.push('"EMAIL" = ?');
-      values.push(data.email || null);
-    }
-
-    // Vehicle Booking Details
-    if (data.registrationNumber !== undefined) {
-      updates.push('"REGISTRATIONNUM" = ?');
-      values.push(data.registrationNumber || null);
-    }
-    if (data.manufacturer !== undefined) {
-      updates.push('"MANUFACTURER" = ?');
-      values.push(data.manufacturer || null);
-    }
-    if (data.manufacturerName !== undefined) {
-      updates.push('"MANUFACTURERNAME" = ?');
-      values.push(data.manufacturerName || null);
-    }
-    if (data.model !== undefined) {
-      updates.push('"MODEL" = ?');
-      values.push(data.model || null);
-    }
-    if (data.modelName !== undefined) {
-      updates.push('"MODELNAME" = ?');
-      values.push(data.modelName || null);
-    }
-    if (data.variant !== undefined) {
-      updates.push('"VARIANT" = ?');
-      values.push(data.variant || null);
-    }
-    if (data.variantName !== undefined) {
-      updates.push('"VARIANTNAME" = ?');
-      values.push(data.variantName || null);
-    }
-    if (data.description !== undefined) {
-      updates.push('"DESCRIPTION" = ?');
-      values.push(data.description || null);
-    }
-    if (data.bodyStyle !== undefined) {
-      updates.push('"BODYSTYLE" = ?');
-      values.push(data.bodyStyle || null);
-    }
-
-    // Booking Details
+    // Handle special date formatting if dateOut/dateIn are provided
+    const processedData = { ...data };
     if (data.dateOut !== undefined) {
-      const dateOut = formatDateTime(data.dateOut, data.timeOut);
-      updates.push('"DATEOUT" = ?');
-      values.push(dateOut);
-    }
-    if (data.timeOut !== undefined) {
-      updates.push('"TIMEOUT" = ?');
-      values.push(data.timeOut || null);
+      processedData.dateOut = formatDateTime(data.dateOut, data.timeOut) || data.dateOut;
     }
     if (data.dateIn !== undefined) {
-      const dateIn = formatDateTime(data.dateIn, data.timeIn);
-      updates.push('"DATEIN" = ?');
-      values.push(dateIn);
-    }
-    if (data.timeIn !== undefined) {
-      updates.push('"TIMEIN" = ?');
-      values.push(data.timeIn || null);
-    }
-    if (data.outBranch !== undefined) {
-      updates.push('"OUTBRANCH" = ?');
-      values.push(data.outBranch || null);
-    }
-    if (data.outBranchName !== undefined) {
-      updates.push('"OUTBRANCHNAME" = ?');
-      values.push(data.outBranchName || null);
-    }
-    if (data.inBranch !== undefined) {
-      updates.push('"INBRANCH" = ?');
-      values.push(data.inBranch || null);
-    }
-    if (data.inBranchName !== undefined) {
-      updates.push('"INBRANCHNAME" = ?');
-      values.push(data.inBranchName || null);
-    }
-    if (data.salesExecutive !== undefined) {
-      updates.push('"SALESEXECUTIVE" = ?');
-      values.push(data.salesExecutive || null);
-    }
-    if (data.salesExecutiveName !== undefined) {
-      updates.push('"SALESEXECUTIVENAME" = ?');
-      values.push(data.salesExecutiveName || null);
-    }
-    if (data.approvedBy !== undefined) {
-      updates.push('"APPROVEDBY" = ?');
-      values.push(data.approvedBy || null);
-    }
-    if (data.quickBooking !== undefined) {
-      updates.push('"QUICKBOOKING" = ?');
-      values.push(data.quickBooking ? 'true' : 'false');
-    }
-    if (data.newOrUsed !== undefined) {
-      updates.push('"NEWORUSED" = ?');
-      values.push(data.newOrUsed || null);
-    }
-    if (data.newOrUsedLabel !== undefined) {
-      updates.push('"NEWORUSEDLABEL" = ?');
-      values.push(data.newOrUsedLabel || null);
-    }
-    if (data.notes !== undefined) {
-      updates.push('"NOTES" = ?');
-      values.push(data.notes || null);
+      processedData.dateIn = formatDateTime(data.dateIn, data.timeIn) || data.dateIn;
     }
 
-    if (data.fuelOut !== undefined) {
-      updates.push('"FUELOUT" = ?');
-      values.push(
-        data.fuelOut && data.fuelOut.trim() !== '' ? data.fuelOut : null
-      );
-    }
-    if (data.fuelIn !== undefined) {
-      updates.push('"FUELIN" = ?');
-      values.push(
-        data.fuelIn && data.fuelIn.trim() !== '' ? data.fuelIn : null
-      );
-    }
-    if (data.mileageOut !== undefined) {
-      updates.push('"MILEAGEOUT" = ?');
-      values.push(
-        data.mileageOut && data.mileageOut.trim() !== ''
-          ? data.mileageOut
-          : null
-      );
-    }
-    if (data.mileageIn !== undefined) {
-      updates.push('"MILEAGEIN" = ?');
-      values.push(
-        data.mileageIn && data.mileageIn.trim() !== '' ? data.mileageIn : null
-      );
-    }
-    if (updates.length === 0) {
+    // Use generic update utility
+    const { updates, parameters } = buildUpdateQuery(
+      processedData,
+      bookTestDriveFieldMapping,
+      bookTestDriveValueTransformers
+    );
+
+    if (!validateUpdateQuery(updates)) {
       return existing; // No updates to make
     }
 
-    // Add updated date and updated by
-    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    updates.push('"UPDATEDDATE" = ?');
-    values.push(now);
+    // Add audit fields
     if (updatedBy) {
-      updates.push('"UPDATEDBY" = ?');
-      values.push(updatedBy);
+      addAuditFields(updates, parameters, updatedBy);
+    } else {
+      const currentDateTime = getCurrentTimestamp();
+      updates.push('"UPDATEDDATE" = ?');
+      parameters.push(currentDateTime);
     }
 
-    values.push(id);
+    // Add ID for WHERE clause
+    parameters.push(id);
 
-    const sql = `UPDATE "BI_NEGT_KSA"."DMS_BOOKTESTDRIVE" 
-                 SET ${updates.join(', ')} 
+    const sql = `UPDATE "BI_NEGT_KSA"."DMS_BOOKTESTDRIVE"
+                 SET ${updates.join(', ')}
                  WHERE "SLNO" = ?`;
 
-    await db.execute(sql, values);
+    await db.execute(sql, parameters);
 
     return await getBookTestDriveById(id);
   } catch (error) {

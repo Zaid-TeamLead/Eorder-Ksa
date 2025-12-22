@@ -102,7 +102,7 @@ export function CustomerSearch({
                   handleSearch();
                 }
               }}
-              placeholder="Search customer by name, phone, or email"
+              placeholder="Search customer by BP code, name, phone, or email"
               className={cn(
                 "h-7 text-xs pr-7",
                 value && "border-primary ring-primary/20 ring-1"

@@ -1,5 +1,5 @@
 "use client";
-import React, { use, useState, useRef, useMemo } from "react";
+import React, { use, useState, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,6 +25,103 @@ import { getAllBookTestDrives, updateBookTestDrive, type BookTestDrive } from "@
 import { useMutation } from "@tanstack/react-query";
 import { IconTable, IconCalendar } from "@tabler/icons-react";
 import type { SlotInfo } from "react-big-calendar";
+
+// Helper function to extract date from date string
+const extractDate = (dateString?: string): string => {
+  if (!dateString) return "";
+  try {
+    const date = new Date(dateString);
+    return date.toISOString().split("T")[0];
+  } catch {
+    return "";
+  }
+};
+
+// Get immediate booking defaults from sessionStorage
+const getImmediateBookingDefaults = (userName?: string): Partial<BookTestDriveFormData> | undefined => {
+  try {
+    const selectedVehicleStr = sessionStorage.getItem('selectedVehicle');
+    if (!selectedVehicleStr) return undefined;
+
+    const vehicle = JSON.parse(selectedVehicleStr);
+    const now = new Date();
+    const currentDate = now.toISOString().split('T')[0];
+    const currentTime = now.toTimeString().slice(0, 5);
+
+    // Default end time: 2 hours from now
+    const endTime = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+    const endDate = endTime.toISOString().split('T')[0];
+    const endTimeStr = endTime.toTimeString().slice(0, 5);
+
+    return {
+      registrationNumber: vehicle.VIN || "",
+      manufacturer: vehicle.U_Veh_Brand || "",
+      model: vehicle.U_Veh_Model || "",
+      variant: vehicle.U_Veh_ModelDescr || "",
+      description: vehicle.U_Veh_ModelFull || "",
+      bodyStyle: vehicle.U_Veh_Color || "",
+      dateOut: currentDate,
+      timeOut: currentTime,
+      dateIn: endDate,
+      timeIn: endTimeStr,
+      quickBooking: true,
+      newOrUsed: "N",
+      newOrUsedLabel: "New",
+      salesExecutive: userName || "",
+    };
+  } catch (error) {
+    console.error("Error parsing selected vehicle:", error);
+    return undefined;
+  }
+};
+
+// Convert booking to form default values
+const getFormDefaultValues = (
+  booking: BookTestDrive | null,
+  isImmediateBooking: boolean,
+  userName?: string
+): Partial<BookTestDriveFormData> | undefined => {
+  // If immediate booking, use immediate defaults
+  if (isImmediateBooking && !booking) {
+    return getImmediateBookingDefaults(userName);
+  }
+
+  if (!booking) return undefined;
+
+  return {
+    customerId: booking.CUSTOMERID || "",
+    customerName: booking.CUSTOMERNAME || "",
+    companyName: booking.COMPANYNAME || "",
+    postcode: booking.POSTCODE || "",
+    address: booking.ADDRESS || "",
+    phoneNumber: booking.PHONENUMBER || "",
+    email: booking.EMAIL || "",
+    registrationNumber: booking.REGISTRATIONNUM || "",
+    manufacturer: booking.MANUFACTURER || "",
+    model: booking.MODEL || "",
+    variant: booking.VARIANT || "",
+    description: booking.DESCRIPTION || "",
+    bodyStyle: booking.BODYSTYLE || "",
+    dateOut: extractDate(booking.DATEOUT),
+    timeOut: booking.TIMEOUT || "",
+    dateIn: extractDate(booking.DATEIN),
+    timeIn: booking.TIMEIN || "",
+    outBranch: booking.OUTBRANCH || "",
+    outBranchName: booking.OUTBRANCHNAME || "",
+    inBranch: booking.INBRANCH || "",
+    inBranchName: booking.INBRANCHNAME || "",
+    salesExecutive: booking.SALESEXECUTIVE || "",
+    approvedBy: booking.APPROVEDBY || "",
+    quickBooking: booking.QUICKBOOKING === "true",
+    newOrUsed: booking.NEWORUSED as "N" | "U" | undefined,
+    newOrUsedLabel: booking.NEWORUSEDLABEL || "",
+    notes: booking.NOTES || "",
+    fuelOut: booking.FUELOUT || "",
+    fuelIn: booking.FUELIN || "",
+    mileageOut: booking.MILEAGEOUT || "",
+    mileageIn: booking.MILEAGEIN || "",
+  };
+};
 
 export default function BookTestDrive({
   searchParams,
@@ -235,105 +332,7 @@ export default function BookTestDrive({
     }
   };
 
-  const columns = useMemo(
-    () => createColumns(handleView, handleEdit),
-    [handleView, handleEdit]
-  );
-
-  // Get immediate booking defaults
-  const getImmediateBookingDefaults = (): Partial<BookTestDriveFormData> | undefined => {
-    if (!isImmediateBooking) return undefined;
-
-    try {
-      const selectedVehicleStr = sessionStorage.getItem('selectedVehicle');
-      if (!selectedVehicleStr) return undefined;
-
-      const vehicle = JSON.parse(selectedVehicleStr);
-      const now = new Date();
-      const currentDate = now.toISOString().split('T')[0];
-      const currentTime = now.toTimeString().slice(0, 5);
-
-      // Default end time: 2 hours from now
-      const endTime = new Date(now.getTime() + 2 * 60 * 60 * 1000);
-      const endDate = endTime.toISOString().split('T')[0];
-      const endTimeStr = endTime.toTimeString().slice(0, 5);
-
-      return {
-        registrationNumber: vehicle.VIN || "",
-        manufacturer: vehicle.U_Veh_Brand || "",
-        model: vehicle.U_Veh_Model || "",
-        variant: vehicle.U_Veh_ModelDescr || "",
-        description: vehicle.U_Veh_ModelFull || "",
-        bodyStyle: vehicle.U_Veh_Color || "",
-        dateOut: currentDate,
-        timeOut: currentTime,
-        dateIn: endDate,
-        timeIn: endTimeStr,
-        quickBooking: true,
-        newOrUsed: "N",
-        newOrUsedLabel: "New",
-        salesExecutive: session?.data?.user.name || "",
-      };
-    } catch (error) {
-      console.error("Error parsing selected vehicle:", error);
-      return undefined;
-    }
-  };
-
-  // Convert booking to form default values
-  const getFormDefaultValues = (booking: BookTestDrive | null): Partial<BookTestDriveFormData> | undefined => {
-    // If immediate booking, use immediate defaults
-    if (isImmediateBooking && !booking) {
-      return getImmediateBookingDefaults();
-    }
-
-    if (!booking) return undefined;
-
-    // Extract date and time from DATEOUT and DATEIN
-    const extractDate = (dateString?: string) => {
-      if (!dateString) return "";
-      try {
-        const date = new Date(dateString);
-        return date.toISOString().split("T")[0];
-      } catch {
-        return "";
-      }
-    };
-
-    return {
-      customerId: booking.CUSTOMERID || "",
-      customerName: booking.CUSTOMERNAME || "",
-      companyName: booking.COMPANYNAME || "",
-      postcode: booking.POSTCODE || "",
-      address: booking.ADDRESS || "",
-      phoneNumber: booking.PHONENUMBER || "",
-      email: booking.EMAIL || "",
-      registrationNumber: booking.REGISTRATIONNUM || "",
-      manufacturer: booking.MANUFACTURER || "",
-      model: booking.MODEL || "",
-      variant: booking.VARIANT || "",
-      description: booking.DESCRIPTION || "",
-      bodyStyle: booking.BODYSTYLE || "",
-      dateOut: extractDate(booking.DATEOUT),
-      timeOut: booking.TIMEOUT || "",
-      dateIn: extractDate(booking.DATEIN),
-      timeIn: booking.TIMEIN || "",
-      outBranch: booking.OUTBRANCH || "",
-      outBranchName: booking.OUTBRANCHNAME || "",
-      inBranch: booking.INBRANCH || "",
-      inBranchName: booking.INBRANCHNAME || "",
-      salesExecutive: booking.SALESEXECUTIVE || "",
-      approvedBy: booking.APPROVEDBY || "",
-      quickBooking: booking.QUICKBOOKING === "true",
-      newOrUsed: booking.NEWORUSED as "N" | "U" | undefined,
-      newOrUsedLabel: booking.NEWORUSEDLABEL || "",
-      notes: booking.NOTES || "",
-      fuelOut: booking.FUELOUT || "",
-      fuelIn: booking.FUELIN || "",
-      mileageOut: booking.MILEAGEOUT || "",
-      mileageIn: booking.MILEAGEIN || "",
-    };
-  };
+  const columns = createColumns(handleView, handleEdit);
 
   if (isLoading) {
     return (
@@ -427,7 +426,7 @@ export default function BookTestDrive({
                 ref={formRef}
                 onSubmit={handleSubmit}
                 onCustomerSearch={handleCustomerSearch}
-                defaultValues={getFormDefaultValues(editingBooking)}
+                defaultValues={getFormDefaultValues(editingBooking, isImmediateBooking, session?.data?.user.name)}
               />
             </div>
             <DialogFooter className="px-6 py-4 border-t">

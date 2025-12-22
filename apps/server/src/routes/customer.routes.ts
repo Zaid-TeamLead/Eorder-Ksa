@@ -3,6 +3,7 @@ import { sendSuccess } from '../utils/api-response.js';
 import { asyncHandler } from '../utils/async-handler.js';
 import { validate } from '@/middleware/validator.js';
 import { z } from 'zod';
+import { logger } from '@/utils/logger.js';
 import {
   getCustomerAddress,
   getCustomerfinancialInformation,
@@ -17,13 +18,27 @@ router.post(
   validate(
     z.object({
       search: z.string().min(1, 'Search is required'),
-      slpCode: z.string().min(1, 'SLP Code is required'),
+      slpCode: z.string().optional(),
     }),
     'body'
   ),
   asyncHandler(async (req, res) => {
     const { search, slpCode } = req.body;
+
+    // Use structured logging with privacy considerations
+    logger.debug('Customer search request received', {
+      searchLength: search?.length || 0,
+      hasSlpCode: !!slpCode,
+      slpCodeProvided: slpCode !== undefined && slpCode !== '',
+    });
+
     const customers = await searchCustomers(search, slpCode);
+
+    logger.info('Customer search completed', {
+      resultCount: customers?.length ?? 0,
+      hasResults: (customers?.length ?? 0) > 0,
+    });
+
     return sendSuccess(res, customers);
   })
 );

@@ -9,6 +9,8 @@ import { db } from "./database.service.js";
 const EXTERNAL_AUTH_URL = "https://auth.neweast.cloud";
 const COMPANY_CODE = "BI_NEGT_KSA";
 
+// Note: Removed sanitizeInput function - now using parameterized queries for SQL injection prevention
+
 export interface UserData {
   email: string;
   name: string;
@@ -150,8 +152,9 @@ export async function verifyOtp(
 
     const userIdFromApi = apiUser.USER_ID || userId;
 
-    const sql = `CALL "BI_NEGT_KSA".DMS_KSA_100001('${userIdFromApi}')`;
-    const slpCode = await db.query(sql);
+    // Use parameterized query to prevent SQL injection
+    const sql = `CALL "BI_NEGT_KSA".DMS_KSA_100001(?)`;
+    const slpCode = await db.query(sql, [userIdFromApi]);
  
 
     // Generate access token
