@@ -29,7 +29,6 @@ const BookTestDriveForm = React.forwardRef<
     defaultValues: {
       customerId: "",
       customerName: "",
-      companyName: "",
       postcode: "",
       address: "",
       phoneNumber: "",
@@ -68,7 +67,6 @@ const BookTestDriveForm = React.forwardRef<
       form.reset({
         customerId: "",
         customerName: "",
-        companyName: "",
         postcode: "",
         address: "",
         phoneNumber: "",
@@ -118,7 +116,6 @@ const BookTestDriveForm = React.forwardRef<
         form.reset({
           customerId: "",
           customerName: "",
-          companyName: "",
           postcode: "",
           address: "",
           phoneNumber: "",

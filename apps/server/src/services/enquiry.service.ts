@@ -205,6 +205,7 @@ class EnquiryService {
     customerId?: string;
     fromDate?: string;
     toDate?: string;
+    includeDeleted?: boolean;
   }) {
     try {
       let query = `
@@ -213,6 +214,11 @@ class EnquiryService {
       `;
 
       const parameters: any[] = [];
+
+      // By default, exclude deleted records unless explicitly included
+      if (!filters?.includeDeleted) {
+        query += ` AND ("STATUS" IS NULL OR "STATUS" != 'Deleted')`;
+      }
 
       if (filters?.status) {
         query += ` AND "STATUS" = ?`;

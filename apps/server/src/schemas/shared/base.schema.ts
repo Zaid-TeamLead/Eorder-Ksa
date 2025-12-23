@@ -50,7 +50,7 @@ export const customerEnquiryContactSchema = z.object({
   homeEmail: emailValidator,
 });
 
-// Vehicle Base Schema
+// Vehicle Base Schema (for Sales Enquiry)
 export const vehicleBaseSchema = z.object({
   make: optionalStringValidator,
   makeName: optionalStringValidator,
@@ -60,9 +60,11 @@ export const vehicleBaseSchema = z.object({
   variantName: optionalStringValidator,
 });
 
-export const vehicleExtendedSchema = vehicleBaseSchema.extend({
+// Vehicle Schema for Test Drive (no name fields - they don't exist in DB)
+export const vehicleTestDriveSchema = z.object({
   manufacturer: optionalStringValidator,
-  manufacturerName: optionalStringValidator,
+  model: optionalStringValidator,
+  variant: optionalStringValidator,
   registrationNumber: optionalStringValidator,
   description: optionalStringValidator,
   bodyStyle: optionalStringValidator,

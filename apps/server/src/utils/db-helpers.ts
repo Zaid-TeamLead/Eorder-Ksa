@@ -1,4 +1,5 @@
 import { logger } from './logger.js';
+import { getCurrentTimestamp } from './date-helpers.js';
 
 /**
  * Configuration for field mapping between API/schema names and database column names
@@ -71,13 +72,6 @@ export function buildUpdateQuery(
 }
 
 /**
- * Get current timestamp in HANA-compatible format
- */
-export function getCurrentTimestamp(): string {
-  return new Date().toISOString().replace('T', ' ').substring(0, 19);
-}
-
-/**
  * Add audit fields (updatedDate, updatedBy) to update query
  */
 export function addAuditFields(
@@ -89,7 +83,7 @@ export function addAuditFields(
   updates.push('"UPDATEDDATE" = ?');
   parameters.push(currentDateTime);
   updates.push('"UPDATEDBY" = ?');
-  parameters.push(updatedBy);
+  parameters.push(updatedBy.substring(0, 8)); // Truncate to 8 chars (DB constraint)
 }
 
 /**

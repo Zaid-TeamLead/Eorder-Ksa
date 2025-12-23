@@ -2,7 +2,7 @@ import { z } from 'zod';
 import {
   customerBaseSchema,
   customerContactSchema,
-  vehicleExtendedSchema,
+  vehicleTestDriveSchema,
   optionalStringValidator,
   requiredStringValidator,
   nonEmptyStringValidator,
@@ -21,7 +21,6 @@ const bookingDetailsSchema = z.object({
   inBranch: optionalStringValidator,
   inBranchName: optionalStringValidator,
   salesExecutive: optionalStringValidator,
-  salesExecutiveName: optionalStringValidator,
   approvedBy: optionalStringValidator,
   quickBooking: z.boolean().optional(),
   newOrUsed: newOrUsedEnum.optional(),
@@ -36,19 +35,13 @@ const bookingNotesSchema = z.object({
   mileageIn: optionalStringValidator,
 });
 
-// Additional fields specific to test drive
-const testDriveCustomerSchema = z.object({
-  companyName: optionalStringValidator,
-});
-
 // ============================================================================
 // Main Create Schema
 // ============================================================================
 
 export const createBookTestDriveSchema = customerBaseSchema
-  .merge(testDriveCustomerSchema)
   .merge(customerContactSchema)
-  .merge(vehicleExtendedSchema)
+  .merge(vehicleTestDriveSchema)
   .merge(bookingDetailsSchema)
   .merge(bookingNotesSchema)
   .extend({

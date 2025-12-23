@@ -91,7 +91,6 @@ const getFormDefaultValues = (
   return {
     customerId: booking.CUSTOMERID || "",
     customerName: booking.CUSTOMERNAME || "",
-    companyName: booking.COMPANYNAME || "",
     postcode: booking.POSTCODE || "",
     address: booking.ADDRESS || "",
     phoneNumber: booking.PHONENUMBER || "",

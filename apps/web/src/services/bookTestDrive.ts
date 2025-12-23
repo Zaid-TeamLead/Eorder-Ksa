@@ -6,18 +6,14 @@ export interface BookTestDrive {
   SLNO: number;
   CUSTOMERID?: string;
   CUSTOMERNAME: string;
-  COMPANYNAME?: string;
   POSTCODE?: string;
   ADDRESS: string;
   PHONENUMBER?: string;
   EMAIL?: string;
   REGISTRATIONNUM?: string;
   MANUFACTURER?: string;
-  MANUFACTURERNAME?: string;
   MODEL?: string;
-  MODELNAME?: string;
   VARIANT?: string;
-  VARIANTNAME?: string;
   DESCRIPTION?: string;
   BODYSTYLE?: string;
   DATEOUT: string;
@@ -29,7 +25,6 @@ export interface BookTestDrive {
   INBRANCH?: string;
   INBRANCHNAME?: string;
   SALESEXECUTIVE?: string;
-  SALESEXECUTIVENAME?: string;
   APPROVEDBY?: string;
   QUICKBOOKING?: string;
   NEWORUSED?: string;
@@ -71,18 +66,14 @@ export const getBookTestDriveById = async (
 export interface UpdateBookTestDriveData {
   customerId?: string;
   customerName?: string;
-  companyName?: string;
   postcode?: string;
   address?: string;
   phoneNumber?: string;
   email?: string;
   registrationNumber?: string;
   manufacturer?: string;
-  manufacturerName?: string;
   model?: string;
-  modelName?: string;
   variant?: string;
-  variantName?: string;
   description?: string;
   bodyStyle?: string;
   dateOut?: string;
@@ -94,7 +85,6 @@ export interface UpdateBookTestDriveData {
   inBranch?: string;
   inBranchName?: string;
   salesExecutive?: string;
-  salesExecutiveName?: string;
   approvedBy?: string;
   quickBooking?: boolean;
   newOrUsed?: 'N' | 'U';

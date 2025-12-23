@@ -1,13 +1,13 @@
 import type { Request, Response } from 'express';
 import EnquiryService, { type CreateEnquiryData, type UpdateEnquiryData } from '../services/enquiry.service.js';
 import { sendSuccess } from '../utils/api-response.js';
-import { AuthorizationError, NotFoundError } from '../types/errors.js';
+import { getAuditUser } from '../utils/user-context.js';
 
 export const createEnquiry = async (req: Request, res: Response) => {
   const enquiryData: CreateEnquiryData = {
     ...req.body,
-    createdBy: req.user?.name || 'System',
-    slpCode: req.body.slpCode || req.user?.slpCode,
+    createdBy: getAuditUser(req),
+    slpCode: req.body.slpCode || req.user?.SlpCode,
     salesperson: req.body.salesperson || req.user?.name,
   };
 
@@ -16,6 +16,7 @@ export const createEnquiry = async (req: Request, res: Response) => {
 };
 
 export const getAllEnquiries = async (req: Request, res: Response) => {
+  // Authorization middleware has already filtered by slpCode for non-admin users
   const filters = {
     status: req.query.status as string,
     slpCode: req.query.slpCode as string,
@@ -24,53 +25,26 @@ export const getAllEnquiries = async (req: Request, res: Response) => {
     toDate: req.query.toDate as string,
   };
 
-  // Authorization: Users can only view their own enquiries unless they have admin role
-  // If user tries to filter by different slpCode, verify they have permission
-  if (filters.slpCode && req.user?.slpCode) {
-    if (filters.slpCode !== req.user.slpCode && req.user.role !== 'admin') {
-      throw new AuthorizationError('You can only view your own enquiries');
-    }
-  }
-
-  // Enforce slpCode filter for non-admin users
-  if (!filters.slpCode && req.user?.slpCode && req.user.role !== 'admin') {
-    filters.slpCode = req.user.slpCode;
-  }
-
   const enquiries = await EnquiryService.getAllEnquiries(filters);
   sendSuccess(res, enquiries);
 };
 
 export const getEnquiryById = async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
-  const enquiry = await EnquiryService.getEnquiryById(id);
-
-  if (!enquiry) {
-    throw new NotFoundError('Enquiry not found');
-  }
-
-  // Authorization: Users can only view their own enquiries unless they're admin
-  if (req.user?.role !== 'admin' && enquiry.SLPCODE !== req.user?.slpCode) {
-    throw new AuthorizationError('You can only view your own enquiries');
-  }
-
+  // Resource already fetched and authorized by middleware
+  const enquiry = req.resource;
   sendSuccess(res, enquiry);
 };
 
 export const updateEnquiry = async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
-  const updatedBy = req.user?.name || 'System';
+  const id = req.params.id;
+  const updatedBy = getAuditUser(req);
   const updateData: UpdateEnquiryData = req.body;
 
-  // Authorization: Verify the enquiry belongs to the user before updating
-  const existingEnquiry = await EnquiryService.getEnquiryById(id);
-  if (!existingEnquiry) {
-    throw new NotFoundError('Enquiry not found');
-  }
-
-  // Check ownership unless user is admin
-  if (req.user?.role !== 'admin' && existingEnquiry.SLPCODE !== req.user?.slpCode) {
-    throw new AuthorizationError('You can only update your own enquiries');
+  // Admin-only: Allow slpCode/salesperson changes
+  // Non-admin users cannot change ownership fields
+  if (req.user?.role !== 'admin') {
+    delete updateData.slpCode;
+    delete updateData.salesperson;
   }
 
   const result = await EnquiryService.updateEnquiry(id, updateData, updatedBy);
@@ -78,23 +52,13 @@ export const updateEnquiry = async (req: Request, res: Response) => {
 };
 
 export const updateEnquiryStatus = async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
+  const id = req.params.id;
   const { status, notes } = req.body;
-  const updatedBy = req.user?.name || 'System';
+  const updatedBy = getAuditUser(req);
 
-  // Authorization: Verify the enquiry belongs to the user before updating status
-  const existingEnquiry = await EnquiryService.getEnquiryById(id);
-  if (!existingEnquiry) {
-    throw new NotFoundError('Enquiry not found');
-  }
-
-  // Check ownership unless user is admin
-  if (req.user?.role !== 'admin' && existingEnquiry.SLPCODE !== req.user?.slpCode) {
-    throw new AuthorizationError('You can only update your own enquiries');
-  }
-
+  // Resource ownership already verified by middleware
   const result = await EnquiryService.updateEnquiryStatus(
-    id,
+    id ,
     status,
     updatedBy,
     notes
@@ -103,26 +67,16 @@ export const updateEnquiryStatus = async (req: Request, res: Response) => {
 };
 
 export const deleteEnquiry = async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
-  const deletedBy = req.user?.name || 'System';
+  const id = req.params.id;
+  const deletedBy = getAuditUser(req);
 
-  // Authorization: Verify the enquiry belongs to the user before deleting
-  const existingEnquiry = await EnquiryService.getEnquiryById(id);
-  if (!existingEnquiry) {
-    throw new NotFoundError('Enquiry not found');
-  }
-
-  // Check ownership unless user is admin
-  if (req.user?.role !== 'admin' && existingEnquiry.SLPCODE !== req.user?.slpCode) {
-    throw new AuthorizationError('You can only delete your own enquiries');
-  }
-
+  // Resource ownership already verified by middleware
   const result = await EnquiryService.deleteEnquiry(id, deletedBy);
   sendSuccess(res, result);
 };
 
 export const getEnquiryStats = async (req: Request, res: Response) => {
-  const slpCode = (req.query.slpCode as string) || req.user?.slpCode;
+  const slpCode = (req.query.slpCode as string) || req.user?.SlpCode;
 
   const stats = await EnquiryService.getEnquiryStats(slpCode);
   sendSuccess(res, stats);

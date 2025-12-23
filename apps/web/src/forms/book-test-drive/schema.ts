@@ -8,11 +8,6 @@ import {
   createEnumValidator,
 } from '@/lib/validation';
 
-// Test drive specific customer fields
-const testDriveCustomerExtension = z.object({
-  companyName: optionalString,
-});
-
 // Vehicle details for test drive
 const testDriveVehicleSchema = z.object({
   registrationNumber: optionalString,
@@ -34,7 +29,6 @@ const bookingDetailsSchema = z.object({
   inBranch: optionalString,
   inBranchName: optionalString,
   salesExecutive: optionalString,
-  salesExecutiveName: optionalString,
   approvedBy: optionalString,
   quickBooking: z.boolean().optional(),
   newOrUsed: createEnumValidator(newOrUsedOptions, 'vehicle type').optional(),
@@ -55,7 +49,6 @@ const bookingNotesSchema = z.object({
 // ============================================================================
 
 export const bookTestDriveSchema = customerBaseSchema
-  .merge(testDriveCustomerExtension)
   .merge(customerContactSchema)
   .merge(testDriveVehicleSchema)
   .merge(bookingDetailsSchema)

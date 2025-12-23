@@ -1,107 +1,114 @@
-import { Router, type Router as RouterType } from 'express';
-import { sendSuccess } from '../utils/api-response.js';
+/**
+ * Book Test Drive Routes
+ * Handles routing for test drive booking operations
+ */
+
+import { Router, type Router as ExpressRouter } from 'express';
+import {
+  createBookTestDrive,
+  getAllBookTestDrives,
+  getBookTestDriveById,
+  updateBookTestDrive,
+  deleteBookTestDrive,
+  getCurrentlyBookedVehicles,
+} from '../controllers/bookTestDrive.controller.js';
+import { validate } from '../middleware/validator.js';
 import { asyncHandler } from '../utils/async-handler.js';
-import { validate } from '@/middleware/validator.js';
+import {
+  checkResourceOwnership,
+  enforceOwnershipFilter,
+} from '../middleware/resource-ownership.js';
+import * as BookTestDriveService from '../services/bookTestDrive.service.js';
 import {
   createBookTestDriveSchema,
   updateBookTestDriveSchema,
   idParamSchema,
-} from '@/schemas/bookTestDrive.schema.js';
-import {
-  createBookTestDrive,
-  getAllBookTestDrives,
-  updateBookTestDrive,
-  getCurrentlyBookedVehicles,
-} from '@/services/bookTestDrive.service.js';
+} from '../schemas/bookTestDrive.schema.js';
 
-const router: RouterType = Router();
+const router: ExpressRouter = Router();
 
+/**
+ * GET /api/book-test-drive
+ * Get all test drive bookings (filtered by ownership for non-admin users)
+ */
 router.get(
   '/',
-  asyncHandler(async (_req, res) => {
-    const bookings = await getAllBookTestDrives();
-    return sendSuccess(res, bookings);
-  })
+  enforceOwnershipFilter((req) => req.user?.SlpCode, 'slpCode'),
+  asyncHandler(getAllBookTestDrives)
 );
 
+/**
+ * GET /api/book-test-drive/currently-booked
+ * Get currently booked vehicles (utility endpoint - no auth needed)
+ */
+router.get('/currently-booked', asyncHandler(getCurrentlyBookedVehicles));
+
+/**
+ * GET /api/book-test-drive/:id
+ * Get single test drive booking by ID (with ownership check)
+ */
 router.get(
-  '/currently-booked',
-  asyncHandler(async (_req, res) => {
-    const bookedVehicles = await getCurrentlyBookedVehicles();
-    return sendSuccess(res, bookedVehicles);
-  })
+  '/:id',
+  validate(idParamSchema, 'params'),
+  asyncHandler(
+    checkResourceOwnership({
+      getResourceById: BookTestDriveService.getBookTestDriveById,
+      getOwnerId: (booking) => booking.SALESEXECUTIVE,
+      getUserId: (req) => req.user?.SlpCode,
+      resourceName: 'Book test drive',
+      allowUnassigned: true,
+    })
+  ),
+  asyncHandler(getBookTestDriveById)
 );
 
+/**
+ * POST /api/book-test-drive
+ * Create new test drive booking
+ */
 router.post(
   '/',
   validate(createBookTestDriveSchema, 'body'),
-  asyncHandler(async (req, res) => {
-    if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Authentication required',
-      });
-    }
-
-    const createdBy = (
-      req.user.SlpCode ||
-      req.user.name ||
-      'SYSTEM'
-    ).toString();
-
-    const booking = await createBookTestDrive({
-      ...req.body,
-      createdBy,
-    });
-
-    return sendSuccess(res, booking, 201);
-  })
+  asyncHandler(createBookTestDrive)
 );
 
+/**
+ * PUT /api/book-test-drive/:id
+ * Update test drive booking (with ownership check)
+ */
 router.put(
   '/:id',
   validate(idParamSchema, 'params'),
   validate(updateBookTestDriveSchema, 'body'),
-  asyncHandler(async (req, res) => {
-    if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Authentication required',
-      });
-    }
+  asyncHandler(
+    checkResourceOwnership({
+      getResourceById: BookTestDriveService.getBookTestDriveById,
+      getOwnerId: (booking) => booking.SALESEXECUTIVE,
+      getUserId: (req) => req.user?.SlpCode,
+      resourceName: 'Book test drive',
+      allowUnassigned: true,
+    })
+  ),
+  asyncHandler(updateBookTestDrive)
+);
 
-    const idParam = req.params.id as string;
-    if (!idParam) {
-      return res.status(400).json({
-        success: false,
-        message: 'ID parameter is required',
-      });
-    }
-    const id: number = parseInt(idParam, 10);
-    if (isNaN(id)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid ID parameter',
-      });
-    }
-
-    const updatedBy = (
-      req.user.SlpCode ||
-      req.user.name ||
-      'SYSTEM'
-    ).toString();
-
-    const booking = await updateBookTestDrive(id, req.body, updatedBy);
-
-    if (!booking) {
-      return res.status(404).json({
-        success: false,
-        message: 'Book test drive not found',
-      });
-    }
-
-    return sendSuccess(res, booking, 200);
-  })
+/**
+ * DELETE /api/book-test-drive/:id
+ * Delete test drive booking (soft delete - with ownership check)
+ */
+router.delete(
+  '/:id',
+  validate(idParamSchema, 'params'),
+  asyncHandler(
+    checkResourceOwnership({
+      getResourceById: BookTestDriveService.getBookTestDriveById,
+      getOwnerId: (booking) => booking.SALESEXECUTIVE,
+      getUserId: (req) => req.user?.SlpCode,
+      resourceName: 'Book test drive',
+      allowUnassigned: true,
+    })
+  ),
+  asyncHandler(deleteBookTestDrive)
 );
 
 export default router;

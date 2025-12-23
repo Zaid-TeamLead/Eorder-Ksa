@@ -84,12 +84,6 @@ export function ViewDetailsDialog({
                             </div>
                             <div>
                                 <label className="text-xs font-medium text-muted-foreground">
-                                    Company Name
-                                </label>
-                                <p className="text-sm mt-1">{booking.COMPANYNAME || "-"}</p>
-                            </div>
-                            <div>
-                                <label className="text-xs font-medium text-muted-foreground">
                                     Postcode
                                 </label>
                                 <p className="text-sm mt-1">{booking.POSTCODE || "-"}</p>

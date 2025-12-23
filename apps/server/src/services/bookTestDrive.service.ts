@@ -4,8 +4,12 @@ import {
   buildUpdateQuery,
   validateUpdateQuery,
   addAuditFields,
-  getCurrentTimestamp,
 } from '../utils/db-helpers.js';
+import {
+  getCurrentTimestamp,
+  formatDateTime,
+  formatDateTimeRequired,
+} from '../utils/date-helpers.js';
 import {
   bookTestDriveFieldMapping,
   bookTestDriveValueTransformers,
@@ -15,7 +19,6 @@ export interface BookTestDriveData {
   // Customer Information
   customerId?: string;
   customerName: string;
-  companyName?: string;
   postcode?: string;
   address: string;
   phoneNumber?: string;
@@ -24,11 +27,8 @@ export interface BookTestDriveData {
   // Vehicle Booking Details
   registrationNumber?: string;
   manufacturer?: string;
-  manufacturerName?: string;
   model?: string;
-  modelName?: string;
   variant?: string;
-  variantName?: string;
   description?: string;
   bodyStyle?: string;
 
@@ -42,7 +42,6 @@ export interface BookTestDriveData {
   inBranch?: string;
   inBranchName?: string;
   salesExecutive?: string;
-  salesExecutiveName?: string;
   approvedBy?: string;
   quickBooking?: boolean;
   newOrUsed?: 'N' | 'U';
@@ -64,18 +63,14 @@ export interface BookTestDrive {
   SLNO: number;
   CUSTOMERID?: string;
   CUSTOMERNAME: string;
-  COMPANYNAME?: string;
   POSTCODE?: string;
   ADDRESS: string;
   PHONENUMBER?: string;
   EMAIL?: string;
   REGISTRATIONNUM?: string;
   MANUFACTURER?: string;
-  MANUFACTURERNAME?: string;
   MODEL?: string;
-  MODELNAME?: string;
   VARIANT?: string;
-  VARIANTNAME?: string;
   DESCRIPTION?: string;
   BODYSTYLE?: string;
   DATEOUT: string;
@@ -87,7 +82,6 @@ export interface BookTestDrive {
   INBRANCH?: string;
   INBRANCHNAME?: string;
   SALESEXECUTIVE?: string;
-  SALESEXECUTIVENAME?: string;
   APPROVEDBY?: string;
   QUICKBOOKING?: string;
   NEWORUSED?: string;
@@ -114,31 +108,8 @@ export const createBookTestDrive = async (
     // Convert date strings to SECONDDATE format (YYYY-MM-DD HH:MM:SS)
     // dateOut and dateIn are in YYYY-MM-DD format, timeOut and timeIn can be in HH:MM or HH:MM:SS format
     // These fields are required, so we ensure they're never null
-    const formatDateTime = (date: string, time?: string): string => {
-      if (!date) {
-        throw new Error('Date is required');
-      }
-      let timePart = '00:00:00';
-      if (time) {
-        // If time already has seconds (HH:MM:SS), use it as is
-        // Otherwise, append :00 to make it HH:MM:00
-        const timeParts = time.split(':');
-        if (timeParts.length === 2) {
-          // HH:MM format, append :00
-          timePart = `${time}:00`;
-        } else if (timeParts.length === 3) {
-          // HH:MM:SS format, use as is
-          timePart = time;
-        } else {
-          // Invalid format, default to 00:00:00
-          timePart = '00:00:00';
-        }
-      }
-      return `${date} ${timePart}`;
-    };
-
-    const dateOut = formatDateTime(data.dateOut, data.timeOut);
-    const dateIn = formatDateTime(data.dateIn, data.timeIn);
+    const dateOut = formatDateTimeRequired(data.dateOut, data.timeOut);
+    const dateIn = formatDateTimeRequired(data.dateIn, data.timeIn);
 
     // Convert boolean to string
     const quickBooking =
@@ -219,11 +190,33 @@ export const createBookTestDrive = async (
   }
 };
 
-export const getAllBookTestDrives = async (): Promise<BookTestDrive[]> => {
+export const getAllBookTestDrives = async (filters?: {
+  slpCode?: string;
+  status?: string;
+  includeDeleted?: boolean;
+}): Promise<BookTestDrive[]> => {
   try {
-    const bookings = await db.query<BookTestDrive>(
-      `SELECT * FROM "BI_NEGT_KSA"."DMS_BOOKTESTDRIVE" ORDER BY "SLNO" DESC`
-    );
+    let query = `SELECT * FROM "BI_NEGT_KSA"."DMS_BOOKTESTDRIVE" WHERE 1=1`;
+    const parameters: any[] = [];
+
+    // Exclude cancelled/deleted by default
+    if (!filters?.includeDeleted) {
+      query += ` AND ("STATUS" IS NULL OR "STATUS" NOT IN ('Cancelled', 'Deleted'))`;
+    }
+
+    if (filters?.slpCode) {
+      query += ` AND "SALESEXECUTIVE" = ?`;
+      parameters.push(filters.slpCode);
+    }
+
+    if (filters?.status) {
+      query += ` AND "STATUS" = ?`;
+      parameters.push(filters.status);
+    }
+
+    query += ` ORDER BY "SLNO" DESC`;
+
+    const bookings = await db.query<BookTestDrive>(query, parameters);
     return bookings;
   } catch (error) {
     logger.error(error, 'Failed to get all book test drives');
@@ -243,11 +236,8 @@ export interface UpdateBookTestDriveData {
   // Vehicle Booking Details
   registrationNumber?: string;
   manufacturer?: string;
-  manufacturerName?: string;
   model?: string;
-  modelName?: string;
   variant?: string;
-  variantName?: string;
   description?: string;
   bodyStyle?: string;
 
@@ -261,7 +251,6 @@ export interface UpdateBookTestDriveData {
   inBranch?: string;
   inBranchName?: string;
   salesExecutive?: string;
-  salesExecutiveName?: string;
   approvedBy?: string;
   quickBooking?: boolean;
   newOrUsed?: 'N' | 'U';
@@ -275,27 +264,6 @@ export interface UpdateBookTestDriveData {
   mileageIn?: string;
 }
 
-// Helper function for date formatting
-function formatDateTime(date: string, time?: string): string | null {
-  if (!date) return null;
-  let timePart = '00:00:00';
-  if (time) {
-    // If time already has seconds (HH:MM:SS), use it as is
-    // Otherwise, append :00 to make it HH:MM:00
-    const timeParts = time.split(':');
-    if (timeParts.length === 2) {
-      // HH:MM format, append :00
-      timePart = `${time}:00`;
-    } else if (timeParts.length === 3) {
-      // HH:MM:SS format, use as is
-      timePart = time;
-    } else {
-      // Invalid format, default to 00:00:00
-      timePart = '00:00:00';
-    }
-  }
-  return `${date} ${timePart}`;
-}
 
 export const updateBookTestDrive = async (
   id: number,
@@ -366,6 +334,41 @@ export const getBookTestDriveById = async (
   } catch (error) {
     logger.error(error, 'Failed to get book test drive by id');
     throw new Error('Failed to get book test drive by id');
+  }
+};
+
+/**
+ * Delete a test drive booking (soft delete by setting status to Cancelled)
+ */
+export const deleteBookTestDrive = async (
+  id: number,
+  deletedBy: string
+): Promise<{ success: boolean; message: string }> => {
+  try {
+    const existing = await getBookTestDriveById(id);
+    if (!existing) {
+      throw new Error('Book test drive not found');
+    }
+
+    const currentDateTime = getCurrentTimestamp();
+
+    const query = `
+      UPDATE "BI_NEGT_KSA"."DMS_BOOKTESTDRIVE"
+      SET "STATUS" = 'Cancelled', "UPDATEDDATE" = ?, "UPDATEDBY" = ?
+      WHERE "SLNO" = ?
+    `;
+
+    await db.execute(query, [
+      currentDateTime,
+      deletedBy.substring(0, 8),
+      id,
+    ]);
+
+    logger.info(`Book test drive deleted (soft delete): ${id}`);
+    return { success: true, message: 'Book test drive deleted successfully' };
+  } catch (error) {
+    logger.error(error, 'Failed to delete book test drive');
+    throw new Error('Failed to delete book test drive');
   }
 };
 

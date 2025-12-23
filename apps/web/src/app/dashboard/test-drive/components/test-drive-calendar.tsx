@@ -77,7 +77,7 @@ export function TestDriveCalendar({
 
       return {
         id: booking.SLNO,
-        title: `${booking.CUSTOMERNAME} - ${booking.MANUFACTURERNAME || booking.MANUFACTURER || ""} ${booking.MODELNAME || booking.MODEL || ""}`,
+        title: `${booking.CUSTOMERNAME} - ${booking.MANUFACTURER || ""} ${booking.MODEL || ""}`,
         start: startDate,
         end: endDate,
         resource: booking,

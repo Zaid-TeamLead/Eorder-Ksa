@@ -3,7 +3,7 @@ import { db } from './database.service';
 
 export const searchVehicles = async (search?: string) => {
   try {
-    const vehicles = await db.query(`CALL "BI_NEGT_KSA".DMS_KSA_100007()`);
+    const vehicles = await db.query(`CALL "BI_NEGT_KSA".h()`);
 
     // Filter on frontend if search term provided (until stored procedure supports search)
     if (search && search.trim()) {
@@ -86,7 +86,7 @@ export const createTestVehicle = async (data: CreateTestVehicleData) => {
     const status = data.VEHICLESTATUS || 'true';
 
     await db.execute(
-      `INSERT INTO "BI_NEGT_KSA"."DMS_TESTVEHICLE" 
+      `INSERT INTO "BI_NEGT_KSA"."DMS_TESTVEHICLE"
        ("REGISTRATIONNUM", "MANUFACTURER", "MODEL", "VARIANT", "DESCRIPTION", "BODYSTYLE", "VEHICLESTSATUS", "CREATEDDATE", "CREATEDBY")
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
@@ -104,8 +104,8 @@ export const createTestVehicle = async (data: CreateTestVehicleData) => {
 
     // Get the inserted record
     const insertedId = await db.queryOne<{ SLNO: number }>(
-      `SELECT "SLNO" FROM "BI_NEGT_KSA"."DMS_TESTVEHICLE" 
-       WHERE "CREATEDBY" = ? AND "CREATEDDATE" = ? 
+      `SELECT "SLNO" FROM "BI_NEGT_KSA"."DMS_TESTVEHICLE"
+       WHERE "CREATEDBY" = ? AND "CREATEDDATE" = ?
        ORDER BY "SLNO" DESC LIMIT 1`,
       [data.CREATEDBY.substring(0, 8), now]
     );
@@ -180,8 +180,8 @@ export const updateTestVehicle = async (
 
     values.push(id);
 
-    const sql = `UPDATE "BI_NEGT_KSA"."DMS_TESTVEHICLE" 
-                 SET ${updates.join(', ')} 
+    const sql = `UPDATE "BI_NEGT_KSA"."DMS_TESTVEHICLE"
+                 SET ${updates.join(', ')}
                  WHERE "SLNO" = ?`;
 
     await db.execute(sql, values);

@@ -74,7 +74,6 @@ export const bookTestDriveFieldMapping: FieldMapping = {
   // Customer Information
   customerId: 'CUSTOMERID',
   customerName: 'CUSTOMERNAME',
-  companyName: 'COMPANYNAME',
   postcode: 'POSTCODE',
   address: 'ADDRESS',
   phoneNumber: 'PHONENUMBER',
@@ -83,11 +82,8 @@ export const bookTestDriveFieldMapping: FieldMapping = {
   // Vehicle Details
   registrationNumber: 'REGISTRATIONNUM',
   manufacturer: 'MANUFACTURER',
-  manufacturerName: 'MANUFACTURERNAME',
   model: 'MODEL',
-  modelName: 'MODELNAME',
   variant: 'VARIANT',
-  variantName: 'VARIANTNAME',
   description: 'DESCRIPTION',
   bodyStyle: 'BODYSTYLE',
 
@@ -101,7 +97,6 @@ export const bookTestDriveFieldMapping: FieldMapping = {
   inBranch: 'INBRANCH',
   inBranchName: 'INBRANCHNAME',
   salesExecutive: 'SALESEXECUTIVE',
-  salesExecutiveName: 'SALESEXECUTIVENAME',
   approvedBy: 'APPROVEDBY',
   quickBooking: 'QUICKBOOKING',
   newOrUsed: 'NEWORUSED',
