@@ -11,12 +11,13 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { IconDotsVertical, IconEye, IconEdit } from "@tabler/icons-react";
+import { IconDotsVertical, IconEye, IconEdit, IconTrash } from "@tabler/icons-react";
 import type { BookTestDrive } from "@/services/bookTestDrive";
 
 export const createColumns = (
     onView?: (booking: BookTestDrive) => void,
-    onEdit?: (booking: BookTestDrive) => void
+    onEdit?: (booking: BookTestDrive) => void,
+    onDelete?: (id: number) => void
 ): ColumnDef<BookTestDrive>[] => {
     return [
         {
@@ -146,6 +147,18 @@ export const createColumns = (
                                     <IconEdit className="mr-2 h-4 w-4" />
                                     Edit
                                 </DropdownMenuItem>
+                            )}
+                            {onDelete && (
+                                <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                        variant="destructive"
+                                        onClick={() => onDelete(booking.SLNO)}
+                                    >
+                                        <IconTrash className="mr-2 h-4 w-4" />
+                                        Delete
+                                    </DropdownMenuItem>
+                                </>
                             )}
                         </DropdownMenuContent>
                     </DropdownMenu>

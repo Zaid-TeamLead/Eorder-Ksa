@@ -2,22 +2,15 @@
 import React, { use, useState, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { CrudDialog } from "@/components/shared/crud-dialog";
+import { DeleteConfirmationDialog } from "@/components/shared/delete-confirmation-dialog";
 import BookTestDriveForm, {
   type BookTestDriveFormData,
 } from "@/forms/book-test-drive";
 import axios from "axios";
 import { useSession } from "@/lib/auth-client";
 import { toast } from "sonner";
-import { DataTable } from "./components/data-table";
+import { GenericDataTable } from "@/components/shared/generic-data-table";
 import { createColumns } from "./components/columns";
 import { ViewDetailsDialog } from "./components/view-details-dialog";
 import { TestDriveCalendar } from "./components/test-drive-calendar";
@@ -37,53 +30,42 @@ const extractDate = (dateString?: string): string => {
   }
 };
 
-// Get immediate booking defaults from sessionStorage
-const getImmediateBookingDefaults = (userName?: string): Partial<BookTestDriveFormData> | undefined => {
-  try {
-    const selectedVehicleStr = sessionStorage.getItem('selectedVehicle');
-    if (!selectedVehicleStr) return undefined;
+// Get immediate booking defaults from URL params (vehicleVin)
+const getImmediateBookingDefaults = (vehicleVin?: string, userName?: string): Partial<BookTestDriveFormData> | undefined => {
+  if (!vehicleVin) return undefined;
 
-    const vehicle = JSON.parse(selectedVehicleStr);
-    const now = new Date();
-    const currentDate = now.toISOString().split('T')[0];
-    const currentTime = now.toTimeString().slice(0, 5);
+  const now = new Date();
+  const currentDate = now.toISOString().split('T')[0];
+  const currentTime = now.toTimeString().slice(0, 5);
 
-    // Default end time: 2 hours from now
-    const endTime = new Date(now.getTime() + 2 * 60 * 60 * 1000);
-    const endDate = endTime.toISOString().split('T')[0];
-    const endTimeStr = endTime.toTimeString().slice(0, 5);
+  // Default end time: 2 hours from now
+  const endTime = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+  const endDate = endTime.toISOString().split('T')[0];
+  const endTimeStr = endTime.toTimeString().slice(0, 5);
 
-    return {
-      registrationNumber: vehicle.VIN || "",
-      manufacturer: vehicle.U_Veh_Brand || "",
-      model: vehicle.U_Veh_Model || "",
-      variant: vehicle.U_Veh_ModelDescr || "",
-      description: vehicle.U_Veh_ModelFull || "",
-      bodyStyle: vehicle.U_Veh_Color || "",
-      dateOut: currentDate,
-      timeOut: currentTime,
-      dateIn: endDate,
-      timeIn: endTimeStr,
-      quickBooking: true,
-      newOrUsed: "N",
-      newOrUsedLabel: "New",
-      salesExecutive: userName || "",
-    };
-  } catch (error) {
-    console.error("Error parsing selected vehicle:", error);
-    return undefined;
-  }
+  return {
+    registrationNumber: vehicleVin,
+    dateOut: currentDate,
+    timeOut: currentTime,
+    dateIn: endDate,
+    timeIn: endTimeStr,
+    quickBooking: true,
+    newOrUsed: "N",
+    newOrUsedLabel: "New",
+    salesExecutive: userName || "",
+  };
 };
 
 // Convert booking to form default values
 const getFormDefaultValues = (
   booking: BookTestDrive | null,
   isImmediateBooking: boolean,
+  vehicleVin?: string,
   userName?: string
 ): Partial<BookTestDriveFormData> | undefined => {
   // If immediate booking, use immediate defaults
   if (isImmediateBooking && !booking) {
-    return getImmediateBookingDefaults(userName);
+    return getImmediateBookingDefaults(vehicleVin, userName);
   }
 
   if (!booking) return undefined;
@@ -125,11 +107,12 @@ const getFormDefaultValues = (
 export default function BookTestDrive({
   searchParams,
 }: {
-  searchParams: Promise<{ action?: string; immediate?: string }>;
+  searchParams: Promise<{ action?: string; immediate?: string; vehicleVin?: string }>;
 }) {
   const params = use(searchParams);
   const action = params.action;
   const immediate = params.immediate === "true";
+  const vehicleVin = params.vehicleVin;
   const { data: session } = useSession();
   const slpCode = session?.user.SlpCode;
   const [isCreate, setIsCreate] = useState(action === "create");
@@ -138,6 +121,7 @@ export default function BookTestDrive({
   const [editingBooking, setEditingBooking] = useState<BookTestDrive | null>(null);
   const [isImmediateBooking, setIsImmediateBooking] = useState(immediate);
   const [viewMode, setViewMode] = useState<"table" | "calendar">("table");
+  const [deleteId, setDeleteId] = useState<number | null>(null);
   const formRef = useRef<{ submit: () => void; reset: () => void }>(null);
   const queryClient = useQueryClient();
 
@@ -165,6 +149,21 @@ export default function BookTestDrive({
       if (error.response?.status === 401) {
         toast.error("Authentication failed. Please log in again.");
       }
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) =>
+      axios.delete(`${process.env.NEXT_PUBLIC_SERVER_URL}/api/book-test-drive/${id}`, {
+        withCredentials: true,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["book-test-drives"] });
+      toast.success("Test drive booking deleted successfully");
+      setDeleteId(null);
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || "Failed to delete booking");
     },
   });
 
@@ -242,6 +241,16 @@ export default function BookTestDrive({
   const handleEdit = (booking: BookTestDrive) => {
     setEditingBooking(booking);
     setIsCreate(true);
+  };
+
+  const handleDelete = (id: number) => {
+    setDeleteId(id);
+  };
+
+  const confirmDelete = () => {
+    if (deleteId) {
+      deleteMutation.mutate(deleteId);
+    }
   };
 
   const handleSlotSelect = (slotInfo: SlotInfo) => {
@@ -331,25 +340,7 @@ export default function BookTestDrive({
     }
   };
 
-  const columns = createColumns(handleView, handleEdit);
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-sm text-muted-foreground">Loading bookings...</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-sm text-destructive">
-          Error loading bookings. Please try again.
-        </div>
-      </div>
-    );
-  }
+  const columns = createColumns(handleView, handleEdit, handleDelete);
 
   return (
     <div className="space-y-6 p-6">
@@ -381,9 +372,23 @@ export default function BookTestDrive({
 
         {/* Table or Calendar View */}
         {viewMode === "table" ? (
-          <DataTable
+          <GenericDataTable
             columns={columns}
             data={bookings}
+            isLoading={isLoading}
+            error={error as Error}
+            filterConfig={{
+              columnId: "CUSTOMERNAME",
+              placeholder: "Filter by customer name...",
+            }}
+            paginationConfig={{
+              initialPageSize: 10,
+              pageSizeOptions: [10, 20, 30, 50],
+              showPageSizeSelector: true,
+            }}
+            emptyStateConfig={{
+              message: "No test drive bookings found.",
+            }}
           />
         ) : (
           <TestDriveCalendar
@@ -393,70 +398,43 @@ export default function BookTestDrive({
             onEventDrop={handleEventDrop}
           />
         )}
-        <Dialog
+        <CrudDialog
           open={isCreate}
           onOpenChange={(open) => {
             if (!open) {
               setEditingBooking(null);
               setIsImmediateBooking(false);
-              sessionStorage.removeItem('selectedVehicle');
               formRef.current?.reset();
             }
             setIsCreate(open);
           }}
+          mode={editingBooking ? "edit" : "create"}
+          entityName="Test Drive Booking"
+          description={isImmediateBooking ? "Quick booking starting now - Vehicle and time pre-filled" : "Fill in the booking details below"}
+          customTitle={isImmediateBooking ? "Immediate Test Drive Booking" : undefined}
+          onSubmit={() => formRef.current?.submit()}
+          isSubmitting={updateMutation.isPending}
         >
-          <DialogContent className="max-h-[calc(100vh-2rem)] w-full h-full flex flex-col sm:max-w-7xl p-0 gap-0">
-            <DialogHeader className="px-6 pt-6 pb-4 border-b">
-              <DialogTitle className="text-xl font-semibold">
-                {editingBooking
-                  ? "Edit Booking"
-                  : isImmediateBooking
-                  ? "Immediate Test Drive Booking"
-                  : "Booking"}
-              </DialogTitle>
-              {isImmediateBooking && (
-                <DialogDescription className="text-sm text-muted-foreground">
-                  Quick booking starting now - Vehicle and time pre-filled
-                </DialogDescription>
-              )}
-            </DialogHeader>
-            <div className="flex-1 overflow-hidden">
-              <BookTestDriveForm
-                ref={formRef}
-                onSubmit={handleSubmit}
-                onCustomerSearch={handleCustomerSearch}
-                defaultValues={getFormDefaultValues(editingBooking, isImmediateBooking, session?.data?.user.name)}
-              />
-            </div>
-            <DialogFooter className="px-6 py-4 border-t">
-              <div className="flex items-center justify-end gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  className="h-8"
-                  onClick={() => formRef.current?.submit()}
-                >
-                  {editingBooking ? "Update" : "OK"}
-                </Button>
-                <DialogClose asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-8"
-                  >
-                    Cancel
-                  </Button>
-                </DialogClose>
-              </div>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          <BookTestDriveForm
+            ref={formRef}
+            onSubmit={handleSubmit}
+            onCustomerSearch={handleCustomerSearch}
+            defaultValues={getFormDefaultValues(editingBooking, isImmediateBooking, vehicleVin, session?.data?.user.name)}
+          />
+        </CrudDialog>
 
         <ViewDetailsDialog
           open={isViewOpen}
           onOpenChange={setIsViewOpen}
           booking={selectedBooking}
+        />
+
+        <DeleteConfirmationDialog
+          open={!!deleteId}
+          onOpenChange={(open) => !open && setDeleteId(null)}
+          onConfirm={confirmDelete}
+          entityName="test drive booking"
+          isDeleting={deleteMutation.isPending}
         />
       </div>
     </div>

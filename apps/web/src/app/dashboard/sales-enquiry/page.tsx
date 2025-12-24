@@ -1,27 +1,12 @@
 "use client";
-import { use, useState, useEffect, useRef } from "react";
-import { EnquiryTable } from "@/components/enquiry-table";
+import { use, useState, useEffect, useRef, useMemo } from "react";
+import { GenericDataTable } from "@/components/shared/generic-data-table";
+import { CrudDialog } from "@/components/shared/crud-dialog";
+import { DeleteConfirmationDialog } from "@/components/shared/delete-confirmation-dialog";
+import { createSalesEnquiryColumns } from "./components/columns";
+import { IconPlus } from "@tabler/icons-react";
 import { EnquiryDetailsModal } from "@/components/enquiry-details-modal";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import {
   SalesEnquiryForm,
   type SalesEnquiryFormSubmission,
@@ -290,15 +275,47 @@ export default function SalesEnquiry({
     setVehicleModalOpen(false);
   };
 
+  // Create columns with handlers
+  const columns = useMemo(
+    () =>
+      createSalesEnquiryColumns({
+        onViewEnquiry: handleViewEnquiry,
+        onEditEnquiry: handleEditEnquiry,
+        onDeleteEnquiry: handleDeleteEnquiry,
+        onStatusChange: handleStatusChange,
+      }),
+    []
+  );
+
   return (
     <div className="flex flex-col gap-4 p-6 md:gap-6">
-      <EnquiryTable
+      <GenericDataTable
+        columns={columns}
         data={enquiries}
-        onNewEnquiry={handleNewEnquiry}
-        onViewEnquiry={handleViewEnquiry}
-        onEditEnquiry={handleEditEnquiry}
-        onDeleteEnquiry={handleDeleteEnquiry}
-        onStatusChange={handleStatusChange}
+        isLoading={isLoading}
+        filterConfig={{
+          columnId: "CUSTOMERNAME",
+          placeholder: "Filter by customer name...",
+        }}
+        paginationConfig={{
+          initialPageSize: 10,
+          pageSizeOptions: [10, 20, 30, 50],
+          showPageSizeSelector: true,
+          formatPaginationText: (start, end, total) =>
+            `Showing ${start} to ${end} of ${total} enquiries`,
+        }}
+        toolbarActions={[
+          {
+            label: "Create New Enquiry",
+            onClick: handleNewEnquiry,
+            icon: <IconPlus className="mr-2 h-4 w-4" />,
+            variant: "default",
+            size: "sm",
+          },
+        ]}
+        emptyStateConfig={{
+          message: "No enquiries found.",
+        }}
       />
 
       {/* View Enquiry Modal */}
@@ -309,7 +326,7 @@ export default function SalesEnquiry({
       />
 
       {/* Create/Edit Enquiry Dialog */}
-      <Dialog
+      <CrudDialog
         open={isCreate || isEdit}
         onOpenChange={(open) => {
           if (!open) {
@@ -319,131 +336,77 @@ export default function SalesEnquiry({
             setCurrentTab("customer-information");
           }
         }}
+        mode={isEdit ? "edit" : "create"}
+        entityName="Sales Enquiry"
+        description="Fill in all the required information across the tabs below"
+        onSubmit={() => formRef.current?.submit()}
+        isSubmitting={createEnquiryMutation.isPending || updateEnquiryMutation.isPending}
+        multiStepConfig={{
+          currentStep: TABS.findIndex((tab) => tab.id === currentTab),
+          totalSteps: TABS.length,
+          onPrevious: handlePrevious,
+          onNext: handleNext,
+        }}
       >
-        <DialogContent className="max-h-[calc(100vh-2rem)] w-full h-full flex flex-col sm:max-w-7xl p-0 gap-0">
-          <DialogHeader className="px-6 pt-6 pb-4 border-b">
-            <DialogTitle className="text-xl font-semibold">
-              {isEdit ? "Edit Sales Enquiry" : "Create Sales Enquiry"}
-            </DialogTitle>
-            <DialogDescription className="text-sm text-muted-foreground">
-              Fill in all the required information across the tabs below
-            </DialogDescription>
-          </DialogHeader>
-          <SalesEnquiryForm
-            ref={formRef}
-            currentTab={currentTab}
-            onTabChange={setCurrentTab}
-            onCustomerSearch={handleCustomerSearch}
-            onNewCustomer={handleNewCustomer}
-            onSubmit={handleSubmit}
-            onSelectFromInventory={() => setVehicleModalOpen(true)}
-            defaultValues={
-              isEdit && selectedEnquiry
-                ? {
-                    customerId: selectedEnquiry.CUSTOMERID || "",
-                    customerName: selectedEnquiry.CUSTOMERNAME || "",
-                    address: selectedEnquiry.ADDRESS || "",
-                    postcode: selectedEnquiry.POSTCODE || "",
-                    homePhone: selectedEnquiry.HOMEPHONE || "",
-                    workPhone: selectedEnquiry.WORKPHONE || "",
-                    mobile: selectedEnquiry.MOBILE || "",
-                    homeEmail: selectedEnquiry.HOMEEMAIL || "",
-                    make: selectedEnquiry.MAKE || "",
-                    model: selectedEnquiry.MODEL || "",
-                    variant: selectedEnquiry.VARIANT || "",
-                    year: selectedEnquiry.YEAR || "",
-                    color: selectedEnquiry.COLOR || "",
-                    suppCatNum: selectedEnquiry.SUPPCATNUM || "",
-                    modelCode: selectedEnquiry.MODELCODE || "",
-                    quantity: selectedEnquiry.QUANTITY || undefined,
-                    vinNumber: selectedEnquiry.VINNUMBER || "",
-                    vinDetails: selectedEnquiry.VINDETAILS || undefined,
-                    branch: selectedEnquiry.BRANCH || "",
-                    budget: selectedEnquiry.BUDGET || "",
-                    financing: selectedEnquiry.FINANCING || undefined,
-                    preferredContact: selectedEnquiry.PREFERREDCONTACT || undefined,
-                    preferredTime: selectedEnquiry.PREFERREDTIME || undefined,
-                    preferredDelivery: selectedEnquiry.PREFERREDDELIVERY || "",
-                    source: selectedEnquiry.SOURCE || "",
-                    sales_type: selectedEnquiry.SALESTYPE || "",
-                    tradeInMake: selectedEnquiry.TRADEINMAKE || "",
-                    tradeInModel: selectedEnquiry.TRADEINMODEL || "",
-                    tradeInYear: selectedEnquiry.TRADEINYEAR || "",
-                    tradeInKms: selectedEnquiry.TRADEINKMS || "",
-                    tradeInExpectedPrice: selectedEnquiry.TRADEINEXPECTEDPRICE || "",
-                    salesperson: selectedEnquiry.SALESPERSON || "",
-                    slpCode: selectedEnquiry.SLPCODE || "",
-                    notes: selectedEnquiry.NOTES || "",
-                  }
-                : undefined
-            }
-          />
-          <DialogFooter className="mt-auto border-t px-6 py-3 flex items-center justify-between bg-muted/30">
-            <div className="flex gap-2">
-              {TABS.findIndex((tab) => tab.id === currentTab) > 0 && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handlePrevious}
-                  className="h-8"
-                >
-                  Previous
-                </Button>
-              )}
-              {TABS.findIndex((tab) => tab.id === currentTab) <
-                TABS.length - 1 && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={handleNext}
-                    className="h-8"
-                  >
-                    Next
-                  </Button>
-                )}
-            </div>
-            <div className="flex gap-2">
-              <DialogClose asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-8"
-                >
-                  Cancel
-                </Button>
-              </DialogClose>
-              {currentTab === TABS[TABS.length - 1].id && (
-                <Button
-                  type="button"
-                  size="sm"
-                  className="h-8"
-                  onClick={() => formRef.current?.submit()}
-                >
-                  {isEdit ? "Update" : "Save changes"}
-                </Button>
-              )}
-            </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        <SalesEnquiryForm
+          ref={formRef}
+          currentTab={currentTab}
+          onTabChange={setCurrentTab}
+          onCustomerSearch={handleCustomerSearch}
+          onNewCustomer={handleNewCustomer}
+          onSubmit={handleSubmit}
+          onSelectFromInventory={() => setVehicleModalOpen(true)}
+          defaultValues={
+            isEdit && selectedEnquiry
+              ? {
+                  customerId: selectedEnquiry.CUSTOMERID || "",
+                  customerName: selectedEnquiry.CUSTOMERNAME || "",
+                  address: selectedEnquiry.ADDRESS || "",
+                  postcode: selectedEnquiry.POSTCODE || "",
+                  homePhone: selectedEnquiry.HOMEPHONE || "",
+                  workPhone: selectedEnquiry.WORKPHONE || "",
+                  mobile: selectedEnquiry.MOBILE || "",
+                  homeEmail: selectedEnquiry.HOMEEMAIL || "",
+                  make: selectedEnquiry.MAKE || "",
+                  model: selectedEnquiry.MODEL || "",
+                  variant: selectedEnquiry.VARIANT || "",
+                  year: selectedEnquiry.YEAR || "",
+                  color: selectedEnquiry.COLOR || "",
+                  suppCatNum: selectedEnquiry.SUPPCATNUM || "",
+                  modelCode: selectedEnquiry.MODELCODE || "",
+                  quantity: selectedEnquiry.QUANTITY || undefined,
+                  vinNumber: selectedEnquiry.VINNUMBER || "",
+                  vinDetails: selectedEnquiry.VINDETAILS || undefined,
+                  branch: selectedEnquiry.BRANCH || "",
+                  budget: selectedEnquiry.BUDGET || "",
+                  financing: selectedEnquiry.FINANCING || undefined,
+                  preferredContact: selectedEnquiry.PREFERREDCONTACT || undefined,
+                  preferredTime: selectedEnquiry.PREFERREDTIME || undefined,
+                  preferredDelivery: selectedEnquiry.PREFERREDDELIVERY || "",
+                  source: selectedEnquiry.SOURCE || "",
+                  sales_type: selectedEnquiry.SALESTYPE || "",
+                  tradeInMake: selectedEnquiry.TRADEINMAKE || "",
+                  tradeInModel: selectedEnquiry.TRADEINMODEL || "",
+                  tradeInYear: selectedEnquiry.TRADEINYEAR || "",
+                  tradeInKms: selectedEnquiry.TRADEINKMS || "",
+                  tradeInExpectedPrice: selectedEnquiry.TRADEINEXPECTEDPRICE || "",
+                  salesperson: selectedEnquiry.SALESPERSON || "",
+                  slpCode: selectedEnquiry.SLPCODE || "",
+                  notes: selectedEnquiry.NOTES || "",
+                }
+              : undefined
+          }
+        />
+      </CrudDialog>
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will delete the sales enquiry. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete}>Delete</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteConfirmationDialog
+        open={!!deleteId}
+        onOpenChange={(open) => !open && setDeleteId(null)}
+        onConfirm={confirmDelete}
+        entityName="sales enquiry"
+        isDeleting={deleteEnquiryMutation.isPending}
+      />
 
       {/* Vehicle Selection Modal */}
       <VehicleSelectionModal

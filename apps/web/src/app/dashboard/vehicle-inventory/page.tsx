@@ -1,17 +1,16 @@
 "use client";
 import { getAllVehicleInventory, type VehicleInventory } from '@/services/vehicles';
 import { useQuery } from "@tanstack/react-query";
-import { DataTable } from "./components/data-table";
+import { GenericDataTable } from "@/components/shared/generic-data-table";
 import { createColumns } from "./components/columns";
 import { Card, CardHeader, CardTitle, CardDescription, CardAction, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { IconAlertTriangle } from "@tabler/icons-react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 
 const VehicleInventoryPage = () => {
     const router = useRouter();
-    const [selectedVehicle, setSelectedVehicle] = useState<VehicleInventory | null>(null);
 
     const { data: vehicles = [], isLoading, error } = useQuery({
         queryKey: ["vehicle-inventory"],
@@ -23,38 +22,18 @@ const VehicleInventoryPage = () => {
     }, [vehicles]);
 
     const handleBookTestDrive = (vehicle: VehicleInventory) => {
-        // Store vehicle in sessionStorage for the test drive form
-        sessionStorage.setItem('selectedVehicle', JSON.stringify(vehicle));
-        // Navigate to test drive page with immediate booking flag
-        router.push('/dashboard/test-drive?action=create&immediate=true');
+        // Navigate to test drive page with vehicle VIN in URL params (improved from sessionStorage)
+        router.push(`/dashboard/test-drive?action=create&immediate=true&vehicleVin=${encodeURIComponent(vehicle.VIN)}`);
     };
 
     const columns = useMemo(() => createColumns(handleBookTestDrive), []);
-
-    if (isLoading) {
-        return (
-            <div className="flex items-center justify-center h-64">
-                <div className="text-sm text-muted-foreground">Loading vehicle inventory...</div>
-            </div>
-        );
-    }
-
-    if (error) {
-        return (
-            <div className="flex items-center justify-center h-64">
-                <div className="text-sm text-destructive">
-                    Error loading vehicle inventory. Please try again.
-                </div>
-            </div>
-        );
-    }
 
     return (
         <div className="space-y-6 p-6">
             <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
                 <div>
                     <h1 className="text-2xl font-semibold mb-4">Vehicle Inventory</h1>
-                    <DataTable columns={columns} data={vehicles} />
+
                     <div className="grid gap-4 mb-6 md:grid-cols-2 lg:grid-cols-3">
                         <Card className="@container/card">
                             <CardHeader>
@@ -85,6 +64,31 @@ const VehicleInventoryPage = () => {
                             </CardFooter>
                         </Card>
                     </div>
+
+                    <GenericDataTable
+                        columns={columns}
+                        data={vehicles}
+                        isLoading={isLoading}
+                        error={error as Error}
+                        filterConfig={{
+                            columnId: "VIN",
+                            placeholder: "Search by VIN, brand, model...",
+                        }}
+                        paginationConfig={{
+                            initialPageSize: 10,
+                            pageSizeOptions: [10, 20, 30, 50],
+                            showPageSizeSelector: true,
+                            formatPaginationText: (start, end, total) =>
+                                `Showing ${start} to ${end} of ${total} vehicles`,
+                        }}
+                        columnVisibilityConfig={{
+                            enabled: true,
+                            label: "Columns",
+                        }}
+                        emptyStateConfig={{
+                            message: "No vehicles found in inventory.",
+                        }}
+                    />
                 </div>
             </div>
         </div>
