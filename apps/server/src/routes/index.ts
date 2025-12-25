@@ -8,6 +8,7 @@ import customerRoutes from './customer.routes.js';
 import vehiclesRoutes from './vehicles.routes.js';
 import bookTestDriveRoutes from './bookTestDrive.routes.js';
 import enquiryRoutes from './enquiry.routes.js';
+import tradeInAppraisalRoutes from './tradeInAppraisal.routes.js';
 
 export function registerRoutes(app: Router): void {
   app.use('/', healthRoutes);
@@ -25,4 +26,5 @@ export function registerRoutes(app: Router): void {
   app.use('/api/vehicles', authenticate, vehiclesRoutes);
   app.use('/api/book-test-drive', authenticate, bookTestDriveRoutes);
   app.use('/api/enquiries', authenticate, enquiryRoutes);
+  app.use('/api/trade-in-appraisal', authenticate, tradeInAppraisalRoutes);
 }

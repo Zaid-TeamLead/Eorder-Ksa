@@ -9,7 +9,6 @@ import { CustomerSearch } from "./components/customer-search";
 import { CustomerInformation } from "./components/customer-information";
 import { VehicleDetails } from "./components/vehicle-details";
 import { EnquiryDetails } from "./components/enquiry-details";
-import { TradeIn } from "./components/trade-in";
 import { AdditionalInfo } from "./components/additional-info";
 import { salesEnquirySchema, type SalesEnquiryFormData } from "./schema";
 import { useSession } from "@/lib/auth-client";
@@ -43,7 +42,6 @@ const TABS = [
   { id: "customer-information", label: "Customer Information" },
   { id: "vehicle-details", label: "Vehicle Details" },
   { id: "enquiry-details", label: "Enquiry Details" },
-  { id: "trade-in", label: "Trade-in Vehicle" },
   { id: "additional", label: "Additional Info" },
 ] as const;
 
@@ -262,10 +260,6 @@ export const SalesEnquiryForm = forwardRef<
 
               <TabsContent value="enquiry-details" className={TAB_CONTENT_CLASSES}>
                 <EnquiryDetails />
-              </TabsContent>
-
-              <TabsContent value="trade-in" className={TAB_CONTENT_CLASSES}>
-                <TradeIn />
               </TabsContent>
 
               <TabsContent value="additional" className={TAB_CONTENT_CLASSES}>

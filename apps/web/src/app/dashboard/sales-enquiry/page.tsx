@@ -1,5 +1,6 @@
 "use client";
 import { use, useState, useEffect, useRef, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { GenericDataTable } from "@/components/shared/generic-data-table";
 import { CrudDialog } from "@/components/shared/crud-dialog";
 import { DeleteConfirmationDialog } from "@/components/shared/delete-confirmation-dialog";
@@ -30,7 +31,6 @@ const TABS = [
   { id: "customer-information", label: "Customer Information" },
   { id: "vehicle-details", label: "Vehicle Details" },
   { id: "enquiry-details", label: "Enquiry Details" },
-  { id: "trade-in", label: "Trade-in Vehicle" },
   { id: "additional", label: "Additional Info" },
 ] as const;
 
@@ -54,6 +54,7 @@ export default function SalesEnquiry({
   const [vehicleModalOpen, setVehicleModalOpen] = useState(false);
   const formRef = useRef<{ submit: () => void }>(null);
   const queryClient = useQueryClient();
+  const router = useRouter();
 
   // Fetch all enquiries
   const { data: enquiries = [], isLoading } = useQuery({
@@ -220,6 +221,10 @@ export default function SalesEnquiry({
     setDeleteId(id);
   };
 
+  const handleTradeInAppraisal = (enquiry: SalesEnquiry) => {
+    router.push(`/dashboard/trade-in-appraisal/${enquiry.SLNO}`);
+  };
+
   const confirmDelete = () => {
     if (deleteId) {
       deleteEnquiryMutation.mutate(deleteId);
@@ -232,12 +237,11 @@ export default function SalesEnquiry({
 
   const handleCustomerSearch = async (query: string) => {
     try {
-      // Search ALL customers by BP code, name, phone, or email (no sales person filter)
       const response = await axios.post(
         `${process.env.NEXT_PUBLIC_SERVER_URL}/api/customers/search`,
         {
           search: query,
-          // slpCode removed - search all customers without filtering by sales person
+          slpCode: slpCode?.toString() || "",
         },
         {
           headers: {
@@ -283,6 +287,7 @@ export default function SalesEnquiry({
         onEditEnquiry: handleEditEnquiry,
         onDeleteEnquiry: handleDeleteEnquiry,
         onStatusChange: handleStatusChange,
+        onTradeInAppraisal: handleTradeInAppraisal,
       }),
     []
   );

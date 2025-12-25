@@ -54,14 +54,15 @@ const vehicleSchema = z.object({
   vinDetails: vinDetailsSchema,
 });
 
-// Trade-in information
+// Trade-in information - Basic fields kept for backward compatibility
+// Comprehensive trade-in appraisal is now a separate module
 const tradeInSchema = z.object({
   tradeInMake: optionalString,
   tradeInModel: optionalString,
   tradeInYear: optionalString,
   tradeInKms: optionalString,
   tradeInExpectedPrice: optionalString,
-});
+}).optional();
 
 // Enquiry details
 const enquiryDetailsSchema = z.object({

@@ -40,12 +40,15 @@ export interface SalesEnquiry {
   SOURCE?: string;
   SALESTYPE?: string;
 
-  // Trade-in Vehicle
+  // Trade-in Vehicle (basic fields - kept for backward compatibility)
   TRADEINMAKE?: string;
   TRADEINMODEL?: string;
   TRADEINYEAR?: string;
   TRADEINKMS?: string;
   TRADEINEXPECTEDPRICE?: string;
+
+  // Trade-in Appraisal Reference
+  TRADEIN_APPRAISAL_SLNO?: number;
 
   // Additional Information
   SALESPERSON?: string;

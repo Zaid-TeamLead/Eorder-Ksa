@@ -28,6 +28,8 @@ export interface AuthTokens {
  */
 export async function generateOtp(userId: string): Promise<void> {
   try {
+    logger.info({ userId, url: `${EXTERNAL_AUTH_URL}/auth/generate-otp?co=${COMPANY_CODE}` }, "Calling external OTP API");
+
     const response = await fetch(
       `${EXTERNAL_AUTH_URL}/auth/generate-otp?co=${COMPANY_CODE}`,
       {
@@ -39,6 +41,13 @@ export async function generateOtp(userId: string): Promise<void> {
       }
     );
 
+    logger.info({
+      userId,
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok
+    }, "External OTP API response");
+
     if (!response.ok) {
       let errorMessage = "Failed to generate OTP";
       try {
@@ -46,6 +55,7 @@ export async function generateOtp(userId: string): Promise<void> {
           result?: { message?: string };
           message?: string;
         };
+        logger.error({ userId, errorData }, "OTP API returned error");
         if (errorData.result?.message) {
           errorMessage = errorData.result.message;
         } else if (errorData.message) {
@@ -155,7 +165,14 @@ export async function verifyOtp(
     // Use parameterized query to prevent SQL injection
     const sql = `CALL "BI_NEGT_KSA".DMS_KSA_100001(?)`;
     const slpCode = await db.query(sql, [userIdFromApi]);
- 
+
+    // Log the stored procedure result
+    logger.info({
+      userId: userIdFromApi,
+      slpCodeResult: slpCode,
+      slpCodeValue: slpCode[0]?.SlpCode,
+      resultLength: slpCode?.length
+    }, "SlpCode query result");
 
     // Generate access token
     const accessTokenPayload: TokenPayload = {
@@ -167,7 +184,7 @@ export async function verifyOtp(
     };
 
     const accessToken = generateAccessToken(accessTokenPayload);
-    logger.info({ userId: userIdFromApi, email: user.email, name: user.name }, "User signed in via OTP");
+    logger.info({ userId: userIdFromApi, email: user.email, name: user.name, SlpCode: slpCode[0]?.SlpCode }, "User signed in via OTP");
 
     return {
       user: {

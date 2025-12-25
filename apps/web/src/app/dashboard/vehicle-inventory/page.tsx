@@ -7,11 +7,8 @@ import { Card, CardHeader, CardTitle, CardDescription, CardAction, CardFooter } 
 import { Badge } from "@/components/ui/badge";
 import { IconAlertTriangle } from "@tabler/icons-react";
 import { useMemo } from "react";
-import { useRouter } from "next/navigation";
 
 const VehicleInventoryPage = () => {
-    const router = useRouter();
-
     const { data: vehicles = [], isLoading, error } = useQuery({
         queryKey: ["vehicle-inventory"],
         queryFn: getAllVehicleInventory,
@@ -21,12 +18,7 @@ const VehicleInventoryPage = () => {
         return vehicles.filter((vehicle) => vehicle.AgeinDays > 100).length;
     }, [vehicles]);
 
-    const handleBookTestDrive = (vehicle: VehicleInventory) => {
-        // Navigate to test drive page with vehicle VIN in URL params (improved from sessionStorage)
-        router.push(`/dashboard/test-drive?action=create&immediate=true&vehicleVin=${encodeURIComponent(vehicle.VIN)}`);
-    };
-
-    const columns = useMemo(() => createColumns(handleBookTestDrive), []);
+    const columns = useMemo(() => createColumns(), []);
 
     return (
         <div className="space-y-6 p-6">

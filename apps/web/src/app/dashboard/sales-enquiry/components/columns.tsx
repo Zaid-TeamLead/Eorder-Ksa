@@ -6,6 +6,7 @@ import {
   IconEye,
   IconEdit,
   IconTrash,
+  IconCar,
 } from "@tabler/icons-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -53,6 +54,7 @@ export interface SalesEnquiryColumnHandlers {
   onEditEnquiry?: (enquiry: SalesEnquiry) => void;
   onDeleteEnquiry?: (id: number) => void;
   onStatusChange?: (id: number, status: string) => void;
+  onTradeInAppraisal?: (enquiry: SalesEnquiry) => void;
 }
 
 export function createSalesEnquiryColumns({
@@ -60,6 +62,7 @@ export function createSalesEnquiryColumns({
   onEditEnquiry,
   onDeleteEnquiry,
   onStatusChange,
+  onTradeInAppraisal,
 }: SalesEnquiryColumnHandlers): ColumnDef<SalesEnquiry>[] {
   return [
     {
@@ -188,6 +191,10 @@ export function createSalesEnquiryColumns({
             <DropdownMenuItem onClick={() => onEditEnquiry?.(row.original)}>
               <IconEdit className="mr-2 h-4 w-4" />
               Edit
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onTradeInAppraisal?.(row.original)}>
+              <IconCar className="mr-2 h-4 w-4" />
+              Trade-In Appraisal
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem

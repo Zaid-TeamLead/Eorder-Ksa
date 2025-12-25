@@ -2,12 +2,9 @@
 
 import { type ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { IconCalendar } from "@tabler/icons-react";
 import type { VehicleInventory } from "@/services/vehicles";
 
 export const createColumns = (
-    onBookTestDrive?: (vehicle: VehicleInventory) => void
 ): ColumnDef<VehicleInventory>[] => [
     {
         accessorKey: "VIN",
@@ -158,21 +155,6 @@ export const createColumns = (
                 </Badge>
             );
         },
-    },
-    {
-        id: "actions",
-        header: "Actions",
-        cell: ({ row }) => (
-            <Button
-                size="sm"
-                variant="outline"
-                onClick={() => onBookTestDrive?.(row.original)}
-                className="h-8"
-            >
-                <IconCalendar className="mr-2 h-4 w-4" />
-                Book Test Drive
-            </Button>
-        ),
     },
 ];
 

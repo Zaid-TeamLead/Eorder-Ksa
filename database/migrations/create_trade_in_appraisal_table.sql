@@ -1,0 +1,69 @@
+-- =====================================================
+-- Trade-in Appraisal Table Creation Script
+-- =====================================================
+-- This script creates the DMS_TRADEIN_APPRAISAL table
+-- Execute this in SAP HANA Studio or HANA SQL Console
+-- =====================================================
+
+CREATE TABLE "BI_NEGT_KSA"."DMS_TRADEIN_APPRAISAL" (
+  -- Primary Key
+  "SLNO" INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+
+  -- Foreign Key to Sales Enquiry
+  "ENQUIRY_SLNO" INTEGER NOT NULL,
+
+  -- Vehicle Information
+  "REGISTRATION_NUMBER" NVARCHAR(50),
+  "VIN" NVARCHAR(50),
+  "MANUFACTURER" NVARCHAR(100),
+  "MODEL" NVARCHAR(100),
+  "VARIANT" NVARCHAR(100),
+  "DESCRIPTION" NVARCHAR(500),
+  "COLOUR" NVARCHAR(50),
+  "TRIM" NVARCHAR(50),
+  "BODY_STYLE" NVARCHAR(50),
+  "TRANSMISSION" NVARCHAR(50),
+  "FUEL_TYPE" NVARCHAR(50),
+  "ENGINE_SIZE" NVARCHAR(50),
+  "REGISTRATION_DATE" NVARCHAR(30),
+  "ODOMETER_READING" NVARCHAR(20),
+  "NUMBER_OF_DOORS" NVARCHAR(10),
+
+  -- Valuation
+  "CUSTOMER_EXPECTED_PRICE" NVARCHAR(20),
+  "MARKET_VALUE" NVARCHAR(20),
+  "APPRAISAL_OFFER" NVARCHAR(20),
+
+  -- Appraisal Workflow
+  "APPRAISAL_STATUS" NVARCHAR(20), -- Pending, InProgress, Completed, Approved, Rejected
+  "REQUESTED_BY" NVARCHAR(100),
+  "REQUESTED_DATE" NVARCHAR(30),
+  "ASSIGNED_TO" NVARCHAR(100), -- User who will perform appraisal
+  "APPRAISED_BY" NVARCHAR(100),
+  "APPRAISED_DATE" NVARCHAR(30),
+  "REQUEST_NOTES" NCLOB,
+  "APPRAISAL_NOTES" NCLOB,
+
+  -- Audit Fields
+  "CREATED_BY" NVARCHAR(100),
+  "CREATED_DATE" NVARCHAR(30),
+  "UPDATED_BY" NVARCHAR(100),
+  "UPDATED_DATE" NVARCHAR(30),
+  "IS_DELETED" NVARCHAR(1) DEFAULT 'N'
+);
+
+-- Add foreign key constraint (optional, comment out if not needed)
+-- ALTER TABLE "BI_NEGT_KSA"."DMS_TRADEIN_APPRAISAL"
+-- ADD CONSTRAINT "FK_TRADEIN_ENQUIRY"
+-- FOREIGN KEY ("ENQUIRY_SLNO") REFERENCES "BI_NEGT_KSA"."DMS_SALESENQUIRY"("SLNO");
+
+-- Create index on ENQUIRY_SLNO for faster lookups
+CREATE INDEX "IDX_TRADEIN_ENQUIRY" ON "BI_NEGT_KSA"."DMS_TRADEIN_APPRAISAL"("ENQUIRY_SLNO");
+
+-- Create index on APPRAISAL_STATUS for filtering
+CREATE INDEX "IDX_TRADEIN_STATUS" ON "BI_NEGT_KSA"."DMS_TRADEIN_APPRAISAL"("APPRAISAL_STATUS");
+
+-- Create index on IS_DELETED for soft delete queries
+CREATE INDEX "IDX_TRADEIN_DELETED" ON "BI_NEGT_KSA"."DMS_TRADEIN_APPRAISAL"("IS_DELETED");
+
+SELECT 'Table DMS_TRADEIN_APPRAISAL created successfully!' AS STATUS FROM DUMMY;

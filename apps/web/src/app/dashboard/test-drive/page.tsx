@@ -233,6 +233,12 @@ export default function BookTestDrive({
     setIsCreate(true);
   };
 
+  const handleImmediateBooking = () => {
+    setEditingBooking(null);
+    setIsImmediateBooking(true);
+    setIsCreate(true);
+  };
+
   const handleView = (booking: BookTestDrive) => {
     setSelectedBooking(booking);
     setIsViewOpen(true);
@@ -364,8 +370,11 @@ export default function BookTestDrive({
               <IconCalendar className="mr-2 h-4 w-4" />
               Calendar View
             </Button>
-            <Button size="sm" onClick={handleNewEnquiry}>
+            <Button size="sm" onClick={handleNewEnquiry} variant="outline">
               Book Test Drive
+            </Button>
+            <Button size="sm" onClick={handleImmediateBooking}>
+              Book Immediately
             </Button>
           </div>
         </div>
