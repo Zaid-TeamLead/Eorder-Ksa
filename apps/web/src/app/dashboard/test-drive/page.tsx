@@ -1,23 +1,25 @@
 "use client";
 import React, { use, useState, useRef } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { CrudDialog } from "@/components/shared/crud-dialog";
 import { DeleteConfirmationDialog } from "@/components/shared/delete-confirmation-dialog";
 import BookTestDriveForm, {
   type BookTestDriveFormData,
 } from "@/forms/book-test-drive";
-import axios from "axios";
 import { useSession } from "@/lib/auth-client";
 import { toast } from "sonner";
 import { GenericDataTable } from "@/components/shared/generic-data-table";
 import { createColumns } from "./components/columns";
 import { ViewDetailsDialog } from "./components/view-details-dialog";
 import { TestDriveCalendar } from "./components/test-drive-calendar";
-import { getAllBookTestDrives, updateBookTestDrive, type BookTestDrive } from "@/services/bookTestDrive";
-import { useMutation } from "@tanstack/react-query";
 import { IconTable, IconCalendar } from "@tabler/icons-react";
 import type { SlotInfo } from "react-big-calendar";
+
+import { useEntityModal } from "@/hooks/crud/useEntityModal";
+import { useTestDrives } from "@/hooks/entities/useTestDrives";
+import { useTestDriveMutations } from "@/hooks/entities/useTestDriveMutations";
+import type { BookTestDrive } from "@/services/bookTestDrive";
 
 // Helper function to extract date from date string
 const extractDate = (dateString?: string): string => {
@@ -115,90 +117,41 @@ export default function BookTestDrive({
   const vehicleVin = params.vehicleVin;
   const { data: session } = useSession();
   const slpCode = session?.user.SlpCode;
-  const [isCreate, setIsCreate] = useState(action === "create");
-  const [isViewOpen, setIsViewOpen] = useState(false);
-  const [selectedBooking, setSelectedBooking] = useState<BookTestDrive | null>(null);
-  const [editingBooking, setEditingBooking] = useState<BookTestDrive | null>(null);
+  const formRef = useRef<{ submit: () => void; reset: () => void }>(null);
+
+  // Modal state management using custom hook
+  const modal = useEntityModal<BookTestDrive>();
   const [isImmediateBooking, setIsImmediateBooking] = useState(immediate);
   const [viewMode, setViewMode] = useState<"table" | "calendar">("table");
-  const [deleteId, setDeleteId] = useState<number | null>(null);
-  const formRef = useRef<{ submit: () => void; reset: () => void }>(null);
-  const queryClient = useQueryClient();
 
-  const { data: bookings = [], isLoading, error } = useQuery({
-    queryKey: ["book-test-drives"],
-    queryFn: getAllBookTestDrives,
-  });
+  // Initialize modal based on URL params
+  React.useEffect(() => {
+    if (action === "create") {
+      modal.openCreate();
+    }
+  }, [action]);
 
-  const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: BookTestDriveFormData }) =>
-      updateBookTestDrive(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["book-test-drives"] });
-      toast.success("Test drive booking updated successfully");
-      setIsCreate(false);
-      setEditingBooking(null);
-      formRef.current?.reset();
-    },
-    onError: (error: any) => {
-      const errorMessage =
-        error.response?.data?.error?.message ||
-        error.response?.data?.message ||
-        "Failed to update test drive booking";
-      toast.error(errorMessage);
-      if (error.response?.status === 401) {
-        toast.error("Authentication failed. Please log in again.");
-      }
-    },
-  });
+  // Fetch bookings using custom hook
+  const { bookings, isLoading, error } = useTestDrives();
 
-  const deleteMutation = useMutation({
-    mutationFn: (id: number) =>
-      axios.delete(`${process.env.NEXT_PUBLIC_SERVER_URL}/api/book-test-drive/${id}`, {
-        withCredentials: true,
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["book-test-drives"] });
-      toast.success("Test drive booking deleted successfully");
-      setDeleteId(null);
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || "Failed to delete booking");
-    },
-  });
+  // CRUD mutations using custom hook
+  const { createBooking, updateBooking, deleteBooking } = useTestDriveMutations();
 
   const handleSubmit = async (data: BookTestDriveFormData) => {
-    if (editingBooking) {
-      updateMutation.mutate({ id: editingBooking.SLNO, data });
-    } else {
-      try {
-        const response = await axios.post(
-          `${process.env.NEXT_PUBLIC_SERVER_URL}/api/book-test-drive`,
-          data,
-          {
-            headers: {
-              "Content-Type": "application/json",
-            },
-            withCredentials: true,
-          }
-        );
-
-        if (response.data.success) {
-          toast.success("Test drive booking created successfully");
-          setIsCreate(false);
-          queryClient.invalidateQueries({ queryKey: ["book-test-drives"] });
-        }
-      } catch (error: any) {
-        console.error("Error creating test drive booking:", error);
-        const errorMessage =
-          error.response?.data?.error?.message ||
-          error.response?.data?.message ||
-          "Failed to create test drive booking";
-        toast.error(errorMessage);
-        if (error.response?.status === 401) {
-          toast.error("Authentication failed. Please log in again.");
-        }
+    try {
+      if (modal.isEditMode && modal.selectedEntity) {
+        await updateBooking(modal.selectedEntity.SLNO, data);
+        modal.close();
+        setIsImmediateBooking(false);
+        formRef.current?.reset();
+      } else {
+        await createBooking(data);
+        modal.close();
+        setIsImmediateBooking(false);
+        formRef.current?.reset();
       }
+    } catch (error) {
+      console.error("Error saving booking:", error);
     }
   };
 
@@ -229,40 +182,29 @@ export default function BookTestDrive({
   };
 
   const handleNewEnquiry = () => {
-    setEditingBooking(null);
-    setIsCreate(true);
+    modal.openCreate();
   };
 
   const handleImmediateBooking = () => {
-    setEditingBooking(null);
     setIsImmediateBooking(true);
-    setIsCreate(true);
+    modal.openCreate();
   };
 
   const handleView = (booking: BookTestDrive) => {
-    setSelectedBooking(booking);
-    setIsViewOpen(true);
+    modal.openView(booking);
   };
 
   const handleEdit = (booking: BookTestDrive) => {
-    setEditingBooking(booking);
-    setIsCreate(true);
+    modal.openEdit(booking);
   };
 
   const handleDelete = (id: number) => {
-    setDeleteId(id);
-  };
-
-  const confirmDelete = () => {
-    if (deleteId) {
-      deleteMutation.mutate(deleteId);
-    }
+    modal.openDelete(id);
   };
 
   const handleSlotSelect = (slotInfo: SlotInfo) => {
     // Create a new booking with the selected time slot
-    setEditingBooking(null);
-    setIsCreate(true);
+    modal.openCreate();
     // Could potentially pre-fill date/time from slotInfo if needed
   };
 
@@ -322,28 +264,21 @@ export default function BookTestDrive({
       return;
     }
 
-    try {
-      // Extract time components
-      const startTime = start.toTimeString().slice(0, 5);
-      const endTime = end.toTimeString().slice(0, 5);
-      const startDate = start.toISOString().split("T")[0];
-      const endDate = end.toISOString().split("T")[0];
+    // Extract time components
+    const startTime = start.toTimeString().slice(0, 5);
+    const endTime = end.toTimeString().slice(0, 5);
+    const startDate = start.toISOString().split("T")[0];
+    const endDate = end.toISOString().split("T")[0];
 
-      // Update the booking with new dates/times
-      const updateData: Partial<BookTestDriveFormData> = {
-        dateOut: startDate,
-        timeOut: startTime,
-        dateIn: endDate,
-        timeIn: endTime,
-      };
+    // Update the booking with new dates/times using mutation hook
+    const updateData: Partial<BookTestDriveFormData> = {
+      dateOut: startDate,
+      timeOut: startTime,
+      dateIn: endDate,
+      timeIn: endTime,
+    };
 
-      await updateBookTestDrive(event.id, updateData as BookTestDriveFormData);
-      queryClient.invalidateQueries({ queryKey: ["book-test-drives"] });
-      toast.success("Test drive rescheduled successfully");
-    } catch (error: any) {
-      console.error("Error rescheduling test drive:", error);
-      toast.error("Failed to reschedule test drive");
-    }
+    await updateBooking(event.id, updateData as BookTestDriveFormData);
   };
 
   const columns = createColumns(handleView, handleEdit, handleDelete);
@@ -408,42 +343,46 @@ export default function BookTestDrive({
           />
         )}
         <CrudDialog
-          open={isCreate}
+          open={modal.isCreateMode || modal.isEditMode}
           onOpenChange={(open) => {
             if (!open) {
-              setEditingBooking(null);
+              modal.close();
               setIsImmediateBooking(false);
               formRef.current?.reset();
             }
-            setIsCreate(open);
           }}
-          mode={editingBooking ? "edit" : "create"}
+          mode={modal.isEditMode ? "edit" : "create"}
           entityName="Test Drive Booking"
           description={isImmediateBooking ? "Quick booking starting now - Vehicle and time pre-filled" : "Fill in the booking details below"}
           customTitle={isImmediateBooking ? "Immediate Test Drive Booking" : undefined}
           onSubmit={() => formRef.current?.submit()}
-          isSubmitting={updateMutation.isPending}
+          isSubmitting={false}
         >
           <BookTestDriveForm
             ref={formRef}
             onSubmit={handleSubmit}
             onCustomerSearch={handleCustomerSearch}
-            defaultValues={getFormDefaultValues(editingBooking, isImmediateBooking, vehicleVin, session?.data?.user.name)}
+            defaultValues={getFormDefaultValues(modal.selectedEntity, isImmediateBooking, vehicleVin, session?.data?.user.name)}
           />
         </CrudDialog>
 
         <ViewDetailsDialog
-          open={isViewOpen}
-          onOpenChange={setIsViewOpen}
-          booking={selectedBooking}
+          open={modal.isViewMode}
+          onOpenChange={(open) => !open && modal.close()}
+          booking={modal.selectedEntity}
         />
 
         <DeleteConfirmationDialog
-          open={!!deleteId}
-          onOpenChange={(open) => !open && setDeleteId(null)}
-          onConfirm={confirmDelete}
+          open={modal.isDeleteMode}
+          onOpenChange={(open) => !open && modal.close()}
+          onConfirm={async () => {
+            if (modal.deleteId) {
+              await deleteBooking(modal.deleteId);
+              modal.close();
+            }
+          }}
           entityName="test drive booking"
-          isDeleting={deleteMutation.isPending}
+          isDeleting={false}
         />
       </div>
     </div>

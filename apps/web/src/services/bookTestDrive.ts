@@ -108,3 +108,25 @@ export const updateBookTestDrive = async (
   });
   return response.data.data;
 };
+
+export interface CreateBookTestDriveData extends UpdateBookTestDriveData {
+  // All fields from UpdateBookTestDriveData are available
+}
+
+export const createBookTestDrive = async (
+  data: CreateBookTestDriveData
+): Promise<BookTestDrive> => {
+  const response = await axios.post(`${API_BASE}`, data, {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    withCredentials: true,
+  });
+  return response.data.data;
+};
+
+export const deleteBookTestDrive = async (id: number): Promise<void> => {
+  await axios.delete(`${API_BASE}/${id}`, {
+    withCredentials: true,
+  });
+};

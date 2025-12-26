@@ -1,105 +1,35 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 
+import { queryKeys } from "@/lib/query-keys";
 import { getEnquiryById } from "@/services/enquiry";
-import {
-  getFinancingByEnquiryId,
-  createFinancing,
-  updateFinancing,
-  deleteFinancing,
-  type Financing,
-} from "@/services/financing";
 import { Funding } from "@/forms/sales-enquiry/components/funding";
+import { useFinancingSchemes } from "@/hooks/entities/useFinancingSchemes";
+import { useFinancingMutations } from "@/hooks/entities/useFinancingMutations";
 
 export default function BankFundingPage() {
   const params = useParams();
   const router = useRouter();
-  const queryClient = useQueryClient();
   const enquiryId = parseInt(params.enquiryId as string, 10);
 
-  const [financingSchemes, setFinancingSchemes] = useState<Financing[]>([]);
-
+  // Fetch enquiry details
   const { data: enquiry, isLoading: isLoadingEnquiry } = useQuery({
-    queryKey: ["enquiry", enquiryId],
+    queryKey: queryKeys.enquiries.detail(enquiryId),
     queryFn: () => getEnquiryById(enquiryId),
     enabled: !!enquiryId && !isNaN(enquiryId),
   });
 
-  const {
-    data: schemes,
-    isLoading: isLoadingSchemes,
-    refetch: refetchSchemes,
-  } = useQuery({
-    queryKey: ["financing-schemes", enquiryId],
-    queryFn: () => getFinancingByEnquiryId(enquiryId),
-    enabled: !!enquiryId && !isNaN(enquiryId),
-  });
-
-  useEffect(() => {
-    if (schemes) {
-      setFinancingSchemes(schemes);
-    }
-  }, [schemes]);
-
-  const createMutation = useMutation({
-    mutationFn: (data: any) => createFinancing(data),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: (params: { id: number; data: any }) => updateFinancing(params.id, params.data),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (id: number) => deleteFinancing(id),
-  });
-
-  const handleAddScheme = async (data: any) => {
-    createMutation.mutate(
-      {
-        enquirySlno: enquiryId,
-        ...data,
-      },
-      {
-        onSuccess: () => {
-          toast.success("Financing scheme added successfully");
-          refetchSchemes();
-        },
-        onError: (error: any) => {
-          toast.error(error.response?.data?.message || "Failed to add financing scheme");
-        },
-      }
-    );
-  };
-
-  const handleUpdateScheme = async (id: number, data: any) => {
-    updateMutation.mutate(
-      { id, data },
-      {
-        onSuccess: () => {
-          toast.success("Financing scheme updated successfully");
-          refetchSchemes();
-        },
-        onError: (error: any) => {
-          toast.error(error.response?.data?.message || "Failed to update financing scheme");
-        },
-      }
-    );
-  };
-
-  const handleDeleteScheme = async (id: number) => {
-    await deleteMutation.mutateAsync(id);
-    refetchSchemes();
-  };
+  // Use custom hooks for financing schemes
+  const { schemes, isLoading: isLoadingSchemes } = useFinancingSchemes(enquiryId);
+  const { createScheme, updateScheme, deleteScheme } = useFinancingMutations(enquiryId);
 
   const handleBack = () => {
     router.push("/dashboard/sales-enquiry");
@@ -187,10 +117,10 @@ export default function BankFundingPage() {
         <CardContent>
           <Funding
             enquiryId={enquiryId}
-            financingSchemes={financingSchemes}
-            onAddScheme={handleAddScheme}
-            onUpdateScheme={handleUpdateScheme}
-            onDeleteScheme={handleDeleteScheme}
+            financingSchemes={schemes}
+            onAddScheme={createScheme}
+            onUpdateScheme={updateScheme}
+            onDeleteScheme={deleteScheme}
           />
         </CardContent>
       </Card>

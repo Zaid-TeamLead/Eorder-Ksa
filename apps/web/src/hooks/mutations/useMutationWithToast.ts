@@ -1,0 +1,71 @@
+/**
+ * Mutation with Toast Hook
+ *
+ * Wrapper for useMutation that automatically handles toast notifications
+ * for success and error states.
+ *
+ * Benefits:
+ * - Eliminates 30+ duplicate toast calls across modules
+ * - Standardized error messages
+ * - Consistent user feedback
+ * - Cleaner component code
+ *
+ * @example
+ * ```tsx
+ * const updateStatusMutation = useMutationWithToast({
+ *   mutationFn: ({ id, status }) => updateEnquiryStatus(id, status),
+ *   successMessage: "Status updated successfully",
+ *   errorMessage: "Failed to update status",
+ *   onSuccess: () => {
+ *     // Additional success handling
+ *   },
+ * });
+ * ```
+ */
+
+import { useMutation, UseMutationOptions } from "@tanstack/react-query";
+import { toast } from "sonner";
+import type { MutationWithToastConfig } from "@/types/common";
+
+export function useMutationWithToast<TData, TVariables>({
+  mutationFn,
+  successMessage,
+  errorMessage,
+  onSuccess,
+  onError,
+  ...options
+}: MutationWithToastConfig<TData, TVariables> &
+  Omit<
+    UseMutationOptions<TData, any, TVariables>,
+    "mutationFn" | "onSuccess" | "onError"
+  >) {
+  return useMutation({
+    mutationFn,
+    onSuccess: (data, variables, context) => {
+      // Show toast
+      if (typeof successMessage === "function") {
+        toast.success(successMessage(data));
+      } else {
+        toast.success(successMessage);
+      }
+
+      // Call custom onSuccess handler if provided
+      onSuccess?.(data);
+    },
+    onError: (error: any, variables, context) => {
+      // Show toast
+      if (typeof errorMessage === "function") {
+        toast.error(errorMessage(error));
+      } else if (errorMessage) {
+        toast.error(errorMessage);
+      } else {
+        // Default error message
+        toast.error(error?.response?.data?.message || "An error occurred");
+      }
+
+      // Call custom onError handler if provided
+      onError?.(error);
+    },
+    ...options,
+  });
+}

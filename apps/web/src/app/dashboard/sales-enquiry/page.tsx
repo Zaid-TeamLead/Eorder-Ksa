@@ -1,31 +1,26 @@
 "use client";
 import { use, useState, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import axios from "axios";
+import { IconPlus } from "@tabler/icons-react";
+
 import { GenericDataTable } from "@/components/shared/generic-data-table";
 import { CrudDialog } from "@/components/shared/crud-dialog";
 import { DeleteConfirmationDialog } from "@/components/shared/delete-confirmation-dialog";
 import { createSalesEnquiryColumns } from "./components/columns";
-import { IconPlus } from "@tabler/icons-react";
 import { EnquiryDetailsModal } from "@/components/enquiry-details-modal";
 import { Button } from "@/components/ui/button";
-import {
-  SalesEnquiryForm,
-  type SalesEnquiryFormSubmission,
-} from "@/forms/sales-enquiry";
-import axios from "axios";
-import { useSession, authClient } from "@/lib/auth-client";
-import {
-  createEnquiry,
-  getAllEnquiries,
-  updateEnquiry,
-  updateEnquiryStatus,
-  deleteEnquiry,
-  type SalesEnquiry,
-} from "@/services/enquiry";
-import { getAllVehicleInventory, type VehicleInventory } from "@/services/vehicles";
+import { SalesEnquiryForm, type SalesEnquiryFormSubmission } from "@/forms/sales-enquiry";
 import { VehicleSelectionModal } from "@/components/vehicle-selection-modal";
-import { toast } from "sonner";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+
+import { useSession } from "@/lib/auth-client";
+import { queryKeys } from "@/lib/query-keys";
+import { useEnquiries } from "@/hooks/entities/useEnquiries";
+import { useEnquiryMutations } from "@/hooks/entities/useEnquiryMutations";
+import { useEntityModal } from "@/hooks/crud/useEntityModal";
+import { getAllVehicleInventory, type VehicleInventory } from "@/services/vehicles";
+import type { SalesEnquiry } from "@/services/enquiry";
 
 const TABS = [
   { id: "customer-information", label: "Customer Information" },
@@ -45,88 +40,34 @@ export default function SalesEnquiry({
   const action = params.action;
   const { data: session } = useSession();
   const slpCode = session?.user.SlpCode;
-  const [isCreate, setIsCreate] = useState(action === "create");
-  const [isEdit, setIsEdit] = useState(false);
-  const [selectedEnquiry, setSelectedEnquiry] = useState<SalesEnquiry | null>(null);
-  const [viewEnquiry, setViewEnquiry] = useState<SalesEnquiry | null>(null);
-  const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [currentTab, setCurrentTab] = useState<TabId>("customer-information");
-  const [vehicleModalOpen, setVehicleModalOpen] = useState(false);
-  const formRef = useRef<{ submit: () => void }>(null);
-  const queryClient = useQueryClient();
   const router = useRouter();
+  const formRef = useRef<{ submit: () => void }>(null);
 
-  // Fetch all enquiries
-  const { data: enquiries = [], isLoading } = useQuery({
-    queryKey: ["enquiries"],
-    queryFn: () => getAllEnquiries(),
-  });
+  // Modal state management using custom hook
+  const modal = useEntityModal<SalesEnquiry>();
+  const [vehicleModalOpen, setVehicleModalOpen] = useState(false);
+  const [currentTab, setCurrentTab] = useState<TabId>("customer-information");
+
+  // Fetch enquiries using custom hook
+  const { enquiries, isLoading } = useEnquiries();
 
   // Fetch vehicle inventory
   const { data: vehicles = [], isLoading: isLoadingVehicles } = useQuery({
-    queryKey: ["vehicle-inventory"],
-    queryFn: () => getAllVehicleInventory(),
+    queryKey: queryKeys.vehicles.all,
+    queryFn: getAllVehicleInventory,
   });
 
-  // Create enquiry mutation
-  const createEnquiryMutation = useMutation({
-    mutationFn: createEnquiry,
-    onSuccess: () => {
-      toast.success("Sales enquiry created successfully");
-      queryClient.invalidateQueries({ queryKey: ["enquiries"] });
-      setIsCreate(false);
-      setCurrentTab("customer-information");
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || "Failed to create enquiry");
-    },
-  });
-
-  // Update enquiry mutation
-  const updateEnquiryMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: any }) =>
-      updateEnquiry(id, data),
-    onSuccess: () => {
-      toast.success("Sales enquiry updated successfully");
-      queryClient.invalidateQueries({ queryKey: ["enquiries"] });
-      setIsEdit(false);
-      setSelectedEnquiry(null);
-      setCurrentTab("customer-information");
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || "Failed to update enquiry");
-    },
-  });
-
-  // Update status mutation
-  const updateStatusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: number; status: string }) =>
-      updateEnquiryStatus(id, status),
-    onSuccess: () => {
-      toast.success("Status updated successfully");
-      queryClient.invalidateQueries({ queryKey: ["enquiries"] });
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || "Failed to update status");
-    },
-  });
-
-  // Delete enquiry mutation
-  const deleteEnquiryMutation = useMutation({
-    mutationFn: deleteEnquiry,
-    onSuccess: () => {
-      toast.success("Enquiry deleted successfully");
-      queryClient.invalidateQueries({ queryKey: ["enquiries"] });
-      setDeleteId(null);
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || "Failed to delete enquiry");
-    },
-  });
+  // CRUD mutations using custom hook
+  const {
+    createEnquiry: createEnquiryMutation,
+    updateEnquiry: updateEnquiryMutation,
+    deleteEnquiry: deleteEnquiryMutation,
+    updateStatus,
+  } = useEnquiryMutations();
 
   useEffect(() => {
-    setIsCreate(action === "create");
-    if (!isCreate) {
+    if (action === "create") {
+      modal.openCreate();
       setCurrentTab("customer-information");
     }
   }, []);
@@ -194,31 +135,23 @@ export default function SalesEnquiry({
         notes: data.notes,
       };
 
-      if (isEdit && selectedEnquiry) {
-        await updateEnquiryMutation.mutateAsync({
-          id: selectedEnquiry.SLNO,
-          data: payload,
-        });
+      if (modal.isEditMode && modal.selectedEntity) {
+        await updateEnquiryMutation(modal.selectedEntity.SLNO, payload);
+        modal.close();
+        setCurrentTab("customer-information");
       } else {
-        await createEnquiryMutation.mutateAsync(payload);
+        await createEnquiryMutation(payload);
+        modal.close();
+        setCurrentTab("customer-information");
       }
     } catch (error) {
       console.error("Error saving enquiry:", error);
     }
   };
 
-  const handleViewEnquiry = (enquiry: SalesEnquiry) => {
-    setViewEnquiry(enquiry);
-  };
-
   const handleEditEnquiry = (enquiry: SalesEnquiry) => {
-    setSelectedEnquiry(enquiry);
-    setIsEdit(true);
+    modal.openEdit(enquiry);
     setCurrentTab("customer-information");
-  };
-
-  const handleDeleteEnquiry = (id: number) => {
-    setDeleteId(id);
   };
 
   const handleTradeInAppraisal = (enquiry: SalesEnquiry) => {
@@ -227,16 +160,6 @@ export default function SalesEnquiry({
 
   const handleBankFunding = (enquiry: SalesEnquiry) => {
     router.push(`/dashboard/bank-funding/${enquiry.SLNO}`);
-  };
-
-  const confirmDelete = () => {
-    if (deleteId) {
-      deleteEnquiryMutation.mutate(deleteId);
-    }
-  };
-
-  const handleStatusChange = (id: number, status: string) => {
-    updateStatusMutation.mutate({ id, status });
   };
 
   const handleCustomerSearch = async (query: string) => {
@@ -271,7 +194,7 @@ export default function SalesEnquiry({
   };
 
   const handleNewEnquiry = () => {
-    setIsCreate(true);
+    modal.openCreate();
   };
 
   const handleVehicleSelect = (vehicle: VehicleInventory) => {
@@ -287,14 +210,14 @@ export default function SalesEnquiry({
   const columns = useMemo(
     () =>
       createSalesEnquiryColumns({
-        onViewEnquiry: handleViewEnquiry,
+        onViewEnquiry: modal.openView,
         onEditEnquiry: handleEditEnquiry,
-        onDeleteEnquiry: handleDeleteEnquiry,
-        onStatusChange: handleStatusChange,
+        onDeleteEnquiry: modal.openDelete,
+        onStatusChange: updateStatus,
         onTradeInAppraisal: handleTradeInAppraisal,
         onBankFunding: handleBankFunding,
       }),
-    []
+    [modal, updateStatus]
   );
 
   return (
@@ -330,27 +253,25 @@ export default function SalesEnquiry({
 
       {/* View Enquiry Modal */}
       <EnquiryDetailsModal
-        enquiry={viewEnquiry}
-        open={!!viewEnquiry}
-        onOpenChange={(open) => !open && setViewEnquiry(null)}
+        enquiry={modal.selectedEntity}
+        open={modal.isViewMode}
+        onOpenChange={(open) => !open && modal.close()}
       />
 
       {/* Create/Edit Enquiry Dialog */}
       <CrudDialog
-        open={isCreate || isEdit}
+        open={modal.isCreateMode || modal.isEditMode}
         onOpenChange={(open) => {
           if (!open) {
-            setIsCreate(false);
-            setIsEdit(false);
-            setSelectedEnquiry(null);
+            modal.close();
             setCurrentTab("customer-information");
           }
         }}
-        mode={isEdit ? "edit" : "create"}
+        mode={modal.isEditMode ? "edit" : "create"}
         entityName="Sales Enquiry"
         description="Fill in all the required information across the tabs below"
         onSubmit={() => formRef.current?.submit()}
-        isSubmitting={createEnquiryMutation.isPending || updateEnquiryMutation.isPending}
+        isSubmitting={false}
         multiStepConfig={{
           currentStep: TABS.findIndex((tab) => tab.id === currentTab),
           totalSteps: TABS.length,
@@ -367,42 +288,42 @@ export default function SalesEnquiry({
           onSubmit={handleSubmit}
           onSelectFromInventory={() => setVehicleModalOpen(true)}
           defaultValues={
-            isEdit && selectedEnquiry
+            modal.isEditMode && modal.selectedEntity
               ? {
-                  customerId: selectedEnquiry.CUSTOMERID || "",
-                  customerName: selectedEnquiry.CUSTOMERNAME || "",
-                  address: selectedEnquiry.ADDRESS || "",
-                  postcode: selectedEnquiry.POSTCODE || "",
-                  homePhone: selectedEnquiry.HOMEPHONE || "",
-                  workPhone: selectedEnquiry.WORKPHONE || "",
-                  mobile: selectedEnquiry.MOBILE || "",
-                  homeEmail: selectedEnquiry.HOMEEMAIL || "",
-                  make: selectedEnquiry.MAKE || "",
-                  model: selectedEnquiry.MODEL || "",
-                  variant: selectedEnquiry.VARIANT || "",
-                  year: selectedEnquiry.YEAR || "",
-                  color: selectedEnquiry.COLOR || "",
-                  suppCatNum: selectedEnquiry.SUPPCATNUM || "",
-                  modelCode: selectedEnquiry.MODELCODE || "",
-                  quantity: selectedEnquiry.QUANTITY || undefined,
-                  vinNumber: selectedEnquiry.VINNUMBER || "",
-                  vinDetails: selectedEnquiry.VINDETAILS || undefined,
-                  branch: selectedEnquiry.BRANCH || "",
-                  budget: selectedEnquiry.BUDGET || "",
-                  financing: selectedEnquiry.FINANCING || undefined,
-                  preferredContact: selectedEnquiry.PREFERREDCONTACT || undefined,
-                  preferredTime: selectedEnquiry.PREFERREDTIME || undefined,
-                  preferredDelivery: selectedEnquiry.PREFERREDDELIVERY || "",
-                  source: selectedEnquiry.SOURCE || "",
-                  sales_type: selectedEnquiry.SALESTYPE || "",
-                  tradeInMake: selectedEnquiry.TRADEINMAKE || "",
-                  tradeInModel: selectedEnquiry.TRADEINMODEL || "",
-                  tradeInYear: selectedEnquiry.TRADEINYEAR || "",
-                  tradeInKms: selectedEnquiry.TRADEINKMS || "",
-                  tradeInExpectedPrice: selectedEnquiry.TRADEINEXPECTEDPRICE || "",
-                  salesperson: selectedEnquiry.SALESPERSON || "",
-                  slpCode: selectedEnquiry.SLPCODE || "",
-                  notes: selectedEnquiry.NOTES || "",
+                  customerId: modal.selectedEntity.CUSTOMERID || "",
+                  customerName: modal.selectedEntity.CUSTOMERNAME || "",
+                  address: modal.selectedEntity.ADDRESS || "",
+                  postcode: modal.selectedEntity.POSTCODE || "",
+                  homePhone: modal.selectedEntity.HOMEPHONE || "",
+                  workPhone: modal.selectedEntity.WORKPHONE || "",
+                  mobile: modal.selectedEntity.MOBILE || "",
+                  homeEmail: modal.selectedEntity.HOMEEMAIL || "",
+                  make: modal.selectedEntity.MAKE || "",
+                  model: modal.selectedEntity.MODEL || "",
+                  variant: modal.selectedEntity.VARIANT || "",
+                  year: modal.selectedEntity.YEAR || "",
+                  color: modal.selectedEntity.COLOR || "",
+                  suppCatNum: modal.selectedEntity.SUPPCATNUM || "",
+                  modelCode: modal.selectedEntity.MODELCODE || "",
+                  quantity: modal.selectedEntity.QUANTITY || undefined,
+                  vinNumber: modal.selectedEntity.VINNUMBER || "",
+                  vinDetails: modal.selectedEntity.VINDETAILS || undefined,
+                  branch: modal.selectedEntity.BRANCH || "",
+                  budget: modal.selectedEntity.BUDGET || "",
+                  financing: modal.selectedEntity.FINANCING || undefined,
+                  preferredContact: modal.selectedEntity.PREFERREDCONTACT || undefined,
+                  preferredTime: modal.selectedEntity.PREFERREDTIME || undefined,
+                  preferredDelivery: modal.selectedEntity.PREFERREDDELIVERY || "",
+                  source: modal.selectedEntity.SOURCE || "",
+                  sales_type: modal.selectedEntity.SALESTYPE || "",
+                  tradeInMake: modal.selectedEntity.TRADEINMAKE || "",
+                  tradeInModel: modal.selectedEntity.TRADEINMODEL || "",
+                  tradeInYear: modal.selectedEntity.TRADEINYEAR || "",
+                  tradeInKms: modal.selectedEntity.TRADEINKMS || "",
+                  tradeInExpectedPrice: modal.selectedEntity.TRADEINEXPECTEDPRICE || "",
+                  salesperson: modal.selectedEntity.SALESPERSON || "",
+                  slpCode: modal.selectedEntity.SLPCODE || "",
+                  notes: modal.selectedEntity.NOTES || "",
                 }
               : undefined
           }
@@ -411,11 +332,16 @@ export default function SalesEnquiry({
 
       {/* Delete Confirmation Dialog */}
       <DeleteConfirmationDialog
-        open={!!deleteId}
-        onOpenChange={(open) => !open && setDeleteId(null)}
-        onConfirm={confirmDelete}
+        open={modal.isDeleteMode}
+        onOpenChange={(open) => !open && modal.close()}
+        onConfirm={async () => {
+          if (modal.deleteId) {
+            await deleteEnquiryMutation(modal.deleteId);
+            modal.close();
+          }
+        }}
         entityName="sales enquiry"
-        isDeleting={deleteEnquiryMutation.isPending}
+        isDeleting={false}
       />
 
       {/* Vehicle Selection Modal */}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Plus, Edit, Trash2 } from "lucide-react";
 import {
@@ -12,7 +12,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { FinanceSchemeDialog } from "./finance-scheme-dialog";
-import { getLenders, type Lender, type Financing } from "@/services/financing";
+import { useLenders } from "@/hooks/entities/useLenders";
+import type { Financing } from "@/services/financing";
 import { toast } from "sonner";
 
 interface FundingProps {
@@ -31,21 +32,10 @@ export function Funding({
   onDeleteScheme,
 }: FundingProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [lenders, setLenders] = useState<Lender[]>([]);
   const [editingScheme, setEditingScheme] = useState<Financing | null>(null);
 
-  useEffect(() => {
-    loadLenders();
-  }, []);
-
-  const loadLenders = async () => {
-    try {
-      const data = await getLenders();
-      setLenders(data);
-    } catch (error) {
-      toast.error("Failed to load lenders");
-    }
-  };
+  // Use custom hook to load lenders
+  const { lenders } = useLenders();
 
   const handleAdd = () => {
     setEditingScheme(null);
