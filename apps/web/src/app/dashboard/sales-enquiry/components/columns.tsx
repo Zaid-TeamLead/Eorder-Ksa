@@ -7,6 +7,7 @@ import {
   IconEdit,
   IconTrash,
   IconCar,
+  IconCurrencyDollar,
 } from "@tabler/icons-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -55,6 +56,7 @@ export interface SalesEnquiryColumnHandlers {
   onDeleteEnquiry?: (id: number) => void;
   onStatusChange?: (id: number, status: string) => void;
   onTradeInAppraisal?: (enquiry: SalesEnquiry) => void;
+  onBankFunding?: (enquiry: SalesEnquiry) => void;
 }
 
 export function createSalesEnquiryColumns({
@@ -63,6 +65,7 @@ export function createSalesEnquiryColumns({
   onDeleteEnquiry,
   onStatusChange,
   onTradeInAppraisal,
+  onBankFunding,
 }: SalesEnquiryColumnHandlers): ColumnDef<SalesEnquiry>[] {
   return [
     {
@@ -195,6 +198,10 @@ export function createSalesEnquiryColumns({
             <DropdownMenuItem onClick={() => onTradeInAppraisal?.(row.original)}>
               <IconCar className="mr-2 h-4 w-4" />
               Trade-In Appraisal
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onBankFunding?.(row.original)}>
+              <IconCurrencyDollar className="mr-2 h-4 w-4" />
+              Bank Funding
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem

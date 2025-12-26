@@ -225,6 +225,10 @@ export default function SalesEnquiry({
     router.push(`/dashboard/trade-in-appraisal/${enquiry.SLNO}`);
   };
 
+  const handleBankFunding = (enquiry: SalesEnquiry) => {
+    router.push(`/dashboard/bank-funding/${enquiry.SLNO}`);
+  };
+
   const confirmDelete = () => {
     if (deleteId) {
       deleteEnquiryMutation.mutate(deleteId);
@@ -288,6 +292,7 @@ export default function SalesEnquiry({
         onDeleteEnquiry: handleDeleteEnquiry,
         onStatusChange: handleStatusChange,
         onTradeInAppraisal: handleTradeInAppraisal,
+        onBankFunding: handleBankFunding,
       }),
     []
   );
