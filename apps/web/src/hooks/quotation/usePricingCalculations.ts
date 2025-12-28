@@ -37,6 +37,15 @@ export interface UsePricingCalculationsReturn {
  *
  * All calculations are memoized and recalculated only when input values change.
  *
+ * @param vehicleBasePrice - Base price of the vehicle before discount
+ * @param vehicleDiscount - Discount amount (negative value)
+ * @param warrantyTotal - Total warranty cost
+ * @param insuranceTotal - Total insurance cost
+ * @param taxRate - Tax rate percentage (e.g., 15 for 15%)
+ * @param tradeInValue - Trade-in value to deduct
+ * @param downpayment - Downpayment amount to deduct
+ * @param lineItems - Reserved for future use when accessories are tracked in line items
+ *
  * @example
  * ```tsx
  * const {

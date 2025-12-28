@@ -1,7 +1,7 @@
 "use client";
 import { use, useState, useEffect, useRef, useMemo } from "react";
-import { useRouter } from "next/navigation";
 import axios from "axios";
+import { toast } from "sonner";
 import { IconPlus } from "@tabler/icons-react";
 
 import { GenericDataTable } from "@/components/shared/generic-data-table";
@@ -42,7 +42,6 @@ export default function SalesEnquiry({
   const action = params.action;
   const { data: session } = useSession();
   const slpCode = session?.user.SlpCode;
-  const router = useRouter();
   const formRef = useRef<{ submit: () => void }>(null);
 
   // Modal state management using custom hook
@@ -91,7 +90,8 @@ export default function SalesEnquiry({
       modal.openCreate();
       setCurrentTab("customer-information");
     }
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Intentionally run only on mount to handle URL parameter
 
   // Listen for vehicle inventory modal trigger
   useEffect(() => {
@@ -135,8 +135,7 @@ export default function SalesEnquiry({
   };
 
   const handleNewCustomer = () => {
-    console.log("Creating new customer");
-    // Implement new customer logic
+    toast.info("New customer creation coming soon");
   };
 
   const handleNewEnquiry = () => {

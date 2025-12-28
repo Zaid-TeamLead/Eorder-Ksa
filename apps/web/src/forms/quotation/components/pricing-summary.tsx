@@ -71,26 +71,14 @@ export function PricingSummary() {
     form,
   ]);
 
-  // Use calculated values for rendering
-  const vehicleNet = vehicleNetPrice;
-  const accessoriesNet = accessoriesNetTotal;
-  const warranty = warrantyTotal || 0;
-  const insurance = insuranceTotal || 0;
-  const tax = taxAmount;
-  const tradeIn = tradeInValue || 0;
-  const down = downpayment || 0;
-  const netDue = netAmountDue;
-  const totalDiscount = totalDiscountAmount;
-  const discountPct = discountPercentage;
-
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
           <span>Pricing Summary</span>
-          {totalDiscount < 0 && (
+          {totalDiscountAmount < 0 && (
             <Badge variant="destructive">
-              Total Discount: {discountPct.toFixed(2)}%
+              Total Discount: {discountPercentage.toFixed(2)}%
             </Badge>
           )}
         </CardTitle>
@@ -101,24 +89,24 @@ export function PricingSummary() {
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Vehicle Net Price:</span>
-              <span className="font-medium">{formatCurrency(vehicleNet)}</span>
+              <span className="font-medium">{formatCurrency(vehicleNetPrice)}</span>
             </div>
-            {accessoriesNet > 0 && (
+            {accessoriesNetTotal > 0 && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Accessories Net Total:</span>
-                <span className="font-medium">{formatCurrency(accessoriesNet)}</span>
+                <span className="font-medium">{formatCurrency(accessoriesNetTotal)}</span>
               </div>
             )}
-            {warranty > 0 && (
+            {(warrantyTotal || 0) > 0 && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Warranty Total:</span>
-                <span className="font-medium">{formatCurrency(warranty)}</span>
+                <span className="font-medium">{formatCurrency(warrantyTotal || 0)}</span>
               </div>
             )}
-            {insurance > 0 && (
+            {(insuranceTotal || 0) > 0 && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Insurance Total:</span>
-                <span className="font-medium">{formatCurrency(insurance)}</span>
+                <span className="font-medium">{formatCurrency(insuranceTotal || 0)}</span>
               </div>
             )}
           </div>
@@ -134,7 +122,7 @@ export function PricingSummary() {
           {/* Tax */}
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">VAT ({taxRate || 15}%):</span>
-            <span className="font-medium">{formatCurrency(tax)}</span>
+            <span className="font-medium">{formatCurrency(taxAmount)}</span>
           </div>
 
           <Separator />
@@ -146,23 +134,23 @@ export function PricingSummary() {
           </div>
 
           {/* Deductions */}
-          {(tradeIn > 0 || down > 0) && (
+          {((tradeInValue || 0) > 0 || (downpayment || 0) > 0) && (
             <>
               <Separator className="my-3" />
               <div className="space-y-2 text-sm">
-                {tradeIn > 0 && (
+                {(tradeInValue || 0) > 0 && (
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Less: Trade-in Value:</span>
                     <span className="font-medium text-green-600">
-                      -{formatCurrency(tradeIn)}
+                      -{formatCurrency(tradeInValue || 0)}
                     </span>
                   </div>
                 )}
-                {down > 0 && (
+                {(downpayment || 0) > 0 && (
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Less: Downpayment:</span>
                     <span className="font-medium text-green-600">
-                      -{formatCurrency(down)}
+                      -{formatCurrency(downpayment || 0)}
                     </span>
                   </div>
                 )}
@@ -173,23 +161,23 @@ export function PricingSummary() {
               {/* Net Amount Due */}
               <div className="flex justify-between text-lg font-bold">
                 <span>Net Amount Due:</span>
-                <span className="text-primary">{formatCurrency(netDue)}</span>
+                <span className="text-primary">{formatCurrency(netAmountDue)}</span>
               </div>
             </>
           )}
 
           {/* Discount Summary */}
-          {totalDiscount < 0 && (
+          {totalDiscountAmount < 0 && (
             <>
               <Separator className="my-3" />
               <div className="rounded-lg bg-muted p-3 text-sm">
                 <div className="flex justify-between font-semibold">
                   <span>Total Discount Applied:</span>
-                  <span className="text-destructive">{formatCurrency(Math.abs(totalDiscount))}</span>
+                  <span className="text-destructive">{formatCurrency(Math.abs(totalDiscountAmount))}</span>
                 </div>
                 <div className="mt-1 flex justify-between text-xs text-muted-foreground">
                   <span>Discount Percentage:</span>
-                  <span>{discountPct.toFixed(2)}%</span>
+                  <span>{discountPercentage.toFixed(2)}%</span>
                 </div>
               </div>
             </>
