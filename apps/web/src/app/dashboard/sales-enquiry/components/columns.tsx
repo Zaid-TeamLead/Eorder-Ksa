@@ -8,6 +8,7 @@ import {
   IconTrash,
   IconCar,
   IconCurrencyDollar,
+  IconFileText,
 } from "@tabler/icons-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -57,6 +58,7 @@ export interface SalesEnquiryColumnHandlers {
   onStatusChange?: (id: number, status: string) => void;
   onTradeInAppraisal?: (enquiry: SalesEnquiry) => void;
   onBankFunding?: (enquiry: SalesEnquiry) => void;
+  onGenerateQuotation?: (enquiry: SalesEnquiry) => void;
 }
 
 export function createSalesEnquiryColumns({
@@ -66,6 +68,7 @@ export function createSalesEnquiryColumns({
   onStatusChange,
   onTradeInAppraisal,
   onBankFunding,
+  onGenerateQuotation,
 }: SalesEnquiryColumnHandlers): ColumnDef<SalesEnquiry>[] {
   return [
     {
@@ -202,6 +205,10 @@ export function createSalesEnquiryColumns({
             <DropdownMenuItem onClick={() => onBankFunding?.(row.original)}>
               <IconCurrencyDollar className="mr-2 h-4 w-4" />
               Bank Funding
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onGenerateQuotation?.(row.original)}>
+              <IconFileText className="mr-2 h-4 w-4" />
+              Generate Quotation
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem

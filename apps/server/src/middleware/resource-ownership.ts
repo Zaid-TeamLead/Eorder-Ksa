@@ -96,11 +96,26 @@ export function checkResourceOwnership<T>(config: ResourceOwnershipConfig<T>) {
         );
       }
 
-      // Check ownership
-      if (ownerId !== userId) {
+      // Check ownership (convert both to strings for comparison to handle type mismatches)
+      const ownerIdStr = String(ownerId);
+      const userIdStr = String(userId);
+
+      // Debug logging
+      console.log('Authorization check:', {
+        resourceName: config.resourceName,
+        ownerId,
+        ownerIdType: typeof ownerId,
+        ownerIdStr,
+        userId,
+        userIdType: typeof userId,
+        userIdStr,
+        match: ownerIdStr === userIdStr,
+      });
+
+      if (ownerIdStr !== userIdStr) {
         throw new AuthorizationError(
           `You can only access your own ${config.resourceName.toLowerCase()}s. ` +
-            `This ${config.resourceName.toLowerCase()} belongs to: ${ownerId}`
+            `This ${config.resourceName.toLowerCase()} belongs to: ${ownerId} (you are: ${userId})`
         );
       }
 

@@ -1,7 +1,6 @@
 "use client";
 import { use, useState, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import { IconPlus } from "@tabler/icons-react";
 
@@ -15,11 +14,14 @@ import { SalesEnquiryForm, type SalesEnquiryFormSubmission } from "@/forms/sales
 import { VehicleSelectionModal } from "@/components/vehicle-selection-modal";
 
 import { useSession } from "@/lib/auth-client";
-import { queryKeys } from "@/lib/query-keys";
 import { useEnquiries } from "@/hooks/entities/useEnquiries";
 import { useEnquiryMutations } from "@/hooks/entities/useEnquiryMutations";
 import { useEntityModal } from "@/hooks/crud/useEntityModal";
-import { getAllVehicleInventory, type VehicleInventory } from "@/services/vehicles";
+import { useVehicles } from "@/hooks/entities/useVehicles";
+import { useTabNavigation } from "@/hooks/forms/useTabNavigation";
+import { useVehicleSelection } from "@/hooks/forms/useVehicleSelection";
+import { useEnquiryFormSubmit } from "@/hooks/enquiry/useEnquiryFormSubmit";
+import { useEnquiryActions } from "@/hooks/enquiry/useEnquiryActions";
 import type { SalesEnquiry } from "@/services/enquiry";
 
 const TABS = [
@@ -46,24 +48,43 @@ export default function SalesEnquiry({
   // Modal state management using custom hook
   const modal = useEntityModal<SalesEnquiry>();
   const [vehicleModalOpen, setVehicleModalOpen] = useState(false);
-  const [currentTab, setCurrentTab] = useState<TabId>("customer-information");
 
   // Fetch enquiries using custom hook
   const { enquiries, isLoading } = useEnquiries();
 
-  // Fetch vehicle inventory
-  const { data: vehicles = [], isLoading: isLoadingVehicles } = useQuery({
-    queryKey: queryKeys.vehicles.all,
-    queryFn: getAllVehicleInventory,
-  });
+  // Fetch vehicle inventory using custom hook
+  const { vehicles, isLoading: isLoadingVehicles } = useVehicles();
 
   // CRUD mutations using custom hook
+  const { deleteEnquiry: deleteEnquiryMutation, updateStatus } = useEnquiryMutations();
+
+  // Tab navigation using custom hook
   const {
-    createEnquiry: createEnquiryMutation,
-    updateEnquiry: updateEnquiryMutation,
-    deleteEnquiry: deleteEnquiryMutation,
-    updateStatus,
-  } = useEnquiryMutations();
+    currentTab,
+    setCurrentTab,
+    handleNext,
+    handlePrevious,
+  } = useTabNavigation({ tabs: TABS, initialTab: "customer-information" });
+
+  // Vehicle selection using custom hook
+  const { handleVehicleSelect } = useVehicleSelection();
+
+  // Form submission using custom hook
+  const { handleSubmit, isSubmitting } = useEnquiryFormSubmit({
+    isEditMode: modal.isEditMode,
+    selectedEntity: modal.selectedEntity,
+    onSuccess: () => {
+      modal.close();
+      setCurrentTab("customer-information");
+    },
+  });
+
+  // Enquiry actions using custom hook
+  const {
+    handleTradeInAppraisal,
+    handleBankFunding,
+    handleGenerateQuotation,
+  } = useEnquiryActions();
 
   useEffect(() => {
     if (action === "create") {
@@ -82,84 +103,9 @@ export default function SalesEnquiry({
     return () => window.removeEventListener('openVehicleInventoryModal', handleOpenModal);
   }, []);
 
-  const handleNext = () => {
-    const currentIndex = TABS.findIndex((tab) => tab.id === currentTab);
-    if (currentIndex < TABS.length - 1) {
-      setCurrentTab(TABS[currentIndex + 1].id);
-    }
-  };
-
-  const handlePrevious = () => {
-    const currentIndex = TABS.findIndex((tab) => tab.id === currentTab);
-    if (currentIndex > 0) {
-      setCurrentTab(TABS[currentIndex - 1].id);
-    }
-  };
-
-  const handleSubmit = async (data: SalesEnquiryFormSubmission) => {
-    try {
-      const payload = {
-        customerId: data.customerId,
-        customerName: data.customerName,
-        address: data.address,
-        postcode: data.postcode,
-        homePhone: data.homePhone,
-        workPhone: data.workPhone,
-        mobile: data.mobile,
-        homeEmail: data.homeEmail,
-        make: data.make,
-        model: data.model,
-        variant: data.variant,
-        year: data.year,
-        color: data.color,
-        suppCatNum: data.suppCatNum,
-        modelCode: data.modelCode,
-        quantity: data.quantity,
-        vinNumber: data.vinNumber,
-        vinDetails: data.vinDetails,
-        branch: data.branch,
-        budget: data.budget,
-        financing: data.financing,
-        preferredContact: data.preferredContact,
-        preferredTime: data.preferredTime,
-        preferredDelivery: data.preferredDelivery,
-        source: data.source,
-        salesType: data.sales_type,
-        tradeInMake: data.tradeInMake,
-        tradeInModel: data.tradeInModel,
-        tradeInYear: data.tradeInYear,
-        tradeInKms: data.tradeInKms,
-        tradeInExpectedPrice: data.tradeInExpectedPrice,
-        salesperson: data.salesperson,
-        slpCode: data.slpCode,
-        notes: data.notes,
-      };
-
-      if (modal.isEditMode && modal.selectedEntity) {
-        await updateEnquiryMutation(modal.selectedEntity.SLNO, payload);
-        modal.close();
-        setCurrentTab("customer-information");
-      } else {
-        await createEnquiryMutation(payload);
-        modal.close();
-        setCurrentTab("customer-information");
-      }
-    } catch (error) {
-      console.error("Error saving enquiry:", error);
-    }
-  };
-
   const handleEditEnquiry = (enquiry: SalesEnquiry) => {
     modal.openEdit(enquiry);
     setCurrentTab("customer-information");
-  };
-
-  const handleTradeInAppraisal = (enquiry: SalesEnquiry) => {
-    router.push(`/dashboard/trade-in-appraisal/${enquiry.SLNO}`);
-  };
-
-  const handleBankFunding = (enquiry: SalesEnquiry) => {
-    router.push(`/dashboard/bank-funding/${enquiry.SLNO}`);
   };
 
   const handleCustomerSearch = async (query: string) => {
@@ -197,12 +143,8 @@ export default function SalesEnquiry({
     modal.openCreate();
   };
 
-  const handleVehicleSelect = (vehicle: VehicleInventory) => {
-    // This will be passed to the SalesEnquiryForm component
-    // The form will handle populating the fields
-    sessionStorage.setItem('selectedEnquiryVehicle', JSON.stringify(vehicle));
-    // Trigger a custom event to notify the form
-    window.dispatchEvent(new CustomEvent('vehicleSelected', { detail: vehicle }));
+  const handleVehicleSelectWithClose = (vehicle: any) => {
+    handleVehicleSelect(vehicle);
     setVehicleModalOpen(false);
   };
 
@@ -216,6 +158,7 @@ export default function SalesEnquiry({
         onStatusChange: updateStatus,
         onTradeInAppraisal: handleTradeInAppraisal,
         onBankFunding: handleBankFunding,
+        onGenerateQuotation: handleGenerateQuotation,
       }),
     [modal, updateStatus]
   );
@@ -271,7 +214,7 @@ export default function SalesEnquiry({
         entityName="Sales Enquiry"
         description="Fill in all the required information across the tabs below"
         onSubmit={() => formRef.current?.submit()}
-        isSubmitting={false}
+        isSubmitting={isSubmitting}
         multiStepConfig={{
           currentStep: TABS.findIndex((tab) => tab.id === currentTab),
           totalSteps: TABS.length,
@@ -348,7 +291,7 @@ export default function SalesEnquiry({
       <VehicleSelectionModal
         open={vehicleModalOpen}
         onOpenChange={setVehicleModalOpen}
-        onSelectVehicle={handleVehicleSelect}
+        onSelectVehicle={handleVehicleSelectWithClose}
         vehicles={vehicles}
         isLoading={isLoadingVehicles}
       />

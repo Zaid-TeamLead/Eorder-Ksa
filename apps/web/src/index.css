@@ -189,3 +189,96 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+/* ============================================================================
+   Print Styles for Quotations (A4 Layout)
+   ============================================================================ */
+
+@media print {
+  /* Show only the print-content */
+  body > *:not(.print-content) {
+    display: none !important;
+  }
+
+  .print-content {
+    display: block !important;
+  }
+
+  /* Hide elements that shouldn't be printed */
+  .print-hidden,
+  button,
+  nav,
+  aside,
+  header:not(.print-content header),
+  footer:not(.print-content footer) {
+    display: none !important;
+  }
+
+  /* A4 page setup */
+  @page {
+    margin: 0.5cm;
+    size: A4 portrait;
+  }
+
+  /* Reset to clean styling for print */
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  .print-content {
+    width: 210mm;
+    max-width: 210mm;
+    margin: 0 auto;
+    padding: 0;
+    box-shadow: none !important;
+  }
+
+  /* Remove all box shadows */
+  * {
+    box-shadow: none !important;
+  }
+
+  /* Page break control */
+  .no-page-break {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .page-break {
+    page-break-before: always;
+    break-before: always;
+  }
+
+  .page-break-after {
+    page-break-after: always;
+    break-after: always;
+  }
+
+  /* Keep table rows together */
+  table {
+    page-break-inside: auto;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Ensure colors are printed */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* Override any background colors for print except gray-100 */
+  .bg-muted,
+  .bg-gray-100 {
+    background-color: #f3f4f6 !important;
+  }
+}

@@ -1,0 +1,1213 @@
+import { db } from './database.service.js';
+import { logger } from '../utils/logger.js';
+import { addAuditFields } from '../utils/db-helpers.js';
+import type {
+  CreateQuotationInput,
+  UpdateQuotationInput,
+  SupersedeQuotationInput,
+  LineItemInput,
+  RequestDiscountApprovalInput,
+  ApproveDiscountInput,
+  PassToCashierInput,
+  CreateActivityInput,
+} from '../schemas/quotation.schema.js';
+
+// =====================================================
+// Interfaces
+// =====================================================
+
+export interface Quotation {
+  SLNO: number;
+  ENQUIRY_SLNO: number;
+  QUOTATION_NUMBER: string;
+  VERSION: number;
+  PARENT_QUOTATION_SLNO?: number;
+  IS_LATEST_VERSION: string;
+
+  // Customer
+  CUSTOMER_NAME?: string;
+  CUSTOMER_MOBILE?: string;
+  CUSTOMER_EMAIL?: string;
+  CUSTOMER_ADDRESS?: string;
+
+  // Vehicle
+  VEHICLE_MAKE?: string;
+  VEHICLE_MODEL?: string;
+  VEHICLE_VARIANT?: string;
+  VEHICLE_YEAR?: string;
+  VEHICLE_COLOR?: string;
+  VIN_NUMBER?: string;
+
+  // Pricing
+  VEHICLE_BASE_PRICE: number;
+  VEHICLE_DISCOUNT: number;
+  VEHICLE_NET_PRICE: number;
+  ACCESSORIES_TOTAL: number;
+  ACCESSORIES_DISCOUNT: number;
+  ACCESSORIES_NET_TOTAL: number;
+  WARRANTY_TOTAL: number;
+  INSURANCE_TOTAL: number;
+  SUBTOTAL: number;
+  TAX_RATE: number;
+  TAX_AMOUNT: number;
+  GRAND_TOTAL: number;
+
+  // Trade-in & Financing
+  TRADE_IN_VALUE: number;
+  TRADE_IN_APPRAISAL_SLNO?: number;
+  FINANCING_SCHEME_SLNO?: number;
+  DOWNPAYMENT: number;
+  NET_AMOUNT_DUE: number;
+
+  // Discounts
+  TOTAL_DISCOUNT_AMOUNT: number;
+  DISCOUNT_PERCENTAGE: number;
+  REQUIRES_APPROVAL: string;
+  DISCOUNT_APPROVAL_STATUS?: string;
+  DISCOUNT_APPROVED_BY?: string;
+  DISCOUNT_APPROVED_DATE?: string;
+
+  // Status
+  STATUS: string;
+  VALID_UNTIL?: string;
+  SENT_DATE?: string;
+  PASSED_TO_CASHIER: string;
+  PASSED_TO_CASHIER_DATE?: string;
+  DEPOSIT_AMOUNT: number;
+  DEPOSIT_COLLECTED: string;
+
+  // Notes
+  NOTES?: string;
+  TERMS_AND_CONDITIONS?: string;
+  INTERNAL_NOTES?: string;
+
+  // Salesperson
+  SALESPERSON?: string;
+  SLPCODE: string;
+  BRANCH?: string;
+
+  // Audit
+  CREATED_BY: string;
+  CREATED_DATE: string;
+  UPDATED_BY?: string;
+  UPDATED_DATE?: string;
+  IS_DELETED: string;
+}
+
+export interface QuotationLineItem {
+  SLNO: number;
+  QUOTATION_SLNO: number;
+  LINE_NUMBER: number;
+  ITEM_TYPE: string;
+  ITEM_CODE?: string;
+  ITEM_DESCRIPTION: string;
+  ITEM_CATEGORY?: string;
+  QUANTITY: number;
+  UNIT_PRICE: number;
+  DISCOUNT_AMOUNT: number;
+  DISCOUNT_PERCENTAGE: number;
+  NET_PRICE: number;
+  TAX_INCLUDED: string;
+  MANUFACTURER?: string;
+  PART_NUMBER?: string;
+  WARRANTY_PERIOD?: string;
+  NOTES?: string;
+  CREATED_BY: string;
+  CREATED_DATE: string;
+  UPDATED_BY?: string;
+  UPDATED_DATE?: string;
+  IS_DELETED: string;
+}
+
+export interface DiscountApproval {
+  SLNO: number;
+  QUOTATION_SLNO: number;
+  DISCOUNT_AMOUNT: number;
+  DISCOUNT_PERCENTAGE: number;
+  JUSTIFICATION: string;
+  STATUS: string;
+  REQUESTED_BY: string;
+  REQUESTED_BY_SLPCODE: string;
+  USER_DISCOUNT_LIMIT?: number;
+  AMOUNT_OVER_LIMIT?: number;
+  ASSIGNED_TO?: string;
+  APPROVED_BY?: string;
+  APPROVED_DATE?: string;
+  REJECTION_REASON?: string;
+  APPROVAL_NOTES?: string;
+  REQUESTED_DATE: string;
+  CREATED_BY: string;
+  CREATED_DATE: string;
+  IS_DELETED: string;
+}
+
+// =====================================================
+// Quotation Service Class
+// =====================================================
+
+class QuotationService {
+  /**
+   * Generate unique quotation number
+   * Format: QT-YYYY-NNNNN
+   */
+  private async generateQuotationNumber(): Promise<string> {
+    try {
+      const year = new Date().getFullYear();
+      const prefix = `QT-${year}-`;
+
+      // Get last quotation number for this year
+      const query = `
+        SELECT "QUOTATION_NUMBER"
+        FROM "BI_NEGT_KSA"."DMS_QUOTATION"
+        WHERE "QUOTATION_NUMBER" LIKE ?
+        ORDER BY "QUOTATION_NUMBER" DESC
+        LIMIT 1
+      `;
+
+      const result = await db.query(query, [`${prefix}%`]);
+
+      if (result.length === 0) {
+        return `${prefix}00001`;
+      }
+
+      const lastNumber = result[0].QUOTATION_NUMBER;
+      const lastSequence = parseInt(lastNumber.split('-')[2], 10);
+      const newSequence = (lastSequence + 1).toString().padStart(5, '0');
+
+      return `${prefix}${newSequence}`;
+    } catch (error: any) {
+      logger.error('Error generating quotation number:', error);
+      throw new Error('Failed to generate quotation number: ' + error.message);
+    }
+  }
+
+  /**
+   * Check if discount exceeds user limit
+   * Returns whether approval is required and related details
+   */
+  private async checkDiscountLimit(
+    discountAmount: number,
+    userId: string
+  ): Promise<{ requiresApproval: boolean; userLimit: number; overLimit: number }> {
+    try {
+      // Query user's discount limit
+      // Note: Adjust table/column names based on your actual user settings table
+      const query = `
+        SELECT "DISCOUNT_LIMIT_AMOUNT"
+        FROM "BI_NEGT_KSA"."DMS_USER_SETTINGS"
+        WHERE "USER_ID" = ?
+      `;
+
+      const result = await db.query(query, [userId]);
+      const userLimit = result[0]?.DISCOUNT_LIMIT_AMOUNT || 0;
+
+      const absDiscount = Math.abs(discountAmount);
+      const requiresApproval = absDiscount > userLimit;
+      const overLimit = requiresApproval ? absDiscount - userLimit : 0;
+
+      logger.info(
+        {
+          userId,
+          discountAmount,
+          userLimit,
+          requiresApproval,
+        },
+        'Checked discount limit'
+      );
+
+      return { requiresApproval, userLimit, overLimit };
+    } catch (error: any) {
+      // If user settings table doesn't exist or user not found, assume no limit (always approve)
+      logger.warn(
+        {
+          userId,
+          errorMessage: error.message,
+          errorCode: error.code,
+        },
+        'Could not check discount limit (DMS_USER_SETTINGS table may not exist or user not found), defaulting to no approval required'
+      );
+      return { requiresApproval: false, userLimit: 0, overLimit: 0 };
+    }
+  }
+
+  /**
+   * Get current datetime in the format used by the database
+   */
+  private getCurrentDateTime(): string {
+    return new Date().toISOString().replace('T', ' ').substring(0, 19);
+  }
+
+  /**
+   * Create a new quotation with line items
+   */
+  async createQuotation(
+    data: CreateQuotationInput & { createdBy: string; slpCode: string }
+  ): Promise<{ success: boolean; id: number; quotationNumber: string }> {
+    try {
+      const currentDateTime = this.getCurrentDateTime();
+      const quotationNumber = await this.generateQuotationNumber();
+
+      // Check if discount requires approval
+      const discountCheck = await this.checkDiscountLimit(data.totalDiscountAmount, data.createdBy);
+
+      // Insert quotation master record
+      const quotationQuery = `
+        INSERT INTO "BI_NEGT_KSA"."DMS_QUOTATION" (
+          "ENQUIRY_SLNO", "QUOTATION_NUMBER", "VERSION", "IS_LATEST_VERSION",
+          "CUSTOMER_NAME", "CUSTOMER_MOBILE", "CUSTOMER_EMAIL", "CUSTOMER_ADDRESS",
+          "VEHICLE_MAKE", "VEHICLE_MODEL", "VEHICLE_VARIANT", "VEHICLE_YEAR",
+          "VEHICLE_COLOR", "VIN_NUMBER",
+          "VEHICLE_BASE_PRICE", "VEHICLE_DISCOUNT", "VEHICLE_NET_PRICE",
+          "ACCESSORIES_TOTAL", "ACCESSORIES_DISCOUNT", "ACCESSORIES_NET_TOTAL",
+          "WARRANTY_TOTAL", "INSURANCE_TOTAL",
+          "SUBTOTAL", "TAX_RATE", "TAX_AMOUNT", "GRAND_TOTAL",
+          "TRADE_IN_VALUE", "TRADE_IN_APPRAISAL_SLNO", "FINANCING_SCHEME_SLNO",
+          "DOWNPAYMENT", "NET_AMOUNT_DUE",
+          "TOTAL_DISCOUNT_AMOUNT", "DISCOUNT_PERCENTAGE",
+          "REQUIRES_APPROVAL", "DISCOUNT_APPROVAL_STATUS",
+          "STATUS", "VALID_UNTIL", "NOTES", "TERMS_AND_CONDITIONS", "INTERNAL_NOTES",
+          "SALESPERSON", "SLPCODE", "BRANCH",
+          "CREATED_BY", "CREATED_DATE", "IS_DELETED"
+        ) VALUES (
+          ?, ?, 1, 'Y',
+          ?, ?, ?, ?,
+          ?, ?, ?, ?,
+          ?, ?,
+          ?, ?, ?,
+          ?, ?, ?,
+          ?, ?,
+          ?, ?, ?, ?,
+          ?, ?, ?,
+          ?, ?,
+          ?, ?,
+          ?, ?,
+          ?, ?, ?, ?, ?,
+          ?, ?, ?,
+          ?, ?, 'N'
+        )
+      `;
+
+      await db.execute(quotationQuery, [
+        data.enquirySlno,
+        quotationNumber,
+        data.customerName || null,
+        data.customerMobile || null,
+        data.customerEmail || null,
+        data.customerAddress || null,
+        data.vehicleMake || null,
+        data.vehicleModel || null,
+        data.vehicleVariant || null,
+        data.vehicleYear || null,
+        data.vehicleColor || null,
+        data.vinNumber || null,
+        data.vehicleBasePrice,
+        data.vehicleDiscount,
+        data.vehicleNetPrice,
+        data.accessoriesTotal,
+        data.accessoriesDiscount,
+        data.accessoriesNetTotal,
+        data.warrantyTotal,
+        data.insuranceTotal,
+        data.subtotal,
+        data.taxRate,
+        data.taxAmount,
+        data.grandTotal,
+        data.tradeInValue,
+        data.tradeInAppraisalSlno || null,
+        data.financingSchemeSlno || null,
+        data.downpayment,
+        data.netAmountDue,
+        data.totalDiscountAmount,
+        data.discountPercentage,
+        discountCheck.requiresApproval ? 'Y' : 'N',
+        discountCheck.requiresApproval ? 'Pending' : null,
+        data.status || 'Draft',
+        data.validUntil || null,
+        data.notes || null,
+        data.termsAndConditions || null,
+        data.internalNotes || null,
+        data.createdBy,
+        data.slpCode,
+        null, // Branch - can be added later
+        data.createdBy,
+        currentDateTime,
+      ]);
+
+      // Get inserted quotation ID
+      const idQuery = `
+        SELECT "SLNO" FROM "BI_NEGT_KSA"."DMS_QUOTATION"
+        WHERE "QUOTATION_NUMBER" = ?
+      `;
+      const idResult = await db.query(idQuery, [quotationNumber]);
+      const quotationId = idResult[0].SLNO;
+
+      // Insert line items
+      for (const item of data.lineItems) {
+        const lineItemQuery = `
+          INSERT INTO "BI_NEGT_KSA"."DMS_QUOTATION_LINE_ITEMS" (
+            "QUOTATION_SLNO", "LINE_NUMBER", "ITEM_TYPE", "ITEM_CODE",
+            "ITEM_DESCRIPTION", "ITEM_CATEGORY", "QUANTITY", "UNIT_PRICE",
+            "DISCOUNT_AMOUNT", "DISCOUNT_PERCENTAGE", "NET_PRICE", "TAX_INCLUDED",
+            "MANUFACTURER", "PART_NUMBER", "WARRANTY_PERIOD", "NOTES",
+            "CREATED_BY", "CREATED_DATE", "IS_DELETED"
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'N')
+        `;
+
+        await db.execute(lineItemQuery, [
+          quotationId,
+          item.lineNumber,
+          item.itemType,
+          item.itemCode || null,
+          item.itemDescription,
+          item.itemCategory || null,
+          item.quantity,
+          item.unitPrice,
+          item.discountAmount,
+          item.discountPercentage,
+          item.netPrice,
+          item.taxIncluded,
+          item.manufacturer || null,
+          item.partNumber || null,
+          item.warrantyPeriod || null,
+          item.notes || null,
+          data.createdBy,
+          currentDateTime,
+        ]);
+      }
+
+      // Log activity
+      await this.logActivity({
+        quotationSlno: quotationId,
+        activityType: 'Created',
+        activityDescription: `Quotation ${quotationNumber} created`,
+        createdBy: data.createdBy,
+      });
+
+      logger.info({ quotationId, quotationNumber }, 'Quotation created successfully');
+
+      return { success: true, id: quotationId, quotationNumber };
+    } catch (error: any) {
+      logger.error('Error creating quotation:', error);
+      throw new Error('Failed to create quotation: ' + error.message);
+    }
+  }
+
+  /**
+   * Get quotation by ID with line items
+   */
+  async getQuotationById(id: number): Promise<(Quotation & { lineItems: QuotationLineItem[] }) | null> {
+    try {
+      const quotationQuery = `
+        SELECT * FROM "BI_NEGT_KSA"."DMS_QUOTATION"
+        WHERE "SLNO" = ? AND "IS_DELETED" = 'N'
+      `;
+
+      const lineItemsQuery = `
+        SELECT * FROM "BI_NEGT_KSA"."DMS_QUOTATION_LINE_ITEMS"
+        WHERE "QUOTATION_SLNO" = ? AND "IS_DELETED" = 'N'
+        ORDER BY "LINE_NUMBER"
+      `;
+
+      const quotation = await db.queryOne(quotationQuery, [id]);
+      if (!quotation) return null;
+
+      const lineItems = await db.query(lineItemsQuery, [id]);
+
+      return { ...quotation, lineItems };
+    } catch (error: any) {
+      logger.error('Error fetching quotation:', error);
+      throw new Error('Failed to fetch quotation: ' + error.message);
+    }
+  }
+
+  /**
+   * Get all quotations for an enquiry
+   */
+  async getQuotationsByEnquiryId(enquiryId: number): Promise<Quotation[]> {
+    try {
+      const query = `
+        SELECT * FROM "BI_NEGT_KSA"."DMS_QUOTATION"
+        WHERE "ENQUIRY_SLNO" = ? AND "IS_DELETED" = 'N'
+        ORDER BY "VERSION" DESC, "CREATED_DATE" DESC
+      `;
+
+      return await db.query(query, [enquiryId]);
+    } catch (error: any) {
+      logger.error('Error fetching quotations for enquiry:', error);
+      throw new Error('Failed to fetch quotations: ' + error.message);
+    }
+  }
+
+  /**
+   * Get all quotations (with optional filters)
+   */
+  async getAllQuotations(filters?: {
+    status?: string;
+    slpCode?: string;
+    dateFrom?: string;
+    dateTo?: string;
+  }): Promise<Quotation[]> {
+    try {
+      let query = `
+        SELECT * FROM "BI_NEGT_KSA"."DMS_QUOTATION"
+        WHERE "IS_DELETED" = 'N'
+      `;
+      const params: any[] = [];
+
+      if (filters?.status) {
+        query += ` AND "STATUS" = ?`;
+        params.push(filters.status);
+      }
+
+      if (filters?.slpCode) {
+        query += ` AND "SLPCODE" = ?`;
+        params.push(filters.slpCode);
+      }
+
+      if (filters?.dateFrom) {
+        query += ` AND "CREATED_DATE" >= ?`;
+        params.push(filters.dateFrom);
+      }
+
+      if (filters?.dateTo) {
+        query += ` AND "CREATED_DATE" <= ?`;
+        params.push(filters.dateTo);
+      }
+
+      query += ` ORDER BY "CREATED_DATE" DESC`;
+
+      return await db.query(query, params);
+    } catch (error: any) {
+      logger.error('Error fetching all quotations:', error);
+      throw new Error('Failed to fetch quotations: ' + error.message);
+    }
+  }
+
+  /**
+   * Update quotation
+   */
+  async updateQuotation(
+    id: number,
+    data: Partial<UpdateQuotationInput> & { updatedBy: string }
+  ): Promise<{ success: boolean }> {
+    try {
+      const currentDateTime = this.getCurrentDateTime();
+      const updates: string[] = [];
+      const params: any[] = [];
+
+      // Build dynamic update query
+      if (data.customerName !== undefined) {
+        updates.push('"CUSTOMER_NAME" = ?');
+        params.push(data.customerName);
+      }
+      if (data.customerMobile !== undefined) {
+        updates.push('"CUSTOMER_MOBILE" = ?');
+        params.push(data.customerMobile);
+      }
+      if (data.customerEmail !== undefined) {
+        updates.push('"CUSTOMER_EMAIL" = ?');
+        params.push(data.customerEmail);
+      }
+      if (data.customerAddress !== undefined) {
+        updates.push('"CUSTOMER_ADDRESS" = ?');
+        params.push(data.customerAddress);
+      }
+
+      // Vehicle fields
+      if (data.vehicleMake !== undefined) {
+        updates.push('"VEHICLE_MAKE" = ?');
+        params.push(data.vehicleMake);
+      }
+      if (data.vehicleModel !== undefined) {
+        updates.push('"VEHICLE_MODEL" = ?');
+        params.push(data.vehicleModel);
+      }
+      if (data.vehicleVariant !== undefined) {
+        updates.push('"VEHICLE_VARIANT" = ?');
+        params.push(data.vehicleVariant);
+      }
+      if (data.vehicleYear !== undefined) {
+        updates.push('"VEHICLE_YEAR" = ?');
+        params.push(data.vehicleYear);
+      }
+      if (data.vehicleColor !== undefined) {
+        updates.push('"VEHICLE_COLOR" = ?');
+        params.push(data.vehicleColor);
+      }
+      if (data.vinNumber !== undefined) {
+        updates.push('"VIN_NUMBER" = ?');
+        params.push(data.vinNumber);
+      }
+
+      // Pricing fields
+      if (data.vehicleBasePrice !== undefined) {
+        updates.push('"VEHICLE_BASE_PRICE" = ?');
+        params.push(data.vehicleBasePrice);
+      }
+      if (data.vehicleDiscount !== undefined) {
+        updates.push('"VEHICLE_DISCOUNT" = ?');
+        params.push(data.vehicleDiscount);
+      }
+      if (data.vehicleNetPrice !== undefined) {
+        updates.push('"VEHICLE_NET_PRICE" = ?');
+        params.push(data.vehicleNetPrice);
+      }
+      if (data.accessoriesTotal !== undefined) {
+        updates.push('"ACCESSORIES_TOTAL" = ?');
+        params.push(data.accessoriesTotal);
+      }
+      if (data.accessoriesDiscount !== undefined) {
+        updates.push('"ACCESSORIES_DISCOUNT" = ?');
+        params.push(data.accessoriesDiscount);
+      }
+      if (data.accessoriesNetTotal !== undefined) {
+        updates.push('"ACCESSORIES_NET_TOTAL" = ?');
+        params.push(data.accessoriesNetTotal);
+      }
+      if (data.warrantyTotal !== undefined) {
+        updates.push('"WARRANTY_TOTAL" = ?');
+        params.push(data.warrantyTotal);
+      }
+      if (data.insuranceTotal !== undefined) {
+        updates.push('"INSURANCE_TOTAL" = ?');
+        params.push(data.insuranceTotal);
+      }
+      if (data.subtotal !== undefined) {
+        updates.push('"SUBTOTAL" = ?');
+        params.push(data.subtotal);
+      }
+      if (data.taxRate !== undefined) {
+        updates.push('"TAX_RATE" = ?');
+        params.push(data.taxRate);
+      }
+      if (data.taxAmount !== undefined) {
+        updates.push('"TAX_AMOUNT" = ?');
+        params.push(data.taxAmount);
+      }
+      if (data.grandTotal !== undefined) {
+        updates.push('"GRAND_TOTAL" = ?');
+        params.push(data.grandTotal);
+      }
+
+      // Trade-in & financing
+      if (data.tradeInValue !== undefined) {
+        updates.push('"TRADE_IN_VALUE" = ?');
+        params.push(data.tradeInValue);
+      }
+      if (data.tradeInAppraisalSlno !== undefined) {
+        updates.push('"TRADE_IN_APPRAISAL_SLNO" = ?');
+        params.push(data.tradeInAppraisalSlno);
+      }
+      if (data.financingSchemeSlno !== undefined) {
+        updates.push('"FINANCING_SCHEME_SLNO" = ?');
+        params.push(data.financingSchemeSlno);
+      }
+      if (data.downpayment !== undefined) {
+        updates.push('"DOWNPAYMENT" = ?');
+        params.push(data.downpayment);
+      }
+      if (data.netAmountDue !== undefined) {
+        updates.push('"NET_AMOUNT_DUE" = ?');
+        params.push(data.netAmountDue);
+      }
+
+      // Discount summary
+      if (data.totalDiscountAmount !== undefined) {
+        updates.push('"TOTAL_DISCOUNT_AMOUNT" = ?');
+        params.push(data.totalDiscountAmount);
+      }
+      if (data.discountPercentage !== undefined) {
+        updates.push('"DISCOUNT_PERCENTAGE" = ?');
+        params.push(data.discountPercentage);
+      }
+
+      // Notes
+      if (data.notes !== undefined) {
+        updates.push('"NOTES" = ?');
+        params.push(data.notes);
+      }
+      if (data.termsAndConditions !== undefined) {
+        updates.push('"TERMS_AND_CONDITIONS" = ?');
+        params.push(data.termsAndConditions);
+      }
+      if (data.internalNotes !== undefined) {
+        updates.push('"INTERNAL_NOTES" = ?');
+        params.push(data.internalNotes);
+      }
+      if (data.validUntil !== undefined) {
+        updates.push('"VALID_UNTIL" = ?');
+        params.push(data.validUntil);
+      }
+
+      // Add audit fields
+      updates.push('"UPDATED_BY" = ?', '"UPDATED_DATE" = ?');
+      params.push(data.updatedBy, currentDateTime);
+
+      // Add ID parameter
+      params.push(id);
+
+      const query = `
+        UPDATE "BI_NEGT_KSA"."DMS_QUOTATION"
+        SET ${updates.join(', ')}
+        WHERE "SLNO" = ?
+      `;
+
+      await db.execute(query, params);
+
+      // TODO: Handle line items update if data.lineItems is provided
+
+      logger.info({ quotationId: id }, 'Quotation updated successfully');
+
+      return { success: true };
+    } catch (error: any) {
+      logger.error('Error updating quotation:', error);
+      throw new Error('Failed to update quotation: ' + error.message);
+    }
+  }
+
+  /**
+   * Supersede quotation - create new version
+   */
+  async supersedeQuotation(
+    data: SupersedeQuotationInput & { createdBy: string; slpCode: string }
+  ): Promise<{ success: boolean; id: number; quotationNumber: string }> {
+    try {
+      // 1. Mark parent quotation as not latest and superseded
+      const updateParentQuery = `
+        UPDATE "BI_NEGT_KSA"."DMS_QUOTATION"
+        SET "IS_LATEST_VERSION" = 'N', "STATUS" = 'Superseded'
+        WHERE "SLNO" = ?
+      `;
+      await db.execute(updateParentQuery, [data.parentQuotationSlno]);
+
+      // 2. Get parent quotation details
+      const parent = await this.getQuotationById(data.parentQuotationSlno);
+      if (!parent) {
+        throw new Error('Parent quotation not found');
+      }
+
+      // 3. Create new quotation with incremented version
+      const newVersion = parent.VERSION + 1;
+      const quotationNumber = await this.generateQuotationNumber();
+      const currentDateTime = this.getCurrentDateTime();
+
+      // Check if discount requires approval
+      const discountCheck = await this.checkDiscountLimit(data.totalDiscountAmount, data.createdBy);
+
+      const quotationQuery = `
+        INSERT INTO "BI_NEGT_KSA"."DMS_QUOTATION" (
+          "ENQUIRY_SLNO", "QUOTATION_NUMBER", "VERSION", "PARENT_QUOTATION_SLNO", "IS_LATEST_VERSION",
+          "CUSTOMER_NAME", "CUSTOMER_MOBILE", "CUSTOMER_EMAIL", "CUSTOMER_ADDRESS",
+          "VEHICLE_MAKE", "VEHICLE_MODEL", "VEHICLE_VARIANT", "VEHICLE_YEAR",
+          "VEHICLE_COLOR", "VIN_NUMBER",
+          "VEHICLE_BASE_PRICE", "VEHICLE_DISCOUNT", "VEHICLE_NET_PRICE",
+          "ACCESSORIES_TOTAL", "ACCESSORIES_DISCOUNT", "ACCESSORIES_NET_TOTAL",
+          "WARRANTY_TOTAL", "INSURANCE_TOTAL",
+          "SUBTOTAL", "TAX_RATE", "TAX_AMOUNT", "GRAND_TOTAL",
+          "TRADE_IN_VALUE", "TRADE_IN_APPRAISAL_SLNO", "FINANCING_SCHEME_SLNO",
+          "DOWNPAYMENT", "NET_AMOUNT_DUE",
+          "TOTAL_DISCOUNT_AMOUNT", "DISCOUNT_PERCENTAGE",
+          "REQUIRES_APPROVAL", "DISCOUNT_APPROVAL_STATUS",
+          "STATUS", "VALID_UNTIL", "NOTES", "TERMS_AND_CONDITIONS", "INTERNAL_NOTES",
+          "SALESPERSON", "SLPCODE", "BRANCH",
+          "CREATED_BY", "CREATED_DATE", "IS_DELETED"
+        ) VALUES (
+          ?, ?, ?, ?, 'Y',
+          ?, ?, ?, ?,
+          ?, ?, ?, ?,
+          ?, ?,
+          ?, ?, ?,
+          ?, ?, ?,
+          ?, ?,
+          ?, ?, ?, ?,
+          ?, ?, ?,
+          ?, ?,
+          ?, ?,
+          ?, ?,
+          'Draft', ?, ?, ?, ?,
+          ?, ?, ?,
+          ?, ?, 'N'
+        )
+      `;
+
+      await db.execute(quotationQuery, [
+        parent.ENQUIRY_SLNO,
+        quotationNumber,
+        newVersion,
+        data.parentQuotationSlno,
+        data.customerName || parent.CUSTOMER_NAME,
+        data.customerMobile || parent.CUSTOMER_MOBILE,
+        data.customerEmail || parent.CUSTOMER_EMAIL,
+        data.customerAddress || parent.CUSTOMER_ADDRESS,
+        data.vehicleMake || parent.VEHICLE_MAKE,
+        data.vehicleModel || parent.VEHICLE_MODEL,
+        data.vehicleVariant || parent.VEHICLE_VARIANT,
+        data.vehicleYear || parent.VEHICLE_YEAR,
+        data.vehicleColor || parent.VEHICLE_COLOR,
+        data.vinNumber || parent.VIN_NUMBER,
+        data.vehicleBasePrice,
+        data.vehicleDiscount,
+        data.vehicleNetPrice,
+        data.accessoriesTotal,
+        data.accessoriesDiscount,
+        data.accessoriesNetTotal,
+        data.warrantyTotal,
+        data.insuranceTotal,
+        data.subtotal,
+        data.taxRate,
+        data.taxAmount,
+        data.grandTotal,
+        data.tradeInValue,
+        data.tradeInAppraisalSlno || null,
+        data.financingSchemeSlno || null,
+        data.downpayment,
+        data.netAmountDue,
+        data.totalDiscountAmount,
+        data.discountPercentage,
+        discountCheck.requiresApproval ? 'Y' : 'N',
+        discountCheck.requiresApproval ? 'Pending' : null,
+        data.validUntil || null,
+        data.notes || null,
+        data.termsAndConditions || null,
+        data.internalNotes || null,
+        data.createdBy,
+        data.slpCode,
+        parent.BRANCH,
+        data.createdBy,
+        currentDateTime,
+      ]);
+
+      // Get new quotation ID
+      const idQuery = `SELECT "SLNO" FROM "BI_NEGT_KSA"."DMS_QUOTATION" WHERE "QUOTATION_NUMBER" = ?`;
+      const idResult = await db.query(idQuery, [quotationNumber]);
+      const quotationId = idResult[0].SLNO;
+
+      // Copy line items from parent or use new ones
+      const lineItemsToInsert = data.lineItems || parent.lineItems || [];
+      for (const item of lineItemsToInsert) {
+        const lineItemQuery = `
+          INSERT INTO "BI_NEGT_KSA"."DMS_QUOTATION_LINE_ITEMS" (
+            "QUOTATION_SLNO", "LINE_NUMBER", "ITEM_TYPE", "ITEM_CODE",
+            "ITEM_DESCRIPTION", "ITEM_CATEGORY", "QUANTITY", "UNIT_PRICE",
+            "DISCOUNT_AMOUNT", "DISCOUNT_PERCENTAGE", "NET_PRICE", "TAX_INCLUDED",
+            "MANUFACTURER", "PART_NUMBER", "WARRANTY_PERIOD", "NOTES",
+            "CREATED_BY", "CREATED_DATE", "IS_DELETED"
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'N')
+        `;
+
+        await db.execute(lineItemQuery, [
+          quotationId,
+          item.lineNumber || item.LINE_NUMBER,
+          item.itemType || item.ITEM_TYPE,
+          item.itemCode || item.ITEM_CODE || null,
+          item.itemDescription || item.ITEM_DESCRIPTION,
+          item.itemCategory || item.ITEM_CATEGORY || null,
+          item.quantity || item.QUANTITY || 1,
+          item.unitPrice || item.UNIT_PRICE,
+          item.discountAmount || item.DISCOUNT_AMOUNT || 0,
+          item.discountPercentage || item.DISCOUNT_PERCENTAGE || 0,
+          item.netPrice || item.NET_PRICE,
+          item.taxIncluded || item.TAX_INCLUDED || 'N',
+          item.manufacturer || item.MANUFACTURER || null,
+          item.partNumber || item.PART_NUMBER || null,
+          item.warrantyPeriod || item.WARRANTY_PERIOD || null,
+          item.notes || item.NOTES || null,
+          data.createdBy,
+          currentDateTime,
+        ]);
+      }
+
+      // Log activity on parent quotation
+      await this.logActivity({
+        quotationSlno: data.parentQuotationSlno,
+        activityType: 'Superseded',
+        activityDescription: `Superseded by ${quotationNumber}. Reason: ${data.reason}`,
+        createdBy: data.createdBy,
+      });
+
+      // Log activity on new quotation
+      await this.logActivity({
+        quotationSlno: quotationId,
+        activityType: 'Created',
+        activityDescription: `Created as new version (V${newVersion}) of ${parent.QUOTATION_NUMBER}`,
+        createdBy: data.createdBy,
+      });
+
+      logger.info({ quotationId, quotationNumber, version: newVersion }, 'Quotation superseded');
+
+      return { success: true, id: quotationId, quotationNumber };
+    } catch (error: any) {
+      logger.error('Error superseding quotation:', error);
+      throw new Error('Failed to supersede quotation: ' + error.message);
+    }
+  }
+
+  /**
+   * Request discount approval
+   */
+  async requestDiscountApproval(
+    quotationId: number,
+    data: RequestDiscountApprovalInput & { requestedBy: string; slpCode: string }
+  ): Promise<{ success: boolean; id: number }> {
+    try {
+      const currentDateTime = this.getCurrentDateTime();
+
+      // Get user's discount limit
+      const limitCheck = await this.checkDiscountLimit(data.discountAmount, data.requestedBy);
+
+      const query = `
+        INSERT INTO "BI_NEGT_KSA"."DMS_DISCOUNT_APPROVAL" (
+          "QUOTATION_SLNO", "REQUEST_TYPE", "DISCOUNT_AMOUNT", "DISCOUNT_PERCENTAGE",
+          "JUSTIFICATION", "REQUESTED_BY", "REQUESTED_BY_SLPCODE",
+          "USER_DISCOUNT_LIMIT", "AMOUNT_OVER_LIMIT",
+          "STATUS", "ASSIGNED_TO", "REQUESTED_DATE",
+          "CREATED_BY", "CREATED_DATE", "IS_DELETED"
+        ) VALUES (?, 'Discount', ?, ?, ?, ?, ?, ?, ?, 'Pending', ?, ?, ?, ?, 'N')
+      `;
+
+      await db.execute(query, [
+        quotationId,
+        data.discountAmount,
+        data.discountPercentage,
+        data.justification,
+        data.requestedBy,
+        data.slpCode,
+        limitCheck.userLimit,
+        limitCheck.overLimit,
+        data.assignedTo,
+        currentDateTime,
+        data.requestedBy,
+        currentDateTime,
+      ]);
+
+      // Get inserted ID
+      const idQuery = `
+        SELECT "SLNO" FROM "BI_NEGT_KSA"."DMS_DISCOUNT_APPROVAL"
+        WHERE "QUOTATION_SLNO" = ?
+        ORDER BY "SLNO" DESC LIMIT 1
+      `;
+      const result = await db.query(idQuery, [quotationId]);
+
+      // Update quotation to reflect pending approval
+      const updateQuery = `
+        UPDATE "BI_NEGT_KSA"."DMS_QUOTATION"
+        SET "REQUIRES_APPROVAL" = 'Y', "DISCOUNT_APPROVAL_STATUS" = 'Pending'
+        WHERE "SLNO" = ?
+      `;
+      await db.execute(updateQuery, [quotationId]);
+
+      // Log activity
+      await this.logActivity({
+        quotationSlno: quotationId,
+        activityType: 'DiscountApprovalRequested',
+        activityDescription: `Discount approval requested from ${data.assignedTo}`,
+        createdBy: data.requestedBy,
+      });
+
+      logger.info({ quotationId, approvalId: result[0].SLNO }, 'Discount approval requested');
+
+      return { success: true, id: result[0].SLNO };
+    } catch (error: any) {
+      logger.error('Error requesting discount approval:', error);
+      throw new Error('Failed to request discount approval: ' + error.message);
+    }
+  }
+
+  /**
+   * Approve or reject discount
+   */
+  async approveDiscount(
+    approvalId: number,
+    data: ApproveDiscountInput & { approvedBy: string; slpCode: string }
+  ): Promise<{ success: boolean }> {
+    try {
+      const currentDateTime = this.getCurrentDateTime();
+
+      // Update approval record
+      const approvalQuery = `
+        UPDATE "BI_NEGT_KSA"."DMS_DISCOUNT_APPROVAL"
+        SET "STATUS" = ?, "APPROVED_BY" = ?, "APPROVED_BY_SLPCODE" = ?,
+            "APPROVED_DATE" = ?, "APPROVAL_NOTES" = ?, "REJECTION_REASON" = ?,
+            "UPDATED_BY" = ?, "UPDATED_DATE" = ?
+        WHERE "SLNO" = ?
+      `;
+
+      await db.execute(approvalQuery, [
+        data.approvalStatus,
+        data.approvedBy,
+        data.slpCode,
+        currentDateTime,
+        data.approvalNotes || null,
+        data.rejectionReason || null,
+        data.approvedBy,
+        currentDateTime,
+        approvalId,
+      ]);
+
+      // Get quotation ID for this approval
+      const getQuotationQuery = `
+        SELECT "QUOTATION_SLNO" FROM "BI_NEGT_KSA"."DMS_DISCOUNT_APPROVAL"
+        WHERE "SLNO" = ?
+      `;
+      const quotationResult = await db.query(getQuotationQuery, [approvalId]);
+      const quotationId = quotationResult[0].QUOTATION_SLNO;
+
+      // Update quotation status
+      if (data.approvalStatus === 'Approved') {
+        const quotationQuery = `
+          UPDATE "BI_NEGT_KSA"."DMS_QUOTATION"
+          SET "DISCOUNT_APPROVAL_STATUS" = 'Approved',
+              "DISCOUNT_APPROVED_BY" = ?,
+              "DISCOUNT_APPROVED_DATE" = ?
+          WHERE "SLNO" = ?
+        `;
+        await db.execute(quotationQuery, [data.approvedBy, currentDateTime, quotationId]);
+
+        // Log activity
+        await this.logActivity({
+          quotationSlno: quotationId,
+          activityType: 'DiscountApproved',
+          activityDescription: `Discount approved by ${data.approvedBy}`,
+          createdBy: data.approvedBy,
+        });
+      } else {
+        const quotationQuery = `
+          UPDATE "BI_NEGT_KSA"."DMS_QUOTATION"
+          SET "DISCOUNT_APPROVAL_STATUS" = 'Rejected'
+          WHERE "SLNO" = ?
+        `;
+        await db.execute(quotationQuery, [quotationId]);
+
+        // Log activity
+        await this.logActivity({
+          quotationSlno: quotationId,
+          activityType: 'DiscountRejected',
+          activityDescription: `Discount rejected by ${data.approvedBy}. Reason: ${data.rejectionReason}`,
+          createdBy: data.approvedBy,
+        });
+      }
+
+      logger.info({ approvalId, status: data.approvalStatus }, 'Discount approval processed');
+
+      return { success: true };
+    } catch (error: any) {
+      logger.error('Error approving discount:', error);
+      throw new Error('Failed to approve discount: ' + error.message);
+    }
+  }
+
+  /**
+   * Pass quotation to cashier
+   */
+  async passToCashier(
+    quotationId: number,
+    data: PassToCashierInput & { passedBy: string }
+  ): Promise<{ success: boolean }> {
+    try {
+      const currentDateTime = this.getCurrentDateTime();
+
+      const query = `
+        UPDATE "BI_NEGT_KSA"."DMS_QUOTATION"
+        SET "PASSED_TO_CASHIER" = 'Y',
+            "PASSED_TO_CASHIER_DATE" = ?,
+            "PASSED_TO_CASHIER_BY" = ?,
+            "DEPOSIT_AMOUNT" = ?,
+            "STATUS" = 'Sent',
+            "UPDATED_BY" = ?,
+            "UPDATED_DATE" = ?
+        WHERE "SLNO" = ?
+      `;
+
+      await db.execute(query, [
+        currentDateTime,
+        data.passedBy,
+        data.depositAmount || 0,
+        data.passedBy,
+        currentDateTime,
+        quotationId,
+      ]);
+
+      // Log activity
+      await this.logActivity({
+        quotationSlno: quotationId,
+        activityType: 'PassedToCashier',
+        activityDescription: 'Quotation passed to cashier for deposit collection',
+        activityNotes: data.notes,
+        createdBy: data.passedBy,
+      });
+
+      logger.info({ quotationId }, 'Quotation passed to cashier');
+
+      return { success: true };
+    } catch (error: any) {
+      logger.error('Error passing quotation to cashier:', error);
+      throw new Error('Failed to pass quotation to cashier: ' + error.message);
+    }
+  }
+
+  /**
+   * Log activity
+   */
+  async logActivity(data: CreateActivityInput & { createdBy: string }): Promise<void> {
+    try {
+      const currentDateTime = this.getCurrentDateTime();
+
+      const query = `
+        INSERT INTO "BI_NEGT_KSA"."DMS_QUOTATION_ACTIVITY" (
+          "QUOTATION_SLNO", "ACTIVITY_TYPE", "ACTIVITY_DESCRIPTION", "ACTIVITY_NOTES",
+          "IS_FOLLOW_UP", "FOLLOW_UP_DATE", "FOLLOW_UP_ASSIGNED_TO", "FOLLOW_UP_STATUS",
+          "CREATED_BY", "CREATED_DATE", "IS_DELETED"
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'Pending', ?, ?, 'N')
+      `;
+
+      await db.execute(query, [
+        data.quotationSlno,
+        data.activityType,
+        data.activityDescription || null,
+        data.activityNotes || null,
+        data.isFollowUp || 'N',
+        data.followUpDate || null,
+        data.followUpAssignedTo || null,
+        data.createdBy,
+        currentDateTime,
+      ]);
+    } catch (error: any) {
+      logger.error('Error logging activity:', error);
+      // Don't throw - activity logging should not break main operations
+    }
+  }
+
+  /**
+   * Delete quotation (soft delete)
+   */
+  async deleteQuotation(id: number, deletedBy: string): Promise<{ success: boolean }> {
+    try {
+      const currentDateTime = this.getCurrentDateTime();
+
+      const query = `
+        UPDATE "BI_NEGT_KSA"."DMS_QUOTATION"
+        SET "IS_DELETED" = 'Y', "UPDATED_BY" = ?, "UPDATED_DATE" = ?
+        WHERE "SLNO" = ?
+      `;
+
+      await db.execute(query, [deletedBy, currentDateTime, id]);
+
+      logger.info({ quotationId: id }, 'Quotation deleted');
+
+      return { success: true };
+    } catch (error: any) {
+      logger.error('Error deleting quotation:', error);
+      throw new Error('Failed to delete quotation: ' + error.message);
+    }
+  }
+
+  /**
+   * Get pending discount approvals for a manager
+   */
+  async getPendingApprovals(assignedTo?: string): Promise<DiscountApproval[]> {
+    try {
+      let query = `
+        SELECT * FROM "BI_NEGT_KSA"."DMS_DISCOUNT_APPROVAL"
+        WHERE "STATUS" = 'Pending' AND "IS_DELETED" = 'N'
+      `;
+      const params: any[] = [];
+
+      if (assignedTo) {
+        query += ` AND "ASSIGNED_TO" = ?`;
+        params.push(assignedTo);
+      }
+
+      query += ` ORDER BY "REQUESTED_DATE" DESC`;
+
+      return await db.query(query, params);
+    } catch (error: any) {
+      logger.error('Error fetching pending approvals:', error);
+      throw new Error('Failed to fetch pending approvals: ' + error.message);
+    }
+  }
+
+  /**
+   * Get all discount approval requests with optional filters
+   */
+  async getAllDiscountApprovals(filters?: DiscountApprovalFilters): Promise<DiscountApproval[]> {
+    try {
+      let query = `
+        SELECT
+          da.*,
+          q."QUOTATION_NUMBER",
+          q."CUSTOMER_NAME",
+          q."VEHICLE_MAKE",
+          q."VEHICLE_MODEL"
+        FROM "BI_NEGT_KSA"."DMS_DISCOUNT_APPROVAL" da
+        LEFT JOIN "BI_NEGT_KSA"."DMS_QUOTATION" q ON da."QUOTATION_SLNO" = q."SLNO"
+        WHERE da."IS_DELETED" = 'N'
+      `;
+
+      const params: any[] = [];
+
+      if (filters?.status) {
+        query += ` AND da."STATUS" = ?`;
+        params.push(filters.status);
+      }
+
+      if (filters?.assignedTo) {
+        query += ` AND da."ASSIGNED_TO" = ?`;
+        params.push(filters.assignedTo);
+      }
+
+      if (filters?.requestedBySlpCode) {
+        query += ` AND da."REQUESTED_BY_SLPCODE" = ?`;
+        params.push(filters.requestedBySlpCode);
+      }
+
+      if (filters?.dateFrom) {
+        query += ` AND da."REQUESTED_DATE" >= ?`;
+        params.push(filters.dateFrom);
+      }
+
+      if (filters?.dateTo) {
+        query += ` AND da."REQUESTED_DATE" <= ?`;
+        params.push(filters.dateTo);
+      }
+
+      query += ` ORDER BY da."REQUESTED_DATE" DESC`;
+
+      const result = await db.query(query, params);
+      return result as DiscountApproval[];
+    } catch (error: any) {
+      logger.error('Error fetching discount approvals:', error);
+      throw new Error('Failed to fetch discount approvals: ' + error.message);
+    }
+  }
+
+  /**
+   * Get pending discount approvals assigned to a specific user
+   */
+  async getPendingDiscountApprovals(assignedTo: string): Promise<DiscountApproval[]> {
+    try {
+      const query = `
+        SELECT
+          da.*,
+          q."QUOTATION_NUMBER",
+          q."CUSTOMER_NAME",
+          q."VEHICLE_MAKE",
+          q."VEHICLE_MODEL"
+        FROM "BI_NEGT_KSA"."DMS_DISCOUNT_APPROVAL" da
+        LEFT JOIN "BI_NEGT_KSA"."DMS_QUOTATION" q ON da."QUOTATION_SLNO" = q."SLNO"
+        WHERE da."IS_DELETED" = 'N'
+          AND da."STATUS" = 'Pending'
+          AND da."ASSIGNED_TO" = ?
+        ORDER BY da."REQUESTED_DATE" DESC
+      `;
+
+      const result = await db.query(query, [assignedTo]);
+      return result as DiscountApproval[];
+    } catch (error: any) {
+      logger.error('Error fetching pending discount approvals:', error);
+      throw new Error('Failed to fetch pending discount approvals: ' + error.message);
+    }
+  }
+}
+
+// Export singleton instance
+export const quotationService = new QuotationService();

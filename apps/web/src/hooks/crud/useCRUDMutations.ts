@@ -84,13 +84,13 @@ export function useCRUDMutations<TCreate, TUpdate = Partial<TCreate>>({
 
   return {
     create: async (data: TCreate) => {
-      await createMutation.mutateAsync(data);
+      return await createMutation.mutateAsync(data);
     },
     update: async (id: number, data: TUpdate) => {
-      await updateMutation.mutateAsync({ id, data });
+      return await updateMutation.mutateAsync({ id, data });
     },
     delete: async (id: number) => {
-      await deleteMutation.mutateAsync(id);
+      return await deleteMutation.mutateAsync(id);
     },
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,

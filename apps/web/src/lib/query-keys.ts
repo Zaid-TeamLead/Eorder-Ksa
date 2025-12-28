@@ -60,4 +60,20 @@ export const queryKeys = {
     history: (cardCode: string) => ["customer-history", cardCode] as const,
     search: (query: string) => ["customer-search", query] as const,
   },
+
+  // Quotations
+  quotations: {
+    all: ["quotations"] as const,
+    byEnquiry: (enquiryId: number) => ["quotations", "enquiry", enquiryId] as const,
+    detail: (id: number) => ["quotation", id] as const,
+    versions: (quotationNumber: string) => ["quotation-versions", quotationNumber] as const,
+    activities: (quotationId: number) => ["quotation-activities", quotationId] as const,
+  },
+
+  // Discount Approvals
+  discountApprovals: {
+    all: ["discount-approvals"] as const,
+    pending: ["discount-approvals", "pending"] as const,
+    byQuotation: (quotationId: number) => ["discount-approvals", quotationId] as const,
+  },
 } as const;
