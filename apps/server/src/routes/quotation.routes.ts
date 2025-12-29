@@ -112,20 +112,12 @@ router.get(
 
 /**
  * GET /api/quotations/:id
- * Get single quotation by ID (with ownership check)
+ * Get single quotation by ID (no ownership check - allows viewing for supersede)
+ * Note: Users can view any quotation but can only UPDATE their own (see PUT route below)
  */
 router.get(
   '/:id',
   validate(getQuotationByIdSchema, 'params'),
-  asyncHandler(
-    checkResourceOwnership({
-      getResourceById: quotationService.getQuotationById,
-      getOwnerId: (quotation) => quotation.SLPCODE,
-      getUserId: (req) => req.user?.SlpCode,
-      resourceName: 'Quotation',
-      allowUnassigned: false,
-    })
-  ),
   asyncHandler(getQuotationById)
 );
 

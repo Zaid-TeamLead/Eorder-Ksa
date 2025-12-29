@@ -390,12 +390,20 @@ export default function CreateQuotationPage() {
                 <Button type="button" variant="outline" onClick={() => router.back()}>
                   Cancel
                 </Button>
-                <Button type="button" onClick={handleSaveAsDraft} disabled={isCreating}>
+                <Button
+                  type="button"
+                  onClick={form.handleSubmit(handleSaveAsDraft)}
+                  disabled={isCreating}
+                >
                   {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   <Save className="mr-2 h-4 w-4" />
                   Save as Draft
                 </Button>
-                <Button type="button" onClick={handleSaveAndSend} disabled={isCreating}>
+                <Button
+                  type="button"
+                  onClick={form.handleSubmit(handleSaveAndSend)}
+                  disabled={isCreating}
+                >
                   {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   <Send className="mr-2 h-4 w-4" />
                   Save & Send

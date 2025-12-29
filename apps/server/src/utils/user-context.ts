@@ -14,16 +14,7 @@ export interface UserContext {
   role?: string;
 }
 
-/**
- * Extract user context from request with consistent defaults
- * @param req Express request with authenticated user
- * @returns UserContext with name, slpCode, and role
- *
- * @example
- * const context = getUserContext(req);
- * console.log(context.name); // "John Doe" or "System"
- * console.log(context.slpCode); // "12345" or undefined
- */
+
 export function getUserContext(req: Request): UserContext {
   return {
     name: req.user?.name || 'System',

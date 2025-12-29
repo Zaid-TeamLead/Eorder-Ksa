@@ -111,7 +111,15 @@ export function useQuotationFormData({
       setIsLoadingParent(true);
       setError(null);
       const quotationData = await getQuotationById(id);
+
+
       setParentQuotation(quotationData);
+
+      // Validate required field
+      if (!quotationData?.ENQUIRY_SLNO) {
+        console.error('Missing ENQUIRY_SLNO in quotation data:', quotationData);
+        throw new Error('Parent quotation is missing ENQUIRY_SLNO field. Cannot create new version.');
+      }
 
       // Prepare form data from parent quotation
       const formData: QuotationFormData = {

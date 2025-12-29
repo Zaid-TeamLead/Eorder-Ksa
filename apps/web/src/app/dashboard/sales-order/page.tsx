@@ -64,8 +64,6 @@ export default function SalesEnquiry({
   };
 
   const handleSubmit = async (data: SalesEnquiryFormSubmission) => {
-    console.log("Form data:", data);
-    console.log("Cart items submitted:", data.cartItems);
     // Handle form submission here
     setIsCreate(false);
   };

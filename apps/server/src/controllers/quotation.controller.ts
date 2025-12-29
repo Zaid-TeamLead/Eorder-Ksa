@@ -77,8 +77,16 @@ export const getAllQuotations = async (req: Request, res: Response) => {
  * GET /api/quotations/:id
  */
 export const getQuotationById = async (req: Request, res: Response) => {
-  // Resource already fetched and authorized by middleware
-  const quotation = req.resource;
+  const id = parseInt(req.params.id);
+  const quotation = await quotationService.getQuotationById(id);
+
+  if (!quotation) {
+    return res.status(404).json({
+      success: false,
+      message: 'Quotation not found',
+    });
+  }
+
   sendSuccess(res, quotation);
 };
 
