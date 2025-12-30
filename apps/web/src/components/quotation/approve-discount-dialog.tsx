@@ -28,6 +28,7 @@ import { Separator } from '@/components/ui/separator';
 import { useQuotationMutations } from '@/hooks/entities/useQuotationMutations';
 import { approveDiscountFormSchema, type ApproveDiscountFormData } from '@/forms/quotation/schema';
 import type { DiscountApproval } from '@/types/quotation';
+import { logger } from '@/lib/logger';
 
 interface ApproveDiscountDialogProps {
   open: boolean;
@@ -63,7 +64,7 @@ export function ApproveDiscountDialog({
       form.reset();
       onSuccess?.();
     } catch (error) {
-      console.error('Error processing approval:', error);
+      logger.error('Error processing approval:', error);
     } finally {
       setIsSubmitting(false);
     }

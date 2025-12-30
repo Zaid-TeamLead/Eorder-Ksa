@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { Search, UserPlus, Check } from "lucide-react";
+import { logger } from '@/lib/logger';
 import {
   Command,
   CommandEmpty,
@@ -13,6 +14,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { ButtonLoading } from "@/components/shared/button-loading";
 
 interface Customer {
   SlpCode: number;
@@ -68,7 +70,7 @@ export function CustomerSearch({
         setOpen(true);
       }
     } catch (error) {
-      console.error("Search error:", error);
+      logger.error("Search error:", error);
       setCustomers([]);
     } finally {
       setIsSearching(false);
@@ -121,8 +123,14 @@ export function CustomerSearch({
             disabled={isSearching || !value.trim()}
             className="h-7 shrink-0 text-xs px-2"
           >
-            <Search className="w-3 h-3 mr-1" />
-            {isSearching ? "Searching..." : "Search"}
+            {isSearching ? (
+              <ButtonLoading text="Searching..." size="sm" />
+            ) : (
+              <>
+                <Search className="w-3 h-3 mr-1" />
+                Search
+              </>
+            )}
           </Button>
         </div>
         <div className="flex items-center gap-1">

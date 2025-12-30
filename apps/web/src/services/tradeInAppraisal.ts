@@ -1,4 +1,5 @@
-import axios from 'axios';
+import { apiClient } from '@/lib/api-client';
+import { API_ENDPOINTS } from '@/lib/api-endpoints';
 
 export interface TradeInAppraisal {
   SLNO: number;
@@ -96,30 +97,14 @@ export interface UpdateAppraisalStatusData {
 export const createTradeInAppraisal = async (
   data: CreateTradeInAppraisalData
 ): Promise<{ success: boolean; id: number }> => {
-  const response = await axios.post(
-    `${process.env.NEXT_PUBLIC_SERVER_URL}/api/trade-in-appraisal`,
-    data,
-    {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      withCredentials: true,
-    }
-  );
-  return response.data.data;
+  return apiClient.post(API_ENDPOINTS.TRADE_IN_APPRAISAL, data);
 };
 
 /**
  * Get trade-in appraisal by ID
  */
 export const getTradeInAppraisalById = async (id: number): Promise<TradeInAppraisal> => {
-  const response = await axios.get(
-    `${process.env.NEXT_PUBLIC_SERVER_URL}/api/trade-in-appraisal/${id}`,
-    {
-      withCredentials: true,
-    }
-  );
-  return response.data.data;
+  return apiClient.get<TradeInAppraisal>(API_ENDPOINTS.TRADE_IN_BY_ID(id));
 };
 
 /**
@@ -128,13 +113,7 @@ export const getTradeInAppraisalById = async (id: number): Promise<TradeInApprai
 export const getTradeInAppraisalByEnquiryId = async (
   enquiryId: number
 ): Promise<TradeInAppraisal | null> => {
-  const response = await axios.get(
-    `${process.env.NEXT_PUBLIC_SERVER_URL}/api/trade-in-appraisal/enquiry/${enquiryId}`,
-    {
-      withCredentials: true,
-    }
-  );
-  return response.data.data;
+  return apiClient.get<TradeInAppraisal | null>(API_ENDPOINTS.TRADE_IN_BY_ENQUIRY(enquiryId));
 };
 
 /**
@@ -144,17 +123,7 @@ export const updateTradeInAppraisal = async (
   id: number,
   data: UpdateTradeInAppraisalData
 ): Promise<{ success: boolean }> => {
-  const response = await axios.put(
-    `${process.env.NEXT_PUBLIC_SERVER_URL}/api/trade-in-appraisal/${id}`,
-    data,
-    {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      withCredentials: true,
-    }
-  );
-  return response.data.data;
+  return apiClient.put(API_ENDPOINTS.TRADE_IN_BY_ID(id), data);
 };
 
 /**
@@ -164,17 +133,7 @@ export const requestAppraisal = async (
   id: number,
   data: RequestAppraisalData
 ): Promise<{ success: boolean }> => {
-  const response = await axios.post(
-    `${process.env.NEXT_PUBLIC_SERVER_URL}/api/trade-in-appraisal/${id}/request`,
-    data,
-    {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      withCredentials: true,
-    }
-  );
-  return response.data.data;
+  return apiClient.post(`${API_ENDPOINTS.TRADE_IN_APPRAISAL}/${id}/request`, data);
 };
 
 /**
@@ -184,28 +143,12 @@ export const updateAppraisalStatus = async (
   id: number,
   data: UpdateAppraisalStatusData
 ): Promise<{ success: boolean }> => {
-  const response = await axios.patch(
-    `${process.env.NEXT_PUBLIC_SERVER_URL}/api/trade-in-appraisal/${id}/status`,
-    data,
-    {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      withCredentials: true,
-    }
-  );
-  return response.data.data;
+  return apiClient.patch(`${API_ENDPOINTS.TRADE_IN_APPRAISAL}/${id}/status`, data);
 };
 
 /**
  * Delete trade-in appraisal (soft delete)
  */
 export const deleteTradeInAppraisal = async (id: number): Promise<{ success: boolean }> => {
-  const response = await axios.delete(
-    `${process.env.NEXT_PUBLIC_SERVER_URL}/api/trade-in-appraisal/${id}`,
-    {
-      withCredentials: true,
-    }
-  );
-  return response.data.data;
+  return apiClient.delete(API_ENDPOINTS.TRADE_IN_BY_ID(id));
 };

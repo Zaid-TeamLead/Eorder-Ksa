@@ -11,6 +11,7 @@ import { bookTestDriveSchema, type BookTestDriveFormData } from "./schema";
 import { useSession } from "@/lib/auth-client";
 import axios from "axios";
 import { getBookTestDriveDefaultValues, getResetCustomerFieldsValues } from "./utils/getDefaultValues";
+import { logger } from "@/lib/logger";
 
 interface BookTestDriveFormProps {
   onSubmit?: (data: BookTestDriveFormData) => void | Promise<void>;
@@ -100,7 +101,7 @@ const BookTestDriveForm = React.forwardRef<
         );
         return response.data as { success: boolean; data: any[] };
       } catch (error) {
-        console.error("Error searching customers:", error);
+        logger.error("Error searching customers:", error);
         return undefined;
       }
     },

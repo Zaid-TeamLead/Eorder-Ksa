@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Save, Send, ArrowLeft } from 'lucide-react';
+import { Save, Send, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,6 +26,7 @@ import { quotationFormSchema, defaultQuotationFormValues, type QuotationFormData
 // Shared components
 import { LoadingState } from '@/components/shared/loading-state';
 import { ErrorState } from '@/components/shared/error-state';
+import { ButtonLoading } from '@/components/shared/button-loading';
 
 // Custom hooks
 import { useQuotationFormData } from '@/hooks/quotation/useQuotationFormData';
@@ -396,18 +397,28 @@ export default function CreateQuotationPage() {
                   onClick={form.handleSubmit(handleSaveAsDraft)}
                   disabled={isCreating}
                 >
-                  {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  <Save className="mr-2 h-4 w-4" />
-                  Save as Draft
+                  {isCreating ? (
+                    <ButtonLoading text="Saving..." />
+                  ) : (
+                    <>
+                      <Save className="mr-2 h-4 w-4" />
+                      Save as Draft
+                    </>
+                  )}
                 </Button>
                 <Button
                   type="button"
                   onClick={form.handleSubmit(handleSaveAndSend)}
                   disabled={isCreating}
                 >
-                  {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  <Send className="mr-2 h-4 w-4" />
-                  Save & Send
+                  {isCreating ? (
+                    <ButtonLoading text="Saving..." />
+                  ) : (
+                    <>
+                      <Send className="mr-2 h-4 w-4" />
+                      Save & Send
+                    </>
+                  )}
                 </Button>
               </div>
             </CardContent>

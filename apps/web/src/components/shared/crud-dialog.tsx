@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { ButtonLoading } from "@/components/shared/button-loading";
 
 // ============================================================================
 // Type Definitions
@@ -273,7 +274,7 @@ export function CrudDialog({
                       onClick={onSubmit}
                       disabled={isSubmitting}
                     >
-                      {isSubmitting ? "Saving..." : getSubmitLabel()}
+                      {isSubmitting ? <ButtonLoading text="Saving..." size="sm" /> : getSubmitLabel()}
                     </Button>
                   )}
                 </>

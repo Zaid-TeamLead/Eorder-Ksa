@@ -3,25 +3,13 @@
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import type { QuotationWithLineItems } from '@/types/quotation';
+import { formatCurrency, formatDate } from '@/lib/formatters';
 
 interface QuotationPrintTemplateProps {
   quotation: QuotationWithLineItems;
 }
 
 export function QuotationPrintTemplate({ quotation }: QuotationPrintTemplateProps) {
-  const formatCurrency = (amount: number | null | undefined) => {
-    if (!amount) return 'SAR 0.00';
-    return `SAR ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  };
-
-  const formatDate = (dateString: string | null | undefined) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-  };
 
   return (
     <div className="print-content mx-auto max-w-[210mm] bg-white p-8 text-black">
@@ -42,7 +30,7 @@ export function QuotationPrintTemplate({ quotation }: QuotationPrintTemplateProp
           <p className="font-semibold">Keyloop Pro</p>
           <p className="text-sm text-gray-600">Dealer Management System</p>
           <p className="mt-4 text-sm">
-            <span className="font-medium">Date:</span> {formatDate(quotation.CREATED_DATE)}
+            <span className="font-medium">Date:</span> {formatDate(quotation.CREATED_DATE, { format: 'long' })}
           </p>
           {quotation.VALID_UNTIL && (
             <p className="text-sm">

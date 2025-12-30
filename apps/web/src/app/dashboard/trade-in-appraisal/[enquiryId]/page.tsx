@@ -27,6 +27,8 @@ import {
 } from "@/forms/trade-in-appraisal/schema";
 import { TradeInFormFields } from "@/forms/trade-in-appraisal/components/form-fields";
 import { RequestAppraisalDialog } from "@/forms/sales-enquiry/components/request-appraisal-dialog";
+import { LoadingState } from "@/components/shared/loading-state";
+import { ButtonLoading } from "@/components/shared/button-loading";
 
 export default function TradeInAppraisalPage() {
   const params = useParams();
@@ -192,14 +194,7 @@ export default function TradeInAppraisalPage() {
   };
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading...</p>
-        </div>
-      </div>
-    );
+    return <LoadingState message="Loading trade-in appraisal..." />;
   }
 
   if (!enquiry) {
@@ -228,6 +223,7 @@ export default function TradeInAppraisalPage() {
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Enquiries
         </Button>
+
 
         <div className="flex items-start justify-between">
           <div>
@@ -305,8 +301,14 @@ export default function TradeInAppraisalPage() {
                     disabled={isSaving}
                     className="min-w-[120px]"
                   >
-                    <Save className="mr-2 h-4 w-4" />
-                    {isSaving ? "Saving..." : appraisalId ? "Update" : "Save"}
+                    {isSaving ? (
+                      <ButtonLoading text="Saving..." />
+                    ) : (
+                      <>
+                        <Save className="mr-2 h-4 w-4" />
+                        {appraisalId ? "Update" : "Save"}
+                      </>
+                    )}
                   </Button>
 
                   <Button

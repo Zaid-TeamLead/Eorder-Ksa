@@ -5,6 +5,7 @@ import { getQuotationById } from '@/services/quotation';
 import type { SalesEnquiry } from '@/types/enquiry';
 import type { QuotationWithLineItems } from '@/types/quotation';
 import type { QuotationFormData } from '@/forms/quotation/schema';
+import { logger } from '@/lib/logger';
 
 interface UseQuotationFormDataParams {
   enquiryId?: string | null;
@@ -98,7 +99,7 @@ export function useQuotationFormData({
 
       onDataLoaded?.(formData);
     } catch (err) {
-      console.error('Error loading enquiry:', err);
+      logger.error('Error loading enquiry:', err);
       setError(err as Error);
       toast.error('Failed to load enquiry data');
     } finally {
@@ -117,7 +118,7 @@ export function useQuotationFormData({
 
       // Validate required field
       if (!quotationData?.ENQUIRY_SLNO) {
-        console.error('Missing ENQUIRY_SLNO in quotation data:', quotationData);
+        logger.error('Missing ENQUIRY_SLNO in quotation data:', quotationData);
         throw new Error('Parent quotation is missing ENQUIRY_SLNO field. Cannot create new version.');
       }
 
@@ -177,7 +178,7 @@ export function useQuotationFormData({
 
       onDataLoaded?.(formData);
     } catch (err) {
-      console.error('Error loading parent quotation:', err);
+      logger.error('Error loading parent quotation:', err);
       setError(err as Error);
       toast.error('Failed to load quotation data');
     } finally {

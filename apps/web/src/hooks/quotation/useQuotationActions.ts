@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { useQuotationMutations } from '../entities/useQuotationMutations';
+import { logger } from '@/lib/logger';
 
 interface UseQuotationActionsParams {
   quotationId?: number;
@@ -53,7 +54,7 @@ export function useQuotationActions(params: UseQuotationActionsParams = {}) {
         await deleteQuotation(targetId);
         onSuccess?.();
       } catch (error) {
-        console.error('Error deleting quotation:', error);
+        logger.error('Error deleting quotation:', error);
         toast.error('Failed to delete quotation');
       }
     },

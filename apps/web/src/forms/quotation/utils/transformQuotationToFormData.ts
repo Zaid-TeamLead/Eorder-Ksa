@@ -1,5 +1,6 @@
 import type { QuotationWithLineItems } from '@/types/quotation';
 import type { QuotationFormData, LineItemFormData } from '../schema';
+import { logger } from '@/lib/logger';
 
 /**
  * Transforms API quotation data (UPPERCASE fields) to form data (camelCase)
@@ -115,7 +116,7 @@ export function validateFormDataForNaN(data: Record<string, any>): void {
       const currentPath = path ? `${path}.${key}` : key;
 
       if (typeof value === 'number' && isNaN(value)) {
-        console.error(`❌ NaN found at: ${currentPath}`);
+        logger.error(`❌ NaN found at: ${currentPath}`);
       } else if (Array.isArray(value)) {
         value.forEach((item, index) => {
           checkForNaN(item, `${currentPath}[${index}]`);

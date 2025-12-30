@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ButtonLoading } from "@/components/shared/button-loading";
 import {
     Select,
     SelectContent,
@@ -361,11 +362,11 @@ export default function TestVehiclePage() {
                                     type="submit"
                                     disabled={createMutation.isPending || updateMutation.isPending}
                                 >
-                                    {createMutation.isPending || updateMutation.isPending
-                                        ? "Saving..."
-                                        : editingVehicle
-                                            ? "Update"
-                                            : "Create"}
+                                    {createMutation.isPending || updateMutation.isPending ? (
+                                        <ButtonLoading text="Saving..." />
+                                    ) : (
+                                        editingVehicle ? "Update" : "Create"
+                                    )}
                                 </Button>
                             </DialogFooter>
                         </form>

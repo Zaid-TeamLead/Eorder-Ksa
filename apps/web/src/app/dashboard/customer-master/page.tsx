@@ -16,6 +16,7 @@ import { Search, Loader2, MapPin, DollarSign, Car, Building2, Phone, Mail, User,
 import { cn } from "@/lib/utils";
 import { DataTable } from "./components/data-table";
 import { columns } from "./components/columns";
+import { logger } from '@/lib/logger';
 
 interface Customer {
     CardCode: string;
@@ -76,7 +77,7 @@ const CustomerMaster = () => {
                     setShowResults(true);
                 }
             } catch (error) {
-                console.error("Search error:", error);
+                logger.error("Search error:", error);
                 setCustomers([]);
                 setShowResults(false);
             } finally {

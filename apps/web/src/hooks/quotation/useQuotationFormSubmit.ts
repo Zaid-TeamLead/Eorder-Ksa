@@ -3,6 +3,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { useQuotationMutations } from '../entities/useQuotationMutations';
 import type { QuotationFormData } from '@/forms/quotation/schema';
+import { logger } from '@/lib/logger';
 
 interface UseQuotationFormSubmitParams {
   isSuperseding: boolean;
@@ -44,7 +45,7 @@ export function useQuotationFormSubmit({
         // Redirect to quotations list
         router.push('/dashboard/quotations');
       } catch (error) {
-        console.error('Error creating quotation:', error);
+        logger.error('Error creating quotation:', error);
         toast.error('Failed to create quotation');
       }
     },

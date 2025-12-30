@@ -1,0 +1,70 @@
+/**
+ * Centralized API endpoint constants
+ * Eliminates hardcoded API URLs and process.env references throughout the codebase
+ */
+
+export const API_ENDPOINTS = {
+  // Enquiry endpoints
+  ENQUIRIES: '/api/enquiries',
+  ENQUIRY_BY_ID: (id: string | number) => `/api/enquiries/${id}`,
+  ENQUIRY_STATS: '/api/enquiries/stats',
+  ENQUIRY_STATUS: (id: string | number) => `/api/enquiries/${id}/status`,
+
+  // Quotation endpoints
+  QUOTATIONS: '/api/quotations',
+  QUOTATION_BY_ID: (id: string | number) => `/api/quotations/${id}`,
+  QUOTATION_STATS: '/api/quotations/stats',
+  QUOTATION_STATUS: (id: string | number) => `/api/quotations/${id}/status`,
+  QUOTATION_PDF: (id: string | number) => `/api/quotations/${id}/pdf`,
+  QUOTATION_DISCOUNT_APPROVAL: (id: string | number) => `/api/quotations/${id}/discount-approval`,
+  QUOTATION_APPROVE_DISCOUNT: (id: string | number) => `/api/quotations/${id}/approve-discount`,
+
+  // Vehicle endpoints
+  VEHICLES: '/api/vehicles',
+  VEHICLE_SEARCH: '/api/vehicles/search',
+  VEHICLE_INVENTORY: '/api/vehicles/inventory',
+  VEHICLE_VIN: '/api/vehicles/vin',
+  TEST_VEHICLES: '/api/vehicles/test-vehicles',
+  TEST_VEHICLE_BY_ID: (id: string | number) => `/api/vehicles/test-vehicles/${id}`,
+  TEST_VEHICLE_STATUS: (id: string | number) => `/api/vehicles/test-vehicles/${id}/status`,
+
+  // Book Test Drive endpoints
+  BOOK_TEST_DRIVE: '/api/book-test-drive',
+  TEST_DRIVE_BY_ID: (id: string | number) => `/api/book-test-drive/${id}`,
+  TEST_DRIVE_STATUS: (id: string | number) => `/api/book-test-drive/${id}/status`,
+
+  // Financing endpoints
+  FINANCING: '/api/financing',
+  FINANCING_BY_ID: (id: string | number) => `/api/financing/${id}`,
+  FINANCING_BY_ENQUIRY: (enquiryId: string | number) => `/api/financing/enquiry/${enquiryId}`,
+  FINANCING_PREFERRED: (id: string | number) => `/api/financing/${id}/preferred`,
+  LENDERS: '/api/financing/lenders',
+
+  // Trade-in Appraisal endpoints
+  TRADE_IN_APPRAISAL: '/api/trade-in-appraisal',
+  TRADE_IN_BY_ID: (id: string | number) => `/api/trade-in-appraisal/${id}`,
+  TRADE_IN_BY_ENQUIRY: (enquiryId: string | number) => `/api/trade-in-appraisal/enquiry/${enquiryId}`,
+
+  // Customer endpoints
+  CUSTOMERS: '/api/customers',
+  CUSTOMER_SEARCH: '/api/customers/search',
+  CUSTOMER_BY_ID: (id: string) => `/api/customers/${id}`,
+} as const;
+
+/**
+ * Helper to build query string from filters object
+ * @param filters - Object with key-value pairs for query parameters
+ * @returns Query string (e.g., '?status=active&branch=main')
+ */
+export function buildQueryString(filters: Record<string, any>): string {
+  const params = new URLSearchParams();
+
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      params.append(key, String(value));
+    }
+  });
+
+  const queryString = params.toString();
+  return queryString ? `?${queryString}` : '';
+}

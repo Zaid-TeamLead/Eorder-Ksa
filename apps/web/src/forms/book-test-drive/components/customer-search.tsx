@@ -7,11 +7,12 @@ import { cn } from "@/lib/utils";
 import { Search, UserPlus, Check } from "lucide-react";
 import {
   Command,
-  CommandEmpty,
   CommandGroup,
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { logger } from "@/lib/logger";
+import { ButtonLoading } from "@/components/shared/button-loading";
 
 interface Customer {
   SlpCode: number;
@@ -67,7 +68,7 @@ export function CustomerSearch({
         setOpen(true);
       }
     } catch (error) {
-      console.error("Search error:", error);
+      logger.error("Search error:", error);
       setCustomers([]);
     } finally {
       setIsSearching(false);
@@ -119,8 +120,14 @@ export function CustomerSearch({
           disabled={isSearching || !value.trim()}
           className="h-8 shrink-0 text-xs px-3"
         >
-          <Search className="w-3.5 h-3.5 mr-1.5" />
-          {isSearching ? "Searching..." : "Search"}
+          {isSearching ? (
+            <ButtonLoading text="Searching..." size="sm" />
+          ) : (
+            <>
+              <Search className="w-3.5 h-3.5 mr-1.5" />
+              Search
+            </>
+          )}
         </Button>
         <Button
           type="button"

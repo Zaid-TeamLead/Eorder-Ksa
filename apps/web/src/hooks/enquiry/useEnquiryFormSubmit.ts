@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { useEnquiryMutations } from '../entities/useEnquiryMutations';
 import type { SalesEnquiryFormSubmission } from '@/forms/sales-enquiry';
 import type { SalesEnquiry } from '@/services/enquiry';
+import { logger } from '@/lib/logger';
 
 export interface UseEnquiryFormSubmitParams {
   isEditMode: boolean;
@@ -92,7 +93,7 @@ export function useEnquiryFormSubmit({
         // Call success callback
         onSuccess?.();
       } catch (error) {
-        console.error('Error saving enquiry:', error);
+        logger.error('Error saving enquiry:', error);
         toast.error('Failed to save enquiry');
       }
     },

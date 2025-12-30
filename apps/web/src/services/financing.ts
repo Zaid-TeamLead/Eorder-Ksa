@@ -1,6 +1,5 @@
-import axios from 'axios';
-
-const API_BASE = `${process.env.NEXT_PUBLIC_SERVER_URL}/api/financing`;
+import { apiClient } from '@/lib/api-client';
+import { API_ENDPOINTS } from '@/lib/api-endpoints';
 
 export interface Financing {
   SLNO: number;
@@ -80,20 +79,14 @@ export interface UpdateFinancingData {
  * Get all financing schemes for an enquiry
  */
 export const getFinancingByEnquiryId = async (enquiryId: number): Promise<Financing[]> => {
-  const response = await axios.get(`${API_BASE}/enquiry/${enquiryId}`, {
-    withCredentials: true,
-  });
-  return response.data.data;
+  return apiClient.get<Financing[]>(API_ENDPOINTS.FINANCING_BY_ENQUIRY(enquiryId));
 };
 
 /**
  * Get financing scheme by ID
  */
 export const getFinancingById = async (id: number): Promise<Financing> => {
-  const response = await axios.get(`${API_BASE}/${id}`, {
-    withCredentials: true,
-  });
-  return response.data.data;
+  return apiClient.get<Financing>(API_ENDPOINTS.FINANCING_BY_ID(id));
 };
 
 /**
@@ -102,11 +95,7 @@ export const getFinancingById = async (id: number): Promise<Financing> => {
 export const createFinancing = async (
   data: CreateFinancingData
 ): Promise<{ success: boolean; id: number }> => {
-  const response = await axios.post(API_BASE, data, {
-    headers: { 'Content-Type': 'application/json' },
-    withCredentials: true,
-  });
-  return response.data.data;
+  return apiClient.post(API_ENDPOINTS.FINANCING, data);
 };
 
 /**
@@ -116,44 +105,26 @@ export const updateFinancing = async (
   id: number,
   data: UpdateFinancingData
 ): Promise<{ success: boolean }> => {
-  const response = await axios.put(`${API_BASE}/${id}`, data, {
-    headers: { 'Content-Type': 'application/json' },
-    withCredentials: true,
-  });
-  return response.data.data;
+  return apiClient.put(API_ENDPOINTS.FINANCING_BY_ID(id), data);
 };
 
 /**
  * Delete a financing scheme (soft delete)
  */
 export const deleteFinancing = async (id: number): Promise<{ success: boolean }> => {
-  const response = await axios.delete(`${API_BASE}/${id}`, {
-    withCredentials: true,
-  });
-  return response.data.data;
+  return apiClient.delete(API_ENDPOINTS.FINANCING_BY_ID(id));
 };
 
 /**
  * Get all active lenders
  */
 export const getLenders = async (): Promise<Lender[]> => {
-  const response = await axios.get(`${API_BASE}/lenders`, {
-    withCredentials: true,
-  });
-  return response.data.data;
+  return apiClient.get<Lender[]>(API_ENDPOINTS.LENDERS);
 };
 
 /**
  * Set a financing scheme as preferred
  */
 export const setPreferredScheme = async (id: number): Promise<{ success: boolean }> => {
-  const response = await axios.patch(
-    `${API_BASE}/${id}/preferred`,
-    {},
-    {
-      headers: { 'Content-Type': 'application/json' },
-      withCredentials: true,
-    }
-  );
-  return response.data.data;
+  return apiClient.patch(API_ENDPOINTS.FINANCING_PREFERRED(id), {});
 };

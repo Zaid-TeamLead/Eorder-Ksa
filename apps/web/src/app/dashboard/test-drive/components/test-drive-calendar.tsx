@@ -10,6 +10,8 @@ import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { BookTestDrive } from "@/services/bookTestDrive";
+import { parseTime, isCurrentMonth } from "@/lib/formatters";
+import { STATUS_COLORS } from "./utils/constants";
 
 const DragAndDropCalendar = withDragAndDrop(Calendar);
 
@@ -41,15 +43,6 @@ interface TestDriveCalendarProps {
   onEventDrop?: (event: TestDriveEvent, start: Date, end: Date) => void;
 }
 
-const statusColors: Record<string, string> = {
-  Active: "#3b82f6",
-  Pending: "#f59e0b",
-  Confirmed: "#10b981",
-  Completed: "#6b7280",
-  Cancelled: "#ef4444",
-  "In Progress": "#8b5cf6",
-};
-
 export function TestDriveCalendar({
   bookings,
   onEventClick,
@@ -62,18 +55,8 @@ export function TestDriveCalendar({
   // Convert bookings to calendar events
   const events: TestDriveEvent[] = useMemo(() => {
     return bookings.map((booking) => {
-      const startDate = new Date(booking.DATEOUT);
-      const endDate = new Date(booking.DATEIN);
-
-      // Add time if available
-      if (booking.TIMEOUT) {
-        const [hours, minutes] = booking.TIMEOUT.split(":");
-        startDate.setHours(parseInt(hours), parseInt(minutes));
-      }
-      if (booking.TIMEIN) {
-        const [hours, minutes] = booking.TIMEIN.split(":");
-        endDate.setHours(parseInt(hours), parseInt(minutes));
-      }
+      const startDate = parseTime(booking.DATEOUT, booking.TIMEOUT);
+      const endDate = parseTime(booking.DATEIN, booking.TIMEIN);
 
       return {
         id: booking.SLNO,
@@ -89,7 +72,7 @@ export function TestDriveCalendar({
   // Event style getter for color coding
   const eventStyleGetter = useCallback(
     (event: TestDriveEvent) => {
-      const backgroundColor = statusColors[event.status || "Active"] || statusColors.Active;
+      const backgroundColor = STATUS_COLORS[event.status || "Active"] || STATUS_COLORS.Active;
       return {
         style: {
           backgroundColor,
@@ -270,7 +253,7 @@ export function TestDriveCalendar({
 
         {/* Status Legend */}
         <div className="flex flex-wrap gap-2">
-          {Object.entries(statusColors).map(([status, color]) => (
+          {Object.entries(STATUS_COLORS).map(([status, color]) => (
             <div key={status} className="flex items-center gap-1">
               <div
                 className="w-3 h-3 rounded"
@@ -330,15 +313,7 @@ export function TestDriveCalendar({
         <div className="p-3 border rounded-lg">
           <div className="text-sm text-muted-foreground">This Month</div>
           <div className="text-2xl font-bold">
-            {
-              bookings.filter((b) => {
-                const bookingDate = new Date(b.DATEOUT);
-                return (
-                  bookingDate.getMonth() === new Date().getMonth() &&
-                  bookingDate.getFullYear() === new Date().getFullYear()
-                );
-              }).length
-            }
+            {bookings.filter((b) => isCurrentMonth(b.DATEOUT)).length}
           </div>
         </div>
       </div>

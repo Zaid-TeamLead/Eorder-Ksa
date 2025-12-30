@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { logger } from '@/lib/logger';
 
 const API_URL = process.env.NEXT_PUBLIC_SERVER_URL || "http://localhost:3000";
 
@@ -125,7 +126,7 @@ class AuthClient {
         credentials: "include",
       });
     } catch (error) {
-      console.error("Error signing out:", error);
+      logger.error("Error signing out:", error);
     } finally {
       // Clear session
       this.currentSession = null;

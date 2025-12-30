@@ -1,6 +1,5 @@
-import axios from 'axios';
-
-const API_BASE = `${process.env.NEXT_PUBLIC_SERVER_URL}/api/book-test-drive`;
+import { apiClient } from '@/lib/api-client';
+import { API_ENDPOINTS } from '@/lib/api-endpoints';
 
 export interface BookTestDrive {
   SLNO: number;
@@ -42,25 +41,13 @@ export interface BookTestDrive {
 }
 
 export const getAllBookTestDrives = async (): Promise<BookTestDrive[]> => {
-  const response = await axios.get(`${API_BASE}`, {
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    withCredentials: true,
-  });
-  return response.data?.data || [];
+  return apiClient.get<BookTestDrive[]>(API_ENDPOINTS.BOOK_TEST_DRIVE);
 };
 
 export const getBookTestDriveById = async (
   id: number
 ): Promise<BookTestDrive> => {
-  const response = await axios.get(`${API_BASE}/${id}`, {
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    withCredentials: true,
-  });
-  return response.data.data;
+  return apiClient.get<BookTestDrive>(API_ENDPOINTS.TEST_DRIVE_BY_ID(id));
 };
 
 export interface UpdateBookTestDriveData {
@@ -100,13 +87,7 @@ export const updateBookTestDrive = async (
   id: number,
   data: UpdateBookTestDriveData
 ): Promise<BookTestDrive> => {
-  const response = await axios.put(`${API_BASE}/${id}`, data, {
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    withCredentials: true,
-  });
-  return response.data.data;
+  return apiClient.put<BookTestDrive>(API_ENDPOINTS.TEST_DRIVE_BY_ID(id), data);
 };
 
 export interface CreateBookTestDriveData extends UpdateBookTestDriveData {
@@ -116,17 +97,9 @@ export interface CreateBookTestDriveData extends UpdateBookTestDriveData {
 export const createBookTestDrive = async (
   data: CreateBookTestDriveData
 ): Promise<BookTestDrive> => {
-  const response = await axios.post(`${API_BASE}`, data, {
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    withCredentials: true,
-  });
-  return response.data.data;
+  return apiClient.post<BookTestDrive>(API_ENDPOINTS.BOOK_TEST_DRIVE, data);
 };
 
 export const deleteBookTestDrive = async (id: number): Promise<void> => {
-  await axios.delete(`${API_BASE}/${id}`, {
-    withCredentials: true,
-  });
+  return apiClient.delete<void>(API_ENDPOINTS.TEST_DRIVE_BY_ID(id));
 };

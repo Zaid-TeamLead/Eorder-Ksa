@@ -4,7 +4,7 @@ import { useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Save } from 'lucide-react';
+import { Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,6 +25,7 @@ import { quotationFormSchema, defaultQuotationFormValues, type QuotationFormData
 // Shared components
 import { LoadingState } from '@/components/shared/loading-state';
 import { ErrorState } from '@/components/shared/error-state';
+import { ButtonLoading } from '@/components/shared/button-loading';
 
 // Custom hooks
 import { useQuotationById } from '@/hooks/entities/useQuotations';
@@ -32,6 +33,7 @@ import { useQuotationMutations } from '@/hooks/entities/useQuotationMutations';
 
 // Utilities
 import { transformQuotationToFormData, validateFormDataForNaN } from '@/forms/quotation/utils/transformQuotationToFormData';
+import { logger } from '@/lib/logger';
 
 export default function EditQuotationPage() {
   const params = useParams();
@@ -76,7 +78,7 @@ export default function EditQuotationPage() {
 
       // Log errors in development
       if (process.env.NODE_ENV === 'development') {
-        console.error('Error updating quotation:', error);
+        logger.error('Error updating quotation:', error);
       }
     }
   }, [quotationId, updateQuotation, router]);
@@ -85,7 +87,7 @@ export default function EditQuotationPage() {
   const handleValidationError = useCallback((errors: any) => {
     // Log validation errors in development
     if (process.env.NODE_ENV === 'development') {
-      console.log('Form validation errors:', errors);
+      logger.log('Form validation errors:', errors);
     }
 
     if (!errors || Object.keys(errors).length === 0) {
@@ -392,9 +394,14 @@ export default function EditQuotationPage() {
                   onClick={form.handleSubmit(handleSave, handleValidationError)}
                   disabled={isUpdating}
                 >
-                  {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  <Save className="mr-2 h-4 w-4" />
-                  Save Changes
+                  {isUpdating ? (
+                    <ButtonLoading text="Saving..." />
+                  ) : (
+                    <>
+                      <Save className="mr-2 h-4 w-4" />
+                      Save Changes
+                    </>
+                  )}
                 </Button>
               </div>
             </CardContent>

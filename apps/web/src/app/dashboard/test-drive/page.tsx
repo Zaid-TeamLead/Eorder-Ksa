@@ -20,6 +20,7 @@ import { useEntityModal } from "@/hooks/crud/useEntityModal";
 import { useTestDrives } from "@/hooks/entities/useTestDrives";
 import { useTestDriveMutations } from "@/hooks/entities/useTestDriveMutations";
 import type { BookTestDrive } from "@/services/bookTestDrive";
+import { logger } from '@/lib/logger';
 
 // Helper function to extract date from date string
 const extractDate = (dateString?: string): string => {
@@ -151,7 +152,7 @@ export default function BookTestDrive({
         formRef.current?.reset();
       }
     } catch (error) {
-      console.error("Error saving booking:", error);
+      logger.error("Error saving booking:", error);
     }
   };
 
@@ -173,9 +174,9 @@ export default function BookTestDrive({
 
       return response.data as { success: boolean; data: any[] };
     } catch (error: any) {
-      console.error("Error searching customers:", error);
+      logger.error("Error searching customers:", error);
       if (error.response?.status === 401) {
-        console.error("Authentication failed. Please log in again.");
+        logger.error("Authentication failed. Please log in again.");
       }
       throw error;
     }

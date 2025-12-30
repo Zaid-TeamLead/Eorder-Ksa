@@ -64,6 +64,7 @@ export function PricingSummary() {
     form.setValue('totalDiscountAmount', totalDiscountAmount);
     form.setValue('discountPercentage', discountPercentage);
   }, [
+    form,
     vehicleNetPrice,
     accessoriesTotal,
     accessoriesDiscount,
@@ -74,7 +75,6 @@ export function PricingSummary() {
     netAmountDue,
     totalDiscountAmount,
     discountPercentage,
-    form,
   ]);
 
   return (

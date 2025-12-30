@@ -12,6 +12,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ButtonLoading } from "@/components/shared/button-loading";
 
 interface VinSelectionDialogProps {
     open: boolean;
@@ -62,8 +63,8 @@ export function VinSelectionDialog({
                 </DialogHeader>
 
                 {loading ? (
-                    <div className="text-center py-8 text-sm text-muted-foreground">
-                        Loading VIN numbers...
+                    <div className="text-center py-8">
+                        <ButtonLoading text="Loading VIN numbers..." size="sm" />
                     </div>
                 ) : vinNumbers.length === 0 ? (
                     <div className="text-center py-8 text-sm text-muted-foreground">

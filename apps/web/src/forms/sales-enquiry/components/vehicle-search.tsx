@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { Search, Check } from "lucide-react";
+import { logger } from '@/lib/logger';
 import {
     Command,
     CommandEmpty,
@@ -12,6 +13,7 @@ import {
     CommandItem,
     CommandList,
 } from "@/components/ui/command";
+import { ButtonLoading } from "@/components/shared/button-loading";
 
 interface Vehicle {
     ItemCode: string;
@@ -58,7 +60,7 @@ export function VehicleSearch({
                 setOpen(true);
             }
         } catch (error) {
-            console.error("Search error:", error);
+            logger.error("Search error:", error);
             setVehicles([]);
         } finally {
             setIsSearching(false);
@@ -110,8 +112,14 @@ export function VehicleSearch({
                     disabled={isSearching || !value.trim()}
                     className="h-8 shrink-0"
                 >
-                    <Search className="w-3.5 h-3.5 mr-1.5" />
-                    {isSearching ? "Searching..." : "Search"}
+                    {isSearching ? (
+                        <ButtonLoading text="Searching..." size="sm" />
+                    ) : (
+                        <>
+                            <Search className="w-3.5 h-3.5 mr-1.5" />
+                            Search
+                        </>
+                    )}
                 </Button>
             </div>
 

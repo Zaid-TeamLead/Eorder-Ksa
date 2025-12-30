@@ -1,57 +1,21 @@
-import axios from 'axios';
+import { apiClient } from '@/lib/api-client';
+import { API_ENDPOINTS } from '@/lib/api-endpoints';
 
 export const searchCustomers = async (search: string, slpCode: string) => {
-  const response = await axios.post(
-    `${process.env.NEXT_PUBLIC_SERVER_URL}/api/customers/search`,
-    {
-      search,
-      slpCode,
-    },
-    {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      withCredentials: true,
-    }
-  );
-  return response.data;
+  return apiClient.post(API_ENDPOINTS.CUSTOMER_SEARCH, {
+    search,
+    slpCode,
+  });
 };
 
 export const getCustomerAddress = async (cardCode: string) => {
-  const response = await axios.get(
-    `${process.env.NEXT_PUBLIC_SERVER_URL}/api/customers/address/${cardCode}`,
-    {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      withCredentials: true,
-    }
-  );
-  return response.data;
+  return apiClient.get(`${API_ENDPOINTS.CUSTOMERS}/address/${cardCode}`);
 };
 
 export const getCustomerfinancialInformation = async (cardCode: string) => {
-  const response = await axios.get(
-    `${process.env.NEXT_PUBLIC_SERVER_URL}/api/customers/financial-information/${cardCode}`,
-    {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      withCredentials: true,
-    }
-  );
-  return response.data;
+  return apiClient.get(`${API_ENDPOINTS.CUSTOMERS}/financial-information/${cardCode}`);
 };
 
 export const getVehicleHistory = async (cardCode: string) => {
-  const response = await axios.get(
-    `${process.env.NEXT_PUBLIC_SERVER_URL}/api/customers/vehicle-history/${cardCode}`,
-    {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      withCredentials: true,
-    }
-  );
-  return response.data;
+  return apiClient.get(`${API_ENDPOINTS.CUSTOMERS}/vehicle-history/${cardCode}`);
 };

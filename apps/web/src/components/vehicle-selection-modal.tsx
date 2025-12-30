@@ -21,6 +21,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { IconSearch, IconCheck } from "@tabler/icons-react";
 import type { VehicleInventory } from "@/services/vehicleInventory";
+import { ButtonLoading } from "@/components/shared/button-loading";
 
 interface VehicleSelectionModalProps {
   open: boolean;
@@ -90,7 +91,7 @@ export function VehicleSelectionModal({
           <div className="border rounded-lg max-h-[500px] overflow-y-auto">
             {isLoading ? (
               <div className="flex items-center justify-center h-32">
-                <div className="text-sm text-muted-foreground">Loading vehicles...</div>
+                <ButtonLoading text="Loading vehicles..." size="sm" />
               </div>
             ) : filteredVehicles.length === 0 ? (
               <div className="flex items-center justify-center h-32">

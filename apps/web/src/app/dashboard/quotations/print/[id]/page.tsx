@@ -2,10 +2,11 @@
 
 import { use } from 'react';
 import { useRouter } from 'next/navigation';
-import { Printer, ArrowLeft, Loader2 } from 'lucide-react';
+import { Printer, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { QuotationPrintTemplate } from '@/components/quotation/print-template';
 import { useQuotationById } from '@/hooks/entities/useQuotations';
+import { LoadingState } from '@/components/shared/loading-state';
 
 interface PrintQuotationPageProps {
   params: Promise<{
@@ -29,14 +30,7 @@ export default function PrintQuotationPage({ params }: PrintQuotationPageProps) 
   };
 
   if (isLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
-          <p className="mt-4 text-muted-foreground">Loading quotation...</p>
-        </div>
-      </div>
-    );
+    return <LoadingState message="Loading quotation..." />;
   }
 
   if (error || !quotation) {

@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import type { BookTestDrive } from "@/services/bookTestDrive";
+import { formatDate, formatDateTime } from "@/lib/formatters";
 
 interface ViewDetailsDialogProps {
     open: boolean;
@@ -21,38 +22,6 @@ export function ViewDetailsDialog({
     booking,
 }: ViewDetailsDialogProps) {
     if (!booking) return null;
-
-    const formatDate = (dateString?: string) => {
-        if (!dateString) return "-";
-        try {
-            const date = new Date(dateString);
-            return date.toLocaleDateString("en-US", {
-                year: "numeric",
-                month: "short",
-                day: "numeric",
-            });
-        } catch {
-            return dateString;
-        }
-    };
-
-    const formatDateTime = (dateString?: string, timeString?: string) => {
-        if (!dateString) return "-";
-        try {
-            const date = new Date(dateString);
-            const datePart = date.toLocaleDateString("en-US", {
-                year: "numeric",
-                month: "short",
-                day: "numeric",
-            });
-            if (timeString) {
-                return `${datePart} ${timeString}`;
-            }
-            return datePart;
-        } catch {
-            return dateString;
-        }
-    };
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>

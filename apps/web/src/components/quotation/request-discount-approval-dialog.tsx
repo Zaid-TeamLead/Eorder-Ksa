@@ -35,6 +35,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { useQuotationMutations } from '@/hooks/entities/useQuotationMutations';
 import { discountApprovalRequestFormSchema, type DiscountApprovalRequestFormData } from '@/forms/quotation/schema';
+import { logger } from '@/lib/logger';
 
 interface RequestDiscountApprovalDialogProps {
   open: boolean;
@@ -86,7 +87,7 @@ export function RequestDiscountApprovalDialog({
       form.reset();
       onSuccess?.();
     } catch (error) {
-      console.error('Error requesting approval:', error);
+      logger.error('Error requesting approval:', error);
     } finally {
       setIsSubmitting(false);
     }

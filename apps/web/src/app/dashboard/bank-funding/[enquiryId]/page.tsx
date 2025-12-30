@@ -14,6 +14,7 @@ import { getEnquiryById } from "@/services/enquiry";
 import { Funding } from "@/forms/sales-enquiry/components/funding";
 import { useFinancingSchemes } from "@/hooks/entities/useFinancingSchemes";
 import { useFinancingMutations } from "@/hooks/entities/useFinancingMutations";
+import { LoadingState } from "@/components/shared/loading-state";
 
 export default function BankFundingPage() {
   const params = useParams();
@@ -36,13 +37,7 @@ export default function BankFundingPage() {
   };
 
   if (isLoadingEnquiry || isLoadingSchemes) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <p className="text-muted-foreground">Loading...</p>
-        </div>
-      </div>
-    );
+    return <LoadingState message="Loading bank funding..." />;
   }
 
   if (!enquiry) {

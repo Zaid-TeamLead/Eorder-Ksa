@@ -23,6 +23,7 @@ import { useVehicleSelection } from "@/hooks/forms/useVehicleSelection";
 import { useEnquiryFormSubmit } from "@/hooks/enquiry/useEnquiryFormSubmit";
 import { useEnquiryActions } from "@/hooks/enquiry/useEnquiryActions";
 import type { SalesEnquiry } from "@/services/enquiry";
+import { logger } from '@/lib/logger';
 
 const TABS = [
   { id: "customer-information", label: "Customer Information" },
@@ -126,9 +127,9 @@ export default function SalesEnquiry({
 
       return response.data as { success: boolean; data: any[] };
     } catch (error: any) {
-      console.error("Error searching customers:", error);
+      logger.error("Error searching customers:", error);
       if (error.response?.status === 401) {
-        console.error("Authentication failed. Please log in again.");
+        logger.error("Authentication failed. Please log in again.");
       }
       throw error;
     }

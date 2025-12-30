@@ -1,4 +1,5 @@
-import axios from 'axios';
+import { apiClient } from '@/lib/api-client';
+import { API_ENDPOINTS } from '@/lib/api-endpoints';
 
 export interface TestVehicle {
   SLNO: number;
@@ -48,86 +49,38 @@ export interface CreateTestVehicleData {
 
 export interface UpdateTestVehicleData extends CreateTestVehicleData {}
 
-const API_BASE = `${process.env.NEXT_PUBLIC_SERVER_URL}/api/vehicles`;
-
 export const getAllTestVehicles = async (): Promise<TestVehicle[]> => {
-  const response = await axios.get(`${API_BASE}/test-vehicles`, {
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    withCredentials: true,
-  });
-  return response.data?.data || [];
+  return apiClient.get<TestVehicle[]>(API_ENDPOINTS.TEST_VEHICLES);
 };
 
 export const getTestVehicleById = async (id: number): Promise<TestVehicle> => {
-  const response = await axios.get(`${API_BASE}/test-vehicles/${id}`, {
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    withCredentials: true,
-  });
-  return response.data.data;
+  return apiClient.get<TestVehicle>(API_ENDPOINTS.TEST_VEHICLE_BY_ID(id));
 };
 
 export const createTestVehicle = async (
   data: CreateTestVehicleData
 ): Promise<TestVehicle> => {
-  const response = await axios.post(`${API_BASE}/test-vehicles`, data, {
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    withCredentials: true,
-  });
-  return response.data.data;
+  return apiClient.post<TestVehicle>(API_ENDPOINTS.TEST_VEHICLES, data);
 };
 
 export const updateTestVehicle = async (
   id: number,
   data: UpdateTestVehicleData
 ): Promise<TestVehicle> => {
-  const response = await axios.put(`${API_BASE}/test-vehicles/${id}`, data, {
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    withCredentials: true,
-  });
-  return response.data.data;
+  return apiClient.put<TestVehicle>(API_ENDPOINTS.TEST_VEHICLE_BY_ID(id), data);
 };
 
 export const deleteTestVehicle = async (id: number): Promise<TestVehicle> => {
-  const response = await axios.delete(`${API_BASE}/test-vehicles/${id}`, {
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    withCredentials: true,
-  });
-  return response.data.data;
+  return apiClient.delete<TestVehicle>(API_ENDPOINTS.TEST_VEHICLE_BY_ID(id));
 };
 
 export const updateTestVehicleStatus = async (
   id: number,
   status: 'true' | 'false'
 ): Promise<TestVehicle> => {
-  const response = await axios.patch(
-    `${API_BASE}/test-vehicles/${id}/status`,
-    { status },
-    {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      withCredentials: true,
-    }
-  );
-  return response.data.data;
+  return apiClient.patch<TestVehicle>(API_ENDPOINTS.TEST_VEHICLE_STATUS(id), { status });
 };
 
 export const getAllVehicleInventory = async (): Promise<VehicleInventory[]> => {
-  const response = await axios.get(`${API_BASE}/get-all-vehicle-inventory`, {
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    withCredentials: true,
-  });
-  return response.data?.data || [];
+  return apiClient.get<VehicleInventory[]>(API_ENDPOINTS.VEHICLE_INVENTORY);
 };

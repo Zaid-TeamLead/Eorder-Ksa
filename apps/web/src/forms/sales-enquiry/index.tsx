@@ -14,6 +14,7 @@ import { salesEnquirySchema, type SalesEnquiryFormData } from "./schema";
 import { useSession } from "@/lib/auth-client";
 import { useCart, type CartItem } from "@/lib/cart-context";
 import { toast } from "sonner";
+import { useCallback } from "react";
 
 // Type definitions for customer data
 interface Customer {
@@ -176,14 +177,14 @@ export const SalesEnquiryForm = forwardRef<
       [handleSubmit, form]
     );
 
-    const handleCustomerSearch = async (query: string) => {
+    const handleCustomerSearch = useCallback(async (query: string) => {
       if (onCustomerSearch) {
         return await onCustomerSearch(query);
       }
       return undefined;
-    };
+    }, [onCustomerSearch]);
 
-    const handleCustomerSelect = async (customer: Customer) => {
+    const handleCustomerSelect = useCallback(async (customer: Customer) => {
       const addressParts = [
         customer.Street,
         customer.Block,
@@ -207,15 +208,15 @@ export const SalesEnquiryForm = forwardRef<
       form.setValue("workPhone", customer.Phone2 || "", { shouldDirty: true });
       form.setValue("mobile", customer.Cellular || "", { shouldDirty: true });
       form.setValue("homeEmail", customer.E_Mail || "", { shouldDirty: true });
-    };
+    }, [form]);
 
-    const handleNewCustomer = () => {
+    const handleNewCustomer = useCallback(() => {
       setCustomerSearch("");
       form.reset(getInitialFormValues());
       if (onNewCustomer) {
         onNewCustomer();
       }
-    };
+    }, [form, onNewCustomer]);
 
     return (
       <Form {...form}>

@@ -1,6 +1,5 @@
-import axios from 'axios';
-
-const API_BASE = `${process.env.NEXT_PUBLIC_SERVER_URL}/api/enquiries`;
+import { apiClient } from '@/lib/api-client';
+import { API_ENDPOINTS, buildQueryString } from '@/lib/api-endpoints';
 
 export interface SalesEnquiry {
   SLNO: number;
@@ -126,55 +125,25 @@ export interface EnquiryFilters {
 export const getAllEnquiries = async (
   filters?: EnquiryFilters
 ): Promise<SalesEnquiry[]> => {
-  const params = new URLSearchParams();
-  if (filters?.status) params.append('status', filters.status);
-  if (filters?.slpCode) params.append('slpCode', filters.slpCode);
-  if (filters?.customerId) params.append('customerId', filters.customerId);
-  if (filters?.fromDate) params.append('fromDate', filters.fromDate);
-  if (filters?.toDate) params.append('toDate', filters.toDate);
-
-  const response = await axios.get(`${API_BASE}?${params.toString()}`, {
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    withCredentials: true,
-  });
-  return response.data?.data || [];
+  const queryString = filters ? buildQueryString(filters) : '';
+  return apiClient.get<SalesEnquiry[]>(`${API_ENDPOINTS.ENQUIRIES}${queryString}`);
 };
 
 export const getEnquiryById = async (id: number): Promise<SalesEnquiry> => {
-  const response = await axios.get(`${API_BASE}/${id}`, {
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    withCredentials: true,
-  });
-  return response.data.data;
+  return apiClient.get<SalesEnquiry>(API_ENDPOINTS.ENQUIRY_BY_ID(id));
 };
 
 export const createEnquiry = async (
   data: CreateEnquiryData
 ): Promise<SalesEnquiry> => {
-  const response = await axios.post(`${API_BASE}`, data, {
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    withCredentials: true,
-  });
-  return response.data.data;
+  return apiClient.post<SalesEnquiry>(API_ENDPOINTS.ENQUIRIES, data);
 };
 
 export const updateEnquiry = async (
   id: number,
   data: UpdateEnquiryData
 ): Promise<SalesEnquiry> => {
-  const response = await axios.put(`${API_BASE}/${id}`, data, {
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    withCredentials: true,
-  });
-  return response.data.data;
+  return apiClient.put<SalesEnquiry>(API_ENDPOINTS.ENQUIRY_BY_ID(id), data);
 };
 
 export const updateEnquiryStatus = async (
@@ -182,36 +151,14 @@ export const updateEnquiryStatus = async (
   status: string,
   notes?: string
 ): Promise<any> => {
-  const response = await axios.patch(
-    `${API_BASE}/${id}/status`,
-    { status, notes },
-    {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      withCredentials: true,
-    }
-  );
-  return response.data.data;
+  return apiClient.patch(API_ENDPOINTS.ENQUIRY_STATUS(id), { status, notes });
 };
 
 export const deleteEnquiry = async (id: number): Promise<any> => {
-  const response = await axios.delete(`${API_BASE}/${id}`, {
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    withCredentials: true,
-  });
-  return response.data.data;
+  return apiClient.delete(API_ENDPOINTS.ENQUIRY_BY_ID(id));
 };
 
 export const getEnquiryStats = async (slpCode?: string): Promise<any[]> => {
-  const params = slpCode ? `?slpCode=${slpCode}` : '';
-  const response = await axios.get(`${API_BASE}/stats${params}`, {
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    withCredentials: true,
-  });
-  return response.data?.data || [];
+  const queryString = slpCode ? buildQueryString({ slpCode }) : '';
+  return apiClient.get<any[]>(`${API_ENDPOINTS.ENQUIRY_STATS}${queryString}`);
 };

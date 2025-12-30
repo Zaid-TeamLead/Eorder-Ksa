@@ -1,5 +1,6 @@
 import { useCallback, useEffect } from 'react';
 import type { VehicleInventory } from '@/services/vehicles';
+import { logger } from '@/lib/logger';
 
 interface UseVehicleSelectionReturn {
   handleVehicleSelect: (vehicle: VehicleInventory) => void;
@@ -75,7 +76,7 @@ export function useVehicleSelection(): UseVehicleSelectionReturn {
           callback(vehicle);
           sessionStorage.removeItem('selectedEnquiryVehicle');
         } catch (error) {
-          console.error('Error parsing stored vehicle:', error);
+          logger.error('Error parsing stored vehicle:', error);
           sessionStorage.removeItem('selectedEnquiryVehicle');
         }
       }

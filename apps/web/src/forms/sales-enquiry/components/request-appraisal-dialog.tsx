@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { requestAppraisal } from "@/services/tradeInAppraisal";
+import { logger } from '@/lib/logger';
 
 interface RequestAppraisalDialogProps {
   open: boolean;
@@ -79,7 +80,7 @@ export function RequestAppraisalDialog({
       handleClose();
       onSuccess?.();
     } catch (error: any) {
-      console.error("Error requesting appraisal:", error);
+      logger.error("Error requesting appraisal:", error);
       toast.error(
         error.response?.data?.message || "Failed to send appraisal request"
       );

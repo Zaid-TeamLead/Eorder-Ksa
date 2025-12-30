@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { VehicleInventory } from "@/services/vehicles";
 import { getVehicleFormResetValues } from "./utils/getVehicleFormResetValues";
+import { logger } from "@/lib/logger";
 
 export function VehicleDetails() {
   const form = useFormContext<SalesEnquiryFormData>();
@@ -70,7 +71,7 @@ export function VehicleDetails() {
       setVinNumbers(vinList);
       return vinList;
     } catch (error) {
-      console.error("Error getting vin number:", error);
+      logger.error("Error getting vin number:", error);
       setVinNumbers([]);
       toast.error("Failed to fetch VIN numbers");
       return [];
@@ -147,7 +148,7 @@ export function VehicleDetails() {
       );
       return response.data as { success: boolean; data: any[] };
     } catch (error) {
-      console.error("Error searching vehicles:", error);
+      logger.error("Error searching vehicles:", error);
       throw error;
     }
   }, []);
