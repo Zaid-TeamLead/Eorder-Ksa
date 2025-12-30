@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Search, Loader2, MapPin, DollarSign, Car, Building2, Phone, Mail, User, Calendar, CreditCard, TrendingUp } from "lucide-react";
+import { useDebounce } from "@/hooks/useDebounce";
 import { cn } from "@/lib/utils";
 import { DataTable } from "./components/data-table";
 import { columns } from "./components/columns";
@@ -25,23 +26,6 @@ interface Customer {
     Phone2?: string | null;
     Cellular?: string | null;
     E_Mail?: string | null;
-}
-
-// Custom debounce hook
-function useDebounce<T>(value: T, delay: number): T {
-    const [debouncedValue, setDebouncedValue] = useState<T>(value);
-
-    useEffect(() => {
-        const handler = setTimeout(() => {
-            setDebouncedValue(value);
-        }, delay);
-
-        return () => {
-            clearTimeout(handler);
-        };
-    }, [value, delay]);
-
-    return debouncedValue;
 }
 
 const CustomerMaster = () => {

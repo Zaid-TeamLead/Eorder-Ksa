@@ -9,29 +9,18 @@
  * ```
  */
 
-import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query-keys";
 import { getLenders } from "@/services/financing";
-import { toast } from "sonner";
 import type { UseLendersReturn } from "@/types/financing";
+import { useEntityQuery } from "@/hooks/shared/useEntityQuery";
 
 export function useLenders(): UseLendersReturn {
-  const {
-    data: lenders,
-    isLoading,
-    error,
-  } = useQuery({
+  const { data: lenders, isLoading, error } = useEntityQuery({
     queryKey: queryKeys.lenders.all,
     queryFn: getLenders,
+    defaultValue: [],
     staleTime: 10 * 60 * 1000, // Cache for 10 minutes (lenders don't change often)
-    onError: () => {
-      toast.error("Failed to load lenders");
-    },
   });
 
-  return {
-    lenders: lenders || [],
-    isLoading,
-    error: error as Error | null,
-  };
+  return { lenders, isLoading, error };
 }

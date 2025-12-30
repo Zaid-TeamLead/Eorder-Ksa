@@ -9,13 +9,13 @@ export const searchCustomers = async (search: string, slpCode: string) => {
 };
 
 export const getCustomerAddress = async (cardCode: string) => {
-  return apiClient.get(`${API_ENDPOINTS.CUSTOMERS}/address/${cardCode}`);
+  return apiClient.get(API_ENDPOINTS.CUSTOMER_ADDRESS(cardCode));
 };
 
 export const getCustomerfinancialInformation = async (cardCode: string) => {
-  return apiClient.get(`${API_ENDPOINTS.CUSTOMERS}/financial-information/${cardCode}`);
+  return apiClient.get(API_ENDPOINTS.CUSTOMER_FINANCIAL(cardCode));
 };
 
 export const getVehicleHistory = async (cardCode: string) => {
-  return apiClient.get(`${API_ENDPOINTS.CUSTOMERS}/vehicle-history/${cardCode}`);
+  return apiClient.get(API_ENDPOINTS.CUSTOMER_VEHICLE_HISTORY(cardCode));
 };

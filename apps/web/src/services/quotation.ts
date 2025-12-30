@@ -42,7 +42,7 @@ export const getQuotationById = async (id: number): Promise<QuotationWithLineIte
  * Get all quotations for a specific enquiry
  */
 export const getQuotationsByEnquiryId = async (enquiryId: number): Promise<Quotation[]> => {
-  return apiClient.get<Quotation[]>(`/api/quotations/enquiry/${enquiryId}`);
+  return apiClient.get<Quotation[]>(API_ENDPOINTS.QUOTATIONS_BY_ENQUIRY(enquiryId));
 };
 
 /**

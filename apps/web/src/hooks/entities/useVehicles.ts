@@ -9,9 +9,9 @@
  * ```
  */
 
-import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query-keys";
 import { getAllVehicleInventory, type VehicleInventory } from "@/services/vehicles";
+import { useEntityQuery } from "@/hooks/shared/useEntityQuery";
 
 export interface UseVehiclesReturn {
   vehicles: VehicleInventory[];
@@ -21,22 +21,11 @@ export interface UseVehiclesReturn {
 }
 
 export function useVehicles(): UseVehiclesReturn {
-  const {
-    data: vehicles,
-    isLoading,
-    error,
-    refetch,
-  } = useQuery({
+  const { data: vehicles, isLoading, error, refetch } = useEntityQuery({
     queryKey: queryKeys.vehicles.all,
     queryFn: getAllVehicleInventory,
+    defaultValue: [],
   });
 
-  return {
-    vehicles: vehicles || [],
-    isLoading,
-    error: error as Error | null,
-    refetch: async () => {
-      await refetch();
-    },
-  };
+  return { vehicles, isLoading, error, refetch };
 }

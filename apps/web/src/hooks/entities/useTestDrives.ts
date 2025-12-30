@@ -9,27 +9,16 @@
  * ```
  */
 
-import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query-keys";
 import { getAllBookTestDrives } from "@/services/bookTestDrive";
+import { useEntityQuery } from "@/hooks/shared/useEntityQuery";
 
 export function useTestDrives() {
-  const {
-    data: bookings,
-    isLoading,
-    error,
-    refetch,
-  } = useQuery({
+  const { data: bookings, isLoading, error, refetch } = useEntityQuery({
     queryKey: queryKeys.testDrive.all,
     queryFn: getAllBookTestDrives,
+    defaultValue: [],
   });
 
-  return {
-    bookings: bookings || [],
-    isLoading,
-    error: error as Error | null,
-    refetch: async () => {
-      await refetch();
-    },
-  };
+  return { bookings, isLoading, error, refetch };
 }

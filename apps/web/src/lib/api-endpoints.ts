@@ -18,6 +18,7 @@ export const API_ENDPOINTS = {
   QUOTATION_PDF: (id: string | number) => `/api/quotations/${id}/pdf`,
   QUOTATION_DISCOUNT_APPROVAL: (id: string | number) => `/api/quotations/${id}/discount-approval`,
   QUOTATION_APPROVE_DISCOUNT: (id: string | number) => `/api/quotations/${id}/approve-discount`,
+  QUOTATIONS_BY_ENQUIRY: (enquiryId: number) => `/api/quotations/enquiry/${enquiryId}` as const,
 
   // Vehicle endpoints
   VEHICLES: '/api/vehicles',
@@ -49,6 +50,9 @@ export const API_ENDPOINTS = {
   CUSTOMERS: '/api/customers',
   CUSTOMER_SEARCH: '/api/customers/search',
   CUSTOMER_BY_ID: (id: string) => `/api/customers/${id}`,
+  CUSTOMER_ADDRESS: (cardCode: string) => `/api/customers/address/${cardCode}` as const,
+  CUSTOMER_FINANCIAL: (cardCode: string) => `/api/customers/financial-information/${cardCode}` as const,
+  CUSTOMER_VEHICLE_HISTORY: (cardCode: string) => `/api/customers/vehicle-history/${cardCode}` as const,
 } as const;
 
 /**

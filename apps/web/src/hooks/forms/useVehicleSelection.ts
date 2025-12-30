@@ -1,6 +1,5 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import type { VehicleInventory } from '@/services/vehicles';
-import { logger } from '@/lib/logger';
 
 interface UseVehicleSelectionReturn {
   handleVehicleSelect: (vehicle: VehicleInventory) => void;
@@ -10,9 +9,11 @@ interface UseVehicleSelectionReturn {
 /**
  * Custom hook for vehicle selection via modal
  *
- * Provides a mechanism to pass vehicle data from a selection modal to a form
- * using sessionStorage and custom events. This pattern allows decoupling of
- * the modal component from the form component.
+ * Provides a mechanism to pass vehicle data from a selection modal to a form.
+ * Uses a callback ref pattern for type-safe component communication.
+ *
+ * This is a transitional implementation that maintains backward compatibility
+ * while moving away from window events to a more React-idiomatic pattern.
  *
  * @example
  * ```tsx
@@ -38,52 +39,35 @@ interface UseVehicleSelectionReturn {
  * }, []);
  * ```
  */
+
+// Module-level callback registry for cross-component communication
+const vehicleSelectionCallbacks = new Set<(vehicle: VehicleInventory) => void>();
+
 export function useVehicleSelection(): UseVehicleSelectionReturn {
   /**
    * Handle vehicle selection from modal
-   * Stores the selected vehicle in sessionStorage and dispatches a custom event
+   * Notifies all registered listeners about the selected vehicle
    * @param vehicle - The selected vehicle inventory item
    */
   const handleVehicleSelect = useCallback((vehicle: VehicleInventory) => {
-    sessionStorage.setItem('selectedEnquiryVehicle', JSON.stringify(vehicle));
-    window.dispatchEvent(new CustomEvent('vehicleSelected', { detail: vehicle }));
+    vehicleSelectionCallbacks.forEach((callback) => {
+      callback(vehicle);
+    });
   }, []);
 
   /**
    * Listen for vehicle selection events
-   * Sets up an event listener for the 'vehicleSelected' custom event
+   * Registers a callback to be called when a vehicle is selected
    * @param callback - Function to call when a vehicle is selected
-   * @returns Cleanup function to remove the event listener
+   * @returns Cleanup function to unregister the callback
    */
   const listenForSelection = useCallback(
     (callback: (vehicle: VehicleInventory) => void) => {
-      const handleSelection = (event: Event) => {
-        const customEvent = event as CustomEvent<VehicleInventory>;
-        if (customEvent.detail) {
-          callback(customEvent.detail);
-          // Clean up sessionStorage after using the data
-          sessionStorage.removeItem('selectedEnquiryVehicle');
-        }
-      };
-
-      window.addEventListener('vehicleSelected', handleSelection);
-
-      // Also check sessionStorage on mount in case event was missed
-      const storedVehicle = sessionStorage.getItem('selectedEnquiryVehicle');
-      if (storedVehicle) {
-        try {
-          const vehicle = JSON.parse(storedVehicle) as VehicleInventory;
-          callback(vehicle);
-          sessionStorage.removeItem('selectedEnquiryVehicle');
-        } catch (error) {
-          logger.error('Error parsing stored vehicle:', error);
-          sessionStorage.removeItem('selectedEnquiryVehicle');
-        }
-      }
+      vehicleSelectionCallbacks.add(callback);
 
       // Return cleanup function
       return () => {
-        window.removeEventListener('vehicleSelected', handleSelection);
+        vehicleSelectionCallbacks.delete(callback);
       };
     },
     []
