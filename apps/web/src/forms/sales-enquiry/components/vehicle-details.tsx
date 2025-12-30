@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import type { VehicleInventory } from "@/services/vehicles";
 import { getVehicleFormResetValues } from "./utils/getVehicleFormResetValues";
 import { logger } from "@/lib/logger";
+import { LoadingState } from "@/components/shared/loading-state";
 
 export function VehicleDetails() {
   const form = useFormContext<SalesEnquiryFormData>();
@@ -288,14 +289,13 @@ export function VehicleDetails() {
           <FormField
             control={form.control}
             name="vinNumber"
-            render={({ field }) => (
+            render={() => (
               <FormItem>
                 <FormLabel className="text-xs font-medium">
                   VIN Number
                   {loadingVinNumbers && (
-                    <span className="text-muted-foreground text-xs font-normal ml-2">
-                      (Loading...)
-                    </span>
+                         <LoadingState message="Loading..." />
+
                   )}
                 </FormLabel>
                 <FormControl>

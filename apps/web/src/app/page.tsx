@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingState } from "@/components/shared/loading-state";
 import { useSession } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -18,14 +19,7 @@ export default function Home() {
     }
   }, [session, isPending, router]);
 
-  // Show loading state while checking session
-  return (
-    <div className="container mx-auto max-w-3xl px-4 py-2">
-      <div className="grid gap-6">
-        <section className="rounded-lg border p-4">
-          <h2 className="mb-2 font-medium">Loading...</h2>
-        </section>
-      </div>
-    </div>
-  );
+
+      return <LoadingState message="Loading..." />;
+
 }

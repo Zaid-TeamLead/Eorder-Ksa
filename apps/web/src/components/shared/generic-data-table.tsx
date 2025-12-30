@@ -39,6 +39,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
+import { LoadingState } from "./loading-state";
 
 // ============================================================================
 // Type Definitions
@@ -271,11 +272,7 @@ export function GenericDataTable<TData, TValue>({
 
   // Render loading state
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-sm text-muted-foreground">Loading...</div>
-      </div>
-    );
+        return <LoadingState message="Loading..." />;
   }
 
   // Render error state

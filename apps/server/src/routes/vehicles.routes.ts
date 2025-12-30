@@ -58,7 +58,7 @@ router.get(
 );
 
 router.get(
-  '/get-all-vehicle-inventory',
+  '/inventory',
   asyncHandler(async (_req, res) => {
     const vehicles = await getAllVehicleInventory();
     return sendSuccess(res, vehicles);
