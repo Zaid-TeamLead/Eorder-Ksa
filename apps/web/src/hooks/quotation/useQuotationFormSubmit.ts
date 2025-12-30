@@ -31,21 +31,14 @@ export function useQuotationFormSubmit({
             ...data,
             status,
           };
-          const result = await supersedeQuotation(supersedeData);
-          toast.success(`New version ${result.quotationNumber} created successfully!`);
+          await supersedeQuotation(supersedeData);
         } else {
           // Regular create flow from enquiry
           const quotationData = {
             ...data,
             status,
           };
-          const result = await createQuotation(quotationData);
-
-          if (status === 'Draft') {
-            toast.success(`Quotation ${result.quotationNumber} saved as draft!`);
-          } else {
-            toast.success(`Quotation ${result.quotationNumber} created and sent!`);
-          }
+          await createQuotation(quotationData);
         }
 
         // Redirect to quotations list

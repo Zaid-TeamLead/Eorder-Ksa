@@ -6,6 +6,17 @@ import {
 } from './shared/base.schema.js';
 
 // =====================================================
+// Helper Functions
+// =====================================================
+
+// Helper for optional numeric fields - converts empty string to undefined
+const optionalNumber = (schema: z.ZodNumber) =>
+  z.preprocess((val) => {
+    if (val === '' || val === null || val === undefined) return undefined;
+    return val;
+  }, schema.optional());
+
+// =====================================================
 // Enums
 // =====================================================
 
@@ -38,7 +49,7 @@ export const yesNoEnum = z.enum(['Y', 'N']);
 // =====================================================
 
 export const lineItemSchema = z.object({
-  lineNumber: z.number().int().positive({ message: 'Line number must be positive' }),
+  lineNumber: z.coerce.number().int().positive({ message: 'Line number must be positive' }),
   itemType: itemTypeEnum,
   itemCode: z.string().max(100).optional(),
   itemDescription: z
@@ -46,18 +57,18 @@ export const lineItemSchema = z.object({
     .min(1, { message: 'Item description is required' })
     .max(500, { message: 'Item description cannot exceed 500 characters' }),
   itemCategory: z.string().max(100).optional(),
-  quantity: z.number().int().min(1, { message: 'Quantity must be at least 1' }).default(1),
-  unitPrice: z.number().nonnegative({ message: 'Unit price cannot be negative' }),
-  discountAmount: z
+  quantity: z.coerce.number().int().min(1, { message: 'Quantity must be at least 1' }).default(1),
+  unitPrice: z.coerce.number().nonnegative({ message: 'Unit price cannot be negative' }),
+  discountAmount: z.coerce
     .number()
     .max(0, { message: 'Discount amount must be negative or zero' })
     .default(0),
-  discountPercentage: z
+  discountPercentage: z.coerce
     .number()
     .min(0, { message: 'Discount percentage cannot be negative' })
     .max(100, { message: 'Discount percentage cannot exceed 100%' })
     .default(0),
-  netPrice: z.number().nonnegative({ message: 'Net price cannot be negative' }),
+  netPrice: z.coerce.number().nonnegative({ message: 'Net price cannot be negative' }),
   taxIncluded: yesNoEnum.default('N'),
   manufacturer: z.string().max(100).optional(),
   partNumber: z.string().max(100).optional(),
@@ -71,7 +82,7 @@ export const lineItemSchema = z.object({
 
 export const createQuotationSchema = z.object({
   // Required: Enquiry reference
-  enquirySlno: z.number().int().positive({ message: 'Valid enquiry ID is required' }),
+  enquirySlno: z.coerce.number().int().positive({ message: 'Valid enquiry ID is required' }),
 
   // Customer Information (auto-populated from enquiry but editable)
   customerName: z.string().max(200).optional(),
@@ -88,38 +99,38 @@ export const createQuotationSchema = z.object({
   vinNumber: z.string().max(100).optional(),
 
   // Vehicle Pricing
-  vehicleBasePrice: z.number().nonnegative({ message: 'Vehicle base price cannot be negative' }),
-  vehicleDiscount: z
+  vehicleBasePrice: z.coerce.number().nonnegative({ message: 'Vehicle base price cannot be negative' }),
+  vehicleDiscount: z.coerce
     .number()
     .max(0, { message: 'Vehicle discount must be negative or zero' })
     .default(0),
-  vehicleNetPrice: z.number().nonnegative({ message: 'Vehicle net price cannot be negative' }),
+  vehicleNetPrice: z.coerce.number().nonnegative({ message: 'Vehicle net price cannot be negative' }),
 
   // Accessories Pricing
-  accessoriesTotal: z.number().nonnegative().default(0),
-  accessoriesDiscount: z.number().max(0).default(0),
-  accessoriesNetTotal: z.number().nonnegative().default(0),
+  accessoriesTotal: z.coerce.number().nonnegative().default(0),
+  accessoriesDiscount: z.coerce.number().max(0).default(0),
+  accessoriesNetTotal: z.coerce.number().nonnegative().default(0),
 
   // Other Components
-  warrantyTotal: z.number().nonnegative().default(0),
-  insuranceTotal: z.number().nonnegative().default(0),
+  warrantyTotal: z.coerce.number().nonnegative().default(0),
+  insuranceTotal: z.coerce.number().nonnegative().default(0),
 
   // Total Calculations
-  subtotal: z.number().nonnegative({ message: 'Subtotal cannot be negative' }),
-  taxRate: z.number().min(0).max(100).default(15),
-  taxAmount: z.number().nonnegative({ message: 'Tax amount cannot be negative' }),
-  grandTotal: z.number().nonnegative({ message: 'Grand total cannot be negative' }),
+  subtotal: z.coerce.number().nonnegative({ message: 'Subtotal cannot be negative' }),
+  taxRate: z.coerce.number().min(0).max(100).default(15),
+  taxAmount: z.coerce.number().nonnegative({ message: 'Tax amount cannot be negative' }),
+  grandTotal: z.coerce.number().nonnegative({ message: 'Grand total cannot be negative' }),
 
   // Trade-in & Financing
-  tradeInValue: z.number().nonnegative().default(0),
-  tradeInAppraisalSlno: z.number().int().positive().optional(),
-  financingSchemeSlno: z.number().int().positive().optional(),
-  downpayment: z.number().nonnegative().default(0),
-  netAmountDue: z.number().nonnegative({ message: 'Net amount due cannot be negative' }),
+  tradeInValue: z.coerce.number().nonnegative().default(0),
+  tradeInAppraisalSlno: optionalNumber(z.coerce.number().int().positive()),
+  financingSchemeSlno: optionalNumber(z.coerce.number().int().positive()),
+  downpayment: z.coerce.number().nonnegative().default(0),
+  netAmountDue: z.coerce.number().nonnegative({ message: 'Net amount due cannot be negative' }),
 
   // Discount Summary
-  totalDiscountAmount: z.number().max(0).default(0),
-  discountPercentage: z.number().min(0).max(100).default(0),
+  totalDiscountAmount: z.coerce.number().max(0).default(0),
+  discountPercentage: z.coerce.number().min(0).max(100).default(0),
 
   // Quotation Details
   validUntil: z.string().max(30).optional(),

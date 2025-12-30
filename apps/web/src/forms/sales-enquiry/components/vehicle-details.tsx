@@ -21,6 +21,7 @@ import { ShoppingCart, Package } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { VehicleInventory } from "@/services/vehicles";
+import { getVehicleFormResetValues } from "./utils/getVehicleFormResetValues";
 
 export function VehicleDetails() {
   const form = useFormContext<SalesEnquiryFormData>();
@@ -84,28 +85,28 @@ export function VehicleDetails() {
   const vinDetails = form.watch("vinDetails");
 
   // Listen for vehicle selection from inventory modal
+  const handleVehicleSelected = useCallback((event: any) => {
+    const vehicle: VehicleInventory = event.detail;
+    if (vehicle) {
+      // Populate form fields with inventory vehicle data
+      const options = { shouldDirty: false };
+      form.setValue("make", vehicle.U_Veh_Brand || "", options);
+      form.setValue("model", vehicle.U_Veh_Model || "", options);
+      form.setValue("variant", vehicle.ItemCode || "", options);
+      form.setValue("year", vehicle.U_Veh_MY || "", options);
+      form.setValue("color", vehicle.U_Veh_Color || "", options);
+      form.setValue("modelCode", vehicle.U_Vehicle_MC || "", options);
+      form.setValue("vinNumber", vehicle.VIN || "", options);
+      form.setValue("quantity", 1, options);
+
+      toast.success("Vehicle selected from inventory");
+    }
+  }, [form]);
+
   useEffect(() => {
-    const handleVehicleSelected = (event: any) => {
-      const vehicle: VehicleInventory = event.detail;
-      if (vehicle) {
-        // Populate form fields with inventory vehicle data
-        const options = { shouldDirty: false };
-        form.setValue("make", vehicle.U_Veh_Brand || "", options);
-        form.setValue("model", vehicle.U_Veh_Model || "", options);
-        form.setValue("variant", vehicle.ItemCode || "", options);
-        form.setValue("year", vehicle.U_Veh_MY || "", options);
-        form.setValue("color", vehicle.U_Veh_Color || "", options);
-        form.setValue("modelCode", vehicle.U_Vehicle_MC || "", options);
-        form.setValue("vinNumber", vehicle.VIN || "", options);
-        form.setValue("quantity", 1, options);
-
-        toast.success("Vehicle selected from inventory");
-      }
-    };
-
     window.addEventListener('vehicleSelected', handleVehicleSelected);
     return () => window.removeEventListener('vehicleSelected', handleVehicleSelected);
-  }, [form]);
+  }, [handleVehicleSelected]);
 
   useEffect(() => {
     if (customerId && variant) {
@@ -132,7 +133,7 @@ export function VehicleDetails() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerId, variant, getVinNumber]);
 
-  const handleSearchVehicles = async (query: string) => {
+  const handleSearchVehicles = useCallback(async (query: string) => {
     try {
       const response = await axios.get(
         `${process.env.NEXT_PUBLIC_SERVER_URL}/api/vehicles/search`,
@@ -149,9 +150,9 @@ export function VehicleDetails() {
       console.error("Error searching vehicles:", error);
       throw error;
     }
-  };
+  }, []);
 
-  const handleVehicleSelect = (vehicle: any) => {
+  const handleVehicleSelect = useCallback((vehicle: any) => {
     // Store selected vehicle for quantity validation
     setSelectedVehicle(vehicle);
 
@@ -170,9 +171,9 @@ export function VehicleDetails() {
     form.setValue("quantity", 1, options); // Set default quantity to 1
     form.setValue("vinNumber", "", options); // Reset VIN number when vehicle changes
     form.setValue("vinDetails", undefined, options); // Reset VIN details when vehicle changes
-  };
+  }, [form]);
 
-  const handleAddToCart = () => {
+  const handleAddToCart = useCallback(() => {
     const formData = form.getValues();
 
     // Validate required fields
@@ -239,48 +240,10 @@ export function VehicleDetails() {
     if (addedCount > 0) {
       toast.success(`${addedCount} item${addedCount > 1 ? "s" : ""} added to cart`);
 
-      // Get current customer information to preserve it
+      // Reset only vehicle-related fields using utility function
       const currentData = form.getValues();
-
-      // Reset only vehicle-related fields, keep customer and other information
-      form.reset({
-        // Preserve customer information
-        customerId: currentData.customerId,
-        customerName: currentData.customerName,
-        address: currentData.address,
-        postcode: currentData.postcode,
-        homePhone: currentData.homePhone,
-        workPhone: currentData.workPhone,
-        mobile: currentData.mobile,
-        homeEmail: currentData.homeEmail,
-        // Reset vehicle details
-        make: "",
-        model: "",
-        variant: "",
-        year: "",
-        color: "",
-        suppCatNum: "",
-        modelCode: "",
-        quantity: undefined,
-        vinNumber: "",
-        vinDetails: undefined,
-        // Preserve enquiry details
-        budget: currentData.budget,
-        financing: currentData.financing,
-        preferredContact: currentData.preferredContact,
-        preferredTime: currentData.preferredTime,
-        preferredDelivery: currentData.preferredDelivery,
-        source: currentData.source,
-        // Preserve trade-in vehicle
-        tradeInMake: currentData.tradeInMake,
-        tradeInModel: currentData.tradeInModel,
-        tradeInYear: currentData.tradeInYear,
-        tradeInKms: currentData.tradeInKms,
-        tradeInExpectedPrice: currentData.tradeInExpectedPrice,
-        // Preserve additional information
-        salesperson: currentData.salesperson,
-        notes: currentData.notes,
-      });
+      const resetValues = getVehicleFormResetValues(currentData);
+      form.reset(resetValues);
 
       // Reset vehicle-related state
       setVehicleSearch("");
@@ -288,12 +251,12 @@ export function VehicleDetails() {
       setSelectedVins(new Set());
       setSelectedVinsWithQuantity(new Map());
     }
-  };
+  }, [form, selectedVehicle, selectedVinsWithQuantity, addItem]);
 
-  const handleSelectFromInventory = () => {
+  const handleSelectFromInventory = useCallback(() => {
     // Trigger event to open the vehicle selection modal
     window.dispatchEvent(new CustomEvent('openVehicleInventoryModal'));
-  };
+  }, []);
 
   return (
     <div className="space-y-4">

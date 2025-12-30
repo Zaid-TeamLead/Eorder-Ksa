@@ -51,7 +51,6 @@ export function useQuotationActions(params: UseQuotationActionsParams = {}) {
 
       try {
         await deleteQuotation(targetId);
-        toast.success('Quotation deleted successfully');
         onSuccess?.();
       } catch (error) {
         console.error('Error deleting quotation:', error);

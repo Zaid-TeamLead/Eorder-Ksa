@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useCallback } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Save, Send, ArrowLeft } from 'lucide-react';
+import { Loader2, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,7 +18,6 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Separator } from '@/components/ui/separator';
 import { LineItemsEditor } from '@/forms/quotation/components/line-items-editor';
 import { PricingSummary } from '@/forms/quotation/components/pricing-summary';
 import { quotationFormSchema, defaultQuotationFormValues, type QuotationFormData } from '@/forms/quotation/schema';
@@ -28,77 +27,109 @@ import { LoadingState } from '@/components/shared/loading-state';
 import { ErrorState } from '@/components/shared/error-state';
 
 // Custom hooks
-import { useQuotationFormData } from '@/hooks/quotation/useQuotationFormData';
-import { useQuotationFormSubmit } from '@/hooks/quotation/useQuotationFormSubmit';
+import { useQuotationById } from '@/hooks/entities/useQuotations';
+import { useQuotationMutations } from '@/hooks/entities/useQuotationMutations';
 
-export default function CreateQuotationPage() {
-  const searchParams = useSearchParams();
+// Utilities
+import { transformQuotationToFormData, validateFormDataForNaN } from '@/forms/quotation/utils/transformQuotationToFormData';
+
+export default function EditQuotationPage() {
+  const params = useParams();
   const router = useRouter();
-  const enquiryId = searchParams.get('enquiryId');
-  const supersedeId = searchParams.get('supersede');
+  const quotationId = parseInt(params.id as string, 10);
+
+  const { quotation, isLoading, error } = useQuotationById(quotationId);
+  const { updateQuotation, isUpdating } = useQuotationMutations();
 
   const form = useForm<QuotationFormData>({
     resolver: zodResolver(quotationFormSchema),
     defaultValues: defaultQuotationFormValues,
   });
 
-  // Load form data from enquiry or parent quotation
-  const {
-    isLoading,
-    enquiry,
-    parentQuotation,
-    error,
-    isSuperseding,
-  } = useQuotationFormData({
-    enquiryId,
-    supersedeId,
-    onDataLoaded: (data) => form.reset(data),
-  });
+  // Load quotation data into form
+  // Using useCallback to memoize the reset function
+  const resetForm = useCallback((quotationData: typeof quotation) => {
+    if (quotationData) {
+      const formData = transformQuotationToFormData(quotationData);
+      form.reset(formData);
+    }
+  }, [form]);
+
+  useEffect(() => {
+    resetForm(quotation);
+  }, [quotation, resetForm]);
 
   // Handle form submission
-  const { handleSaveAsDraft, handleSaveAndSend, isCreating } = useQuotationFormSubmit({
-    isSuperseding,
-    supersedeId,
-  });
+  const handleSave = useCallback(async (data: QuotationFormData) => {
+    try {
+      // Remove enquirySlno from update payload (it's immutable)
+      const { enquirySlno, ...updateData } = data;
+
+      // Development-only: Validate form data for NaN values
+      validateFormDataForNaN(updateData);
+
+      await updateQuotation(quotationId, updateData);
+      router.push(`/dashboard/quotations/${quotationId}`);
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || 'Failed to update quotation. Please try again.';
+      toast.error(errorMessage);
+
+      // Log errors in development
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error updating quotation:', error);
+      }
+    }
+  }, [quotationId, updateQuotation, router]);
+
+  // Handle validation errors
+  const handleValidationError = useCallback((errors: any) => {
+    // Log validation errors in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Form validation errors:', errors);
+    }
+
+    if (!errors || Object.keys(errors).length === 0) {
+      toast.error('Please check the form for errors');
+      return;
+    }
+
+    // Show the first error to the user
+    const firstErrorKey = Object.keys(errors)[0];
+    const firstError = errors[firstErrorKey];
+    const message = firstError?.message || 'Please check the form for errors';
+    toast.error(message);
+  }, []);
 
   if (isLoading) {
+    return <LoadingState message="Loading quotation..." />;
+  }
+
+  if (error || !quotation) {
     return (
-      <LoadingState
-        message={isSuperseding ? 'Loading quotation data...' : 'Loading enquiry data...'}
+      <ErrorState
+        title="Quotation Not Found"
+        message="The quotation you're trying to edit doesn't exist or you don't have permission to edit it."
       />
     );
   }
 
-  if (!enquiry && !parentQuotation) {
+  // Check if quotation can be edited
+  if (quotation.STATUS !== 'Draft' && quotation.STATUS !== 'Pending') {
     return (
       <ErrorState
-        title={isSuperseding ? 'Quotation Not Found' : 'Enquiry Not Found'}
-        message={
-          isSuperseding
-            ? "The quotation you're trying to supersede doesn't exist."
-            : "The enquiry you're looking for doesn't exist."
-        }
+        title="Cannot Edit Quotation"
+        message={`This quotation has status "${quotation.STATUS}" and cannot be edited. Only Draft or Pending quotations can be edited.`}
       />
     );
   }
 
   return (
     <div className="container mx-auto py-6">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">
-            {isSuperseding ? 'Create New Version' : 'Create Quotation'}
-          </h1>
-          <p className="text-muted-foreground">
-            {isSuperseding && parentQuotation
-              ? `Creating new version of ${parentQuotation.QUOTATION_NUMBER}`
-              : enquiry && `For Enquiry: ${enquiry.CUSTOMERNAME} - ${enquiry.MAKE} ${enquiry.MODEL}`}
-          </p>
-        </div>
-        <Button variant="outline" onClick={() => router.back()}>
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Cancel
-        </Button>
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold">Edit Quotation</h1>
+        <p className="text-muted-foreground">
+          {quotation.QUOTATION_NUMBER} - {quotation.CUSTOMER_NAME}
+        </p>
       </div>
 
       <FormProvider {...form}>
@@ -107,7 +138,7 @@ export default function CreateQuotationPage() {
           <Card>
             <CardHeader>
               <CardTitle>Customer Information</CardTitle>
-              <CardDescription>Pre-filled from enquiry, editable if needed</CardDescription>
+              <CardDescription>Update customer details if needed</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 gap-4">
@@ -174,7 +205,6 @@ export default function CreateQuotationPage() {
           <Card>
             <CardHeader>
               <CardTitle>Vehicle Information</CardTitle>
-              <CardDescription>Pre-filled from enquiry</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-3 gap-4">
@@ -185,7 +215,7 @@ export default function CreateQuotationPage() {
                     <FormItem>
                       <FormLabel>Make</FormLabel>
                       <FormControl>
-                        <Input {...field} placeholder="Vehicle make" readOnly className="bg-muted" />
+                        <Input {...field} placeholder="Vehicle make" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -199,7 +229,7 @@ export default function CreateQuotationPage() {
                     <FormItem>
                       <FormLabel>Model</FormLabel>
                       <FormControl>
-                        <Input {...field} placeholder="Vehicle model" readOnly className="bg-muted" />
+                        <Input {...field} placeholder="Vehicle model" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -213,7 +243,7 @@ export default function CreateQuotationPage() {
                     <FormItem>
                       <FormLabel>Variant</FormLabel>
                       <FormControl>
-                        <Input {...field} placeholder="Vehicle variant" readOnly className="bg-muted" />
+                        <Input {...field} placeholder="Vehicle variant" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -227,7 +257,7 @@ export default function CreateQuotationPage() {
                     <FormItem>
                       <FormLabel>Year</FormLabel>
                       <FormControl>
-                        <Input {...field} placeholder="Year" readOnly className="bg-muted" />
+                        <Input {...field} placeholder="Year" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -264,40 +294,6 @@ export default function CreateQuotationPage() {
               </div>
             </CardContent>
           </Card>
-
-          {/* Supersede Reason (only shown when creating new version) */}
-          {isSuperseding && (
-            <Card className="border-orange-200 bg-orange-50/50">
-              <CardHeader>
-                <CardTitle>Reason for New Version</CardTitle>
-                <CardDescription>
-                  Explain why you're creating a new version of this quotation
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <FormField
-                  control={form.control}
-                  name="supersedeReason"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Reason *</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          {...field}
-                          rows={3}
-                          placeholder="Explain why you're creating a new version (minimum 10 characters)..."
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        This will be logged in the activity history
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </CardContent>
-            </Card>
-          )}
 
           {/* Line Items */}
           <LineItemsEditor />
@@ -393,21 +389,12 @@ export default function CreateQuotationPage() {
                 </Button>
                 <Button
                   type="button"
-                  onClick={form.handleSubmit(handleSaveAsDraft)}
-                  disabled={isCreating}
+                  onClick={form.handleSubmit(handleSave, handleValidationError)}
+                  disabled={isUpdating}
                 >
-                  {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   <Save className="mr-2 h-4 w-4" />
-                  Save as Draft
-                </Button>
-                <Button
-                  type="button"
-                  onClick={form.handleSubmit(handleSaveAndSend)}
-                  disabled={isCreating}
-                >
-                  {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  <Send className="mr-2 h-4 w-4" />
-                  Save & Send
+                  Save Changes
                 </Button>
               </div>
             </CardContent>

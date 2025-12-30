@@ -1,20 +1,31 @@
 import { z } from 'zod';
 
 // ============================================================================
+// Helper Functions
+// ============================================================================
+
+// Helper for optional numeric fields - converts empty string to undefined
+const optionalNumber = (schema: z.ZodNumber) =>
+  z.preprocess((val) => {
+    if (val === '' || val === null || val === undefined) return undefined;
+    return val;
+  }, schema.optional());
+
+// ============================================================================
 // Line Item Schema
 // ============================================================================
 
 export const lineItemFormSchema = z.object({
-  lineNumber: z.number().int().positive(),
+  lineNumber: z.coerce.number().int().positive(),
   itemType: z.enum(['Vehicle']),
   itemCode: z.string().optional(),
   itemDescription: z.string().min(1, 'Item description is required').max(500),
   itemCategory: z.string().optional(),
-  quantity: z.number().int().min(1, 'Quantity must be at least 1').default(1),
-  unitPrice: z.number().nonnegative('Unit price cannot be negative'),
-  discountAmount: z.number().max(0, 'Discount amount must be negative or zero').default(0),
-  discountPercentage: z.number().min(0).max(100).default(0),
-  netPrice: z.number().nonnegative('Net price cannot be negative'),
+  quantity: z.coerce.number().int().min(1, 'Quantity must be at least 1').default(1),
+  unitPrice: z.coerce.number().nonnegative('Unit price cannot be negative'),
+  discountAmount: z.coerce.number().max(0, 'Discount amount must be negative or zero').default(0),
+  discountPercentage: z.coerce.number().min(0).max(100).default(0),
+  netPrice: z.coerce.number().nonnegative('Net price cannot be negative'),
   taxIncluded: z.enum(['Y', 'N']).default('N').optional(),
   manufacturer: z.string().optional(),
   partNumber: z.string().optional(),
@@ -28,7 +39,7 @@ export const lineItemFormSchema = z.object({
 
 export const quotationFormSchema = z.object({
   // Required: Enquiry reference (passed as URL param or hidden field)
-  enquirySlno: z.number().int().positive(),
+  enquirySlno: z.coerce.number().int().positive(),
 
   // Customer Information (pre-populated from enquiry, editable)
   customerName: z.string().optional(),
@@ -45,35 +56,35 @@ export const quotationFormSchema = z.object({
   vinNumber: z.string().optional(),
 
   // Vehicle Pricing
-  vehicleBasePrice: z.number().nonnegative('Vehicle base price cannot be negative'),
-  vehicleDiscount: z.number().max(0, 'Vehicle discount must be negative or zero').default(0),
-  vehicleNetPrice: z.number().nonnegative('Vehicle net price cannot be negative'),
+  vehicleBasePrice: z.coerce.number().nonnegative('Vehicle base price cannot be negative'),
+  vehicleDiscount: z.coerce.number().max(0, 'Vehicle discount must be negative or zero').default(0),
+  vehicleNetPrice: z.coerce.number().nonnegative('Vehicle net price cannot be negative'),
 
   // Accessories Pricing
-  accessoriesTotal: z.number().nonnegative().default(0),
-  accessoriesDiscount: z.number().max(0).default(0),
-  accessoriesNetTotal: z.number().nonnegative().default(0),
+  accessoriesTotal: z.coerce.number().nonnegative().default(0),
+  accessoriesDiscount: z.coerce.number().max(0).default(0),
+  accessoriesNetTotal: z.coerce.number().nonnegative().default(0),
 
   // Other Components
-  warrantyTotal: z.number().nonnegative().default(0),
-  insuranceTotal: z.number().nonnegative().default(0),
+  warrantyTotal: z.coerce.number().nonnegative().default(0),
+  insuranceTotal: z.coerce.number().nonnegative().default(0),
 
   // Total Calculations
-  subtotal: z.number().nonnegative('Subtotal cannot be negative'),
-  taxRate: z.number().min(0).max(100).default(15),
-  taxAmount: z.number().nonnegative('Tax amount cannot be negative'),
-  grandTotal: z.number().nonnegative('Grand total cannot be negative'),
+  subtotal: z.coerce.number().nonnegative('Subtotal cannot be negative'),
+  taxRate: z.coerce.number().min(0).max(100).default(15),
+  taxAmount: z.coerce.number().nonnegative('Tax amount cannot be negative'),
+  grandTotal: z.coerce.number().nonnegative('Grand total cannot be negative'),
 
   // Trade-in & Financing
-  tradeInValue: z.number().nonnegative().default(0),
-  tradeInAppraisalSlno: z.number().int().positive().optional(),
-  financingSchemeSlno: z.number().int().positive().optional(),
-  downpayment: z.number().nonnegative().default(0),
-  netAmountDue: z.number().nonnegative('Net amount due cannot be negative'),
+  tradeInValue: z.coerce.number().nonnegative().default(0),
+  tradeInAppraisalSlno: optionalNumber(z.coerce.number().int().positive()),
+  financingSchemeSlno: optionalNumber(z.coerce.number().int().positive()),
+  downpayment: z.coerce.number().nonnegative().default(0),
+  netAmountDue: z.coerce.number().nonnegative('Net amount due cannot be negative'),
 
   // Discount Summary
-  totalDiscountAmount: z.number().max(0).default(0),
-  discountPercentage: z.number().min(0).max(100).default(0),
+  totalDiscountAmount: z.coerce.number().max(0).default(0),
+  discountPercentage: z.coerce.number().min(0).max(100).default(0),
 
   // Quotation Details
   validUntil: z.string().optional(),
@@ -151,25 +162,71 @@ export type PassToCashierFormData = z.infer<typeof passToCashierFormSchema>;
 export const defaultLineItem: Partial<LineItemFormData> = {
   lineNumber: 1,
   itemType: 'Vehicle',
+  itemCode: '',
+  itemDescription: '',
+  itemCategory: '',
   quantity: 1,
   unitPrice: 0,
   discountAmount: 0,
   discountPercentage: 0,
   netPrice: 0,
   taxIncluded: 'N',
+  manufacturer: '',
+  partNumber: '',
+  warrantyPeriod: '',
+  notes: '',
 };
 
 export const defaultQuotationFormValues: Partial<QuotationFormData> = {
+  // Customer Information
+  customerName: '',
+  customerMobile: '',
+  customerEmail: '',
+  customerAddress: '',
+
+  // Vehicle Information
+  vehicleMake: '',
+  vehicleModel: '',
+  vehicleVariant: '',
+  vehicleYear: '',
+  vehicleColor: '',
+  vinNumber: '',
+
+  // Vehicle Pricing
+  vehicleBasePrice: 0,
   vehicleDiscount: 0,
+  vehicleNetPrice: 0,
+
+  // Accessories Pricing
   accessoriesTotal: 0,
   accessoriesDiscount: 0,
   accessoriesNetTotal: 0,
+
+  // Other Components
   warrantyTotal: 0,
   insuranceTotal: 0,
+
+  // Total Calculations
+  subtotal: 0,
   taxRate: 15,
+  taxAmount: 0,
+  grandTotal: 0,
+
+  // Trade-in & Financing
   tradeInValue: 0,
   downpayment: 0,
+  netAmountDue: 0,
+
+  // Discount Summary
   totalDiscountAmount: 0,
   discountPercentage: 0,
+
+  // Quotation Details
+  validUntil: '',
+  notes: '',
+  termsAndConditions: '',
+  internalNotes: '',
+
+  // Line Items
   lineItems: [],
 };

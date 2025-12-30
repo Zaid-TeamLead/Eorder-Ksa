@@ -1,5 +1,6 @@
 import { logger } from '@/utils/logger';
 import { db } from './database.service';
+import { validateUserId } from '@/utils/db-helpers';
 
 export const searchVehicles = async (search?: string) => {
   try {
@@ -25,7 +26,8 @@ export const searchVehicles = async (search?: string) => {
 export const getVinNumber = async (ProductCode: string, customerId: string) => {
   try {
     const vinNumber = await db.query(
-      `CALL "BI_NEGT_KSA".DMS_KSA_100014(0,'${customerId}','${ProductCode}')`
+      `CALL "BI_NEGT_KSA".DMS_KSA_100014(?, ?, ?)`,
+      [0, customerId, ProductCode]
     );
     return vinNumber;
   } catch (error) {
@@ -84,7 +86,9 @@ export const createTestVehicle = async (data: CreateTestVehicleData) => {
   try {
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     const status = data.VEHICLESTATUS || 'true';
+    const validatedUserId = validateUserId(data.CREATEDBY);
 
+    // Note: VEHICLESTSATUS is the actual database column name (legacy typo in DB schema)
     await db.execute(
       `INSERT INTO "BI_NEGT_KSA"."DMS_TESTVEHICLE"
        ("REGISTRATIONNUM", "MANUFACTURER", "MODEL", "VARIANT", "DESCRIPTION", "BODYSTYLE", "VEHICLESTSATUS", "CREATEDDATE", "CREATEDBY")
@@ -98,7 +102,7 @@ export const createTestVehicle = async (data: CreateTestVehicleData) => {
         data.BODYSTYLE || null,
         status,
         now,
-        data.CREATEDBY.substring(0, 8), // Ensure CREATEDBY is max 8 chars
+        validatedUserId, // Validate instead of silent truncation
       ]
     );
 
@@ -107,7 +111,7 @@ export const createTestVehicle = async (data: CreateTestVehicleData) => {
       `SELECT "SLNO" FROM "BI_NEGT_KSA"."DMS_TESTVEHICLE"
        WHERE "CREATEDBY" = ? AND "CREATEDDATE" = ?
        ORDER BY "SLNO" DESC LIMIT 1`,
-      [data.CREATEDBY.substring(0, 8), now]
+      [validatedUserId, now]
     );
 
     if (insertedId) {
@@ -170,6 +174,7 @@ export const updateTestVehicle = async (
       values.push(data.BODYSTYLE || null);
     }
     if (data.VEHICLESTATUS !== undefined) {
+      // Note: VEHICLESTSATUS is the actual DB column name (legacy typo in schema)
       updates.push('"VEHICLESTSATUS" = ?');
       values.push(data.VEHICLESTATUS);
     }

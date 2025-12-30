@@ -38,6 +38,13 @@ export const createFinancingSchema = z.object({
 export const updateFinancingSchema = createFinancingSchema.partial().omit({ enquirySlno: true });
 
 /**
+ * Schema for validating ID params in routes (GET/:id, PUT/:id, DELETE/:id, PATCH/:id/preferred)
+ */
+export const idParamSchema = z.object({
+  id: z.string().regex(/^\d+$/, 'ID must be a valid number'),
+});
+
+/**
  * Type inference from schema
  */
 export type CreateFinancingInput = z.infer<typeof createFinancingSchema>;

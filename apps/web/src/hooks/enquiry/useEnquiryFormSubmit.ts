@@ -84,11 +84,9 @@ export function useEnquiryFormSubmit({
         if (isEditMode && selectedEntity) {
           // Edit existing enquiry
           await updateEnquiry(selectedEntity.SLNO, payload);
-          toast.success('Enquiry updated successfully!');
         } else {
           // Create new enquiry
           await createEnquiry(payload);
-          toast.success('Enquiry created successfully!');
         }
 
         // Call success callback

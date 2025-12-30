@@ -88,7 +88,7 @@ router.put(
       getOwnerId: (enquiry) => enquiry.SLPCODE,
       getUserId: (req) => req.user?.SlpCode,
       resourceName: 'Enquiry',
-      allowUnassigned: true,
+      allowUnassigned: false, // Security: Only assigned owner can update
     })
   ),
   asyncHandler(updateEnquiry)
@@ -108,7 +108,7 @@ router.patch(
       getOwnerId: (enquiry) => enquiry.SLPCODE,
       getUserId: (req) => req.user?.SlpCode,
       resourceName: 'Enquiry',
-      allowUnassigned: true,
+      allowUnassigned: false, // Security: Only assigned owner can update status
     })
   ),
   asyncHandler(updateEnquiryStatus)
@@ -127,7 +127,7 @@ router.delete(
       getOwnerId: (enquiry) => enquiry.SLPCODE,
       getUserId: (req) => req.user?.SlpCode,
       resourceName: 'Enquiry',
-      allowUnassigned: true,
+      allowUnassigned: false, // Security: Only assigned owner can delete
     })
   ),
   asyncHandler(deleteEnquiry)

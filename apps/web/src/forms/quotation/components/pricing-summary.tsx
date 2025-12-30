@@ -22,6 +22,12 @@ export function PricingSummary() {
   const tradeInValue = useWatch({ control: form.control, name: 'tradeInValue' });
   const downpayment = useWatch({ control: form.control, name: 'downpayment' });
 
+  // Helper to ensure valid number (convert NaN, null, undefined to 0)
+  const toValidNumber = (value: any, defaultValue = 0): number => {
+    const num = Number(value);
+    return isNaN(num) || num === null || num === undefined ? defaultValue : num;
+  };
+
   // Calculate all pricing values using the custom hook
   const {
     vehicleNetPrice,
@@ -35,13 +41,13 @@ export function PricingSummary() {
     totalDiscountAmount,
     discountPercentage,
   } = usePricingCalculations({
-    vehicleBasePrice: vehicleBasePrice || 0,
-    vehicleDiscount: vehicleDiscount || 0,
-    warrantyTotal: warrantyTotal || 0,
-    insuranceTotal: insuranceTotal || 0,
-    taxRate: taxRate || 15,
-    tradeInValue: tradeInValue || 0,
-    downpayment: downpayment || 0,
+    vehicleBasePrice: toValidNumber(vehicleBasePrice, 0),
+    vehicleDiscount: toValidNumber(vehicleDiscount, 0),
+    warrantyTotal: toValidNumber(warrantyTotal, 0),
+    insuranceTotal: toValidNumber(insuranceTotal, 0),
+    taxRate: toValidNumber(taxRate, 15),
+    tradeInValue: toValidNumber(tradeInValue, 0),
+    downpayment: toValidNumber(downpayment, 0),
     lineItems: lineItems || [],
   });
 

@@ -654,7 +654,51 @@ class QuotationService {
 
       await db.execute(query, params);
 
-      // TODO: Handle line items update if data.lineItems is provided
+      // Handle line items update if provided
+      if (data.lineItems && Array.isArray(data.lineItems)) {
+        // Delete existing line items
+        const deleteLineItemsQuery = `
+          DELETE FROM "BI_NEGT_KSA"."DMS_QUOTATION_LINE_ITEMS"
+          WHERE "QUOTATION_SLNO" = ?
+        `;
+        await db.execute(deleteLineItemsQuery, [id]);
+
+        // Insert new line items
+        for (const item of data.lineItems) {
+          const lineItemQuery = `
+            INSERT INTO "BI_NEGT_KSA"."DMS_QUOTATION_LINE_ITEMS" (
+              "QUOTATION_SLNO", "LINE_NUMBER", "ITEM_TYPE", "ITEM_CODE",
+              "ITEM_DESCRIPTION", "ITEM_CATEGORY", "QUANTITY", "UNIT_PRICE",
+              "DISCOUNT_AMOUNT", "DISCOUNT_PERCENTAGE", "NET_PRICE", "TAX_INCLUDED",
+              "MANUFACTURER", "PART_NUMBER", "WARRANTY_PERIOD", "NOTES",
+              "CREATED_BY", "CREATED_DATE", "IS_DELETED"
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'N')
+          `;
+
+          await db.execute(lineItemQuery, [
+            id,
+            item.lineNumber,
+            item.itemType,
+            item.itemCode || null,
+            item.itemDescription,
+            item.itemCategory || null,
+            item.quantity,
+            item.unitPrice,
+            item.discountAmount || 0,
+            item.discountPercentage || 0,
+            item.netPrice,
+            item.taxIncluded || 'N',
+            item.manufacturer || null,
+            item.partNumber || null,
+            item.warrantyPeriod || null,
+            item.notes || null,
+            data.updatedBy,
+            currentDateTime,
+          ]);
+        }
+
+        logger.info({ quotationId: id, lineItemsCount: data.lineItems.length }, 'Line items updated');
+      }
 
       logger.info({ quotationId: id }, 'Quotation updated successfully');
 

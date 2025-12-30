@@ -115,7 +115,10 @@ export const updateQuotation = async (req: Request, res: Response) => {
     delete (updateData as any).slpCode;
   }
 
-  const result = await quotationService.updateQuotation(id, updateData, updatedBy);
+  const result = await quotationService.updateQuotation(id, {
+    ...updateData,
+    updatedBy,
+  });
   sendSuccess(res, result);
 };
 

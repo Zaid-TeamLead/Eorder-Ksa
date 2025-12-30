@@ -72,6 +72,27 @@ export function buildUpdateQuery(
 }
 
 /**
+ * Validate and truncate user ID to database constraint length
+ * Throws error if user ID exceeds maximum length
+ *
+ * @param userId - The user ID to validate
+ * @param maxLength - Maximum allowed length (default: 8)
+ * @returns Validated user ID
+ * @throws Error if user ID exceeds max length
+ */
+export function validateUserId(userId: string, maxLength: number = 8): string {
+  if (!userId) {
+    throw new Error('User ID is required');
+  }
+  if (userId.length > maxLength) {
+    throw new Error(
+      `User ID exceeds maximum length of ${maxLength} characters: "${userId}" (length: ${userId.length})`
+    );
+  }
+  return userId;
+}
+
+/**
  * Add audit fields (updatedDate, updatedBy) to update query
  */
 export function addAuditFields(
@@ -83,7 +104,7 @@ export function addAuditFields(
   updates.push('"UPDATEDDATE" = ?');
   parameters.push(currentDateTime);
   updates.push('"UPDATEDBY" = ?');
-  parameters.push(updatedBy.substring(0, 8)); // Truncate to 8 chars (DB constraint)
+  parameters.push(validateUserId(updatedBy)); // Validate instead of silent truncation
 }
 
 /**

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form } from "@/components/ui/form";
@@ -10,6 +10,7 @@ import { BookingDetails } from "./components/booking-details";
 import { bookTestDriveSchema, type BookTestDriveFormData } from "./schema";
 import { useSession } from "@/lib/auth-client";
 import axios from "axios";
+import { getBookTestDriveDefaultValues, getResetCustomerFieldsValues } from "./utils/getDefaultValues";
 
 interface BookTestDriveFormProps {
   onSubmit?: (data: BookTestDriveFormData) => void | Promise<void>;
@@ -24,87 +25,44 @@ const BookTestDriveForm = React.forwardRef<
   const session = useSession();
   const [customerSearch, setCustomerSearch] = useState("");
 
+  // Memoize default values to prevent unnecessary recalculations
+  const initialDefaultValues = useMemo(
+    () => getBookTestDriveDefaultValues(session?.data?.user.name, defaultValues),
+    [session?.data?.user.name, defaultValues]
+  );
+
   const form = useForm<BookTestDriveFormData>({
     resolver: zodResolver(bookTestDriveSchema),
-    defaultValues: {
-      customerId: "",
-      customerName: "",
-      postcode: "",
-      address: "",
-      phoneNumber: "",
-      email: "",
-      registrationNumber: "",
-      manufacturer: "",
-      model: "",
-      variant: "",
-      description: "",
-      bodyStyle: "",
-      dateOut: "",
-      timeOut: "",
-      dateIn: "",
-      timeIn: "",
-      outBranch: "",
-      outBranchName: "",
-      inBranch: "",
-      inBranchName: "",
-      salesExecutive: session?.data?.user.name || "",
-      approvedBy: "",
-      quickBooking: false,
-      newOrUsed: undefined,
-      newOrUsedLabel: "",
-      notes: "",
-      fuelOut: "",
-      fuelIn: "",
-      mileageOut: "",
-      mileageIn: "",
-      ...defaultValues,
-    },
+    defaultValues: initialDefaultValues,
   });
 
   // Reset form when defaultValues change
+  // Using useCallback to prevent infinite loop warnings
+  const resetFormWithDefaults = useCallback(
+    (overrides?: Partial<BookTestDriveFormData>) => {
+      const newDefaults = getBookTestDriveDefaultValues(
+        session?.data?.user.name,
+        overrides
+      );
+      form.reset(newDefaults);
+    },
+    [form, session?.data?.user.name]
+  );
+
   React.useEffect(() => {
     if (defaultValues) {
-      form.reset({
-        customerId: "",
-        customerName: "",
-        postcode: "",
-        address: "",
-        phoneNumber: "",
-        email: "",
-        registrationNumber: "",
-        manufacturer: "",
-        model: "",
-        variant: "",
-        description: "",
-        bodyStyle: "",
-        dateOut: "",
-        timeOut: "",
-        dateIn: "",
-        timeIn: "",
-        outBranch: "",
-        outBranchName: "",
-        inBranch: "",
-        inBranchName: "",
-        salesExecutive: session?.data?.user.name || "",
-        approvedBy: "",
-        quickBooking: false,
-        newOrUsed: undefined,
-        newOrUsedLabel: "",
-        notes: "",
-        fuelOut: "",
-        fuelIn: "",
-        mileageOut: "",
-        mileageIn: "",
-        ...defaultValues,
-      });
+      resetFormWithDefaults(defaultValues);
     }
-  }, [defaultValues, form, session?.data?.user.name]);
+  }, [defaultValues, resetFormWithDefaults]);
 
-  const handleSubmit = form.handleSubmit(async (data) => {
-    if (onSubmit) {
-      await onSubmit(data);
-    }
-  });
+  const handleSubmit = useCallback(
+    form.handleSubmit(async (data) => {
+      if (onSubmit) {
+        await onSubmit(data);
+      }
+    }),
+    [form, onSubmit]
+  );
 
   React.useImperativeHandle(
     ref,
@@ -113,105 +71,73 @@ const BookTestDriveForm = React.forwardRef<
         handleSubmit();
       },
       reset: () => {
-        form.reset({
-          customerId: "",
-          customerName: "",
-          postcode: "",
-          address: "",
-          phoneNumber: "",
-          email: "",
-          registrationNumber: "",
-          manufacturer: "",
-          model: "",
-          variant: "",
-          description: "",
-          bodyStyle: "",
-          dateOut: "",
-          timeOut: "",
-          dateIn: "",
-          timeIn: "",
-          outBranch: "",
-          outBranchName: "",
-          inBranch: "",
-          inBranchName: "",
-          salesExecutive: session?.data?.user.name || "",
-          approvedBy: "",
-          quickBooking: false,
-          newOrUsed: undefined,
-          newOrUsedLabel: "",
-          notes: "",
-          fuelOut: "",
-          fuelIn: "",
-          mileageOut: "",
-          mileageIn: "",
-        });
+        resetFormWithDefaults();
         setCustomerSearch("");
       },
     }),
-    [handleSubmit, form, session?.data?.user.name]
+    [handleSubmit, resetFormWithDefaults]
   );
 
-  const handleCustomerSearch = async (query: string) => {
-    if (onCustomerSearch) {
-      return await onCustomerSearch(query);
-    }
-    // Default implementation
-    try {
-      const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_SERVER_URL}/api/customers/search`,
-        {
-          search: query,
-          slpCode: session?.data?.user.SlpCode?.toString() || "",
-        },
-        {
-          headers: {
-            "Content-Type": "application/json",
+  const handleCustomerSearch = useCallback(
+    async (query: string) => {
+      if (onCustomerSearch) {
+        return await onCustomerSearch(query);
+      }
+      // Default implementation
+      try {
+        const response = await axios.post(
+          `${process.env.NEXT_PUBLIC_SERVER_URL}/api/customers/search`,
+          {
+            search: query,
+            slpCode: session?.data?.user.SlpCode?.toString() || "",
           },
-          withCredentials: true,
-        }
-      );
-      return response.data as { success: boolean; data: any[] };
-    } catch (error) {
-      console.error("Error searching customers:", error);
-      return undefined;
-    }
-  };
+          {
+            headers: {
+              "Content-Type": "application/json",
+            },
+            withCredentials: true,
+          }
+        );
+        return response.data as { success: boolean; data: any[] };
+      } catch (error) {
+        console.error("Error searching customers:", error);
+        return undefined;
+      }
+    },
+    [onCustomerSearch, session?.data?.user.SlpCode]
+  );
 
-  const handleCustomerSelect = (customer: any) => {
-    const addressParts = [
-      customer.Street,
-      customer.Block,
-      customer.StreetNo,
-      customer.Address2,
-      customer.Address3,
-    ]
-      .filter(Boolean)
-      .join(", ");
+  const handleCustomerSelect = useCallback(
+    (customer: any) => {
+      const addressParts = [
+        customer.Street,
+        customer.Block,
+        customer.StreetNo,
+        customer.Address2,
+        customer.Address3,
+      ]
+        .filter(Boolean)
+        .join(", ");
 
-    const fullAddress = [addressParts, customer.City, customer.County]
-      .filter(Boolean)
-      .join(", ");
+      const fullAddress = [addressParts, customer.City, customer.County]
+        .filter(Boolean)
+        .join(", ");
 
-    form.setValue("customerId", customer.CardCode || "");
-    form.setValue("customerName", customer.CardName || "");
-    form.setValue("postcode", customer.ZipCode || "");
-    form.setValue("address", fullAddress || "");
-    form.setValue("phoneNumber", customer.Cellular || customer.Phone1 || "");
-    form.setValue("email", customer.E_Mail || "");
-  };
+      form.setValue("customerId", customer.CardCode || "");
+      form.setValue("customerName", customer.CardName || "");
+      form.setValue("postcode", customer.ZipCode || "");
+      form.setValue("address", fullAddress || "");
+      form.setValue("phoneNumber", customer.Cellular || customer.Phone1 || "");
+      form.setValue("email", customer.E_Mail || "");
+    },
+    [form]
+  );
 
-  const handleNewCustomer = () => {
+  const handleNewCustomer = useCallback(() => {
     setCustomerSearch("");
-    form.reset({
-      ...form.getValues(),
-      customerId: "",
-      customerName: "",
-      postcode: "",
-      address: "",
-      phoneNumber: "",
-      email: "",
-    });
-  };
+    const resetValues = getResetCustomerFieldsValues(form.getValues());
+    form.reset(resetValues);
+  }, [form]);
 
   return (
     <Form {...form}>

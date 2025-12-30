@@ -74,60 +74,21 @@ export default function QuotationDetailPage() {
   return (
     <div className="flex flex-col gap-6 p-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={handleBack}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold">Quotation {quotation.QUOTATION_NUMBER}</h1>
-              {quotation.VERSION > 1 && (
-                <Badge variant="outline">Version {quotation.VERSION}</Badge>
-              )}
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Created on {new Date(quotation.CREATED_AT).toLocaleDateString()}
-            </p>
-          </div>
-        </div>
-
-        {/* Actions Dropdown */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline">
-              <MoreVertical className="h-4 w-4" />
-              Actions
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={handlePrint}>
-              <Printer className="mr-2 h-4 w-4" />
-              Print
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleCreateNewVersion}>
-              <Copy className="mr-2 h-4 w-4" />
-              Create New Version
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            {quotation.STATUS === 'Accepted' && (
-              <>
-                <DropdownMenuItem onClick={handlePassToCashier}>
-                  <Send className="mr-2 h-4 w-4" />
-                  Pass to Cashier
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-              </>
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" size="icon" onClick={handleBack}>
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold">Quotation {quotation.QUOTATION_NUMBER}</h1>
+            {quotation.VERSION > 1 && (
+              <Badge variant="outline">Version {quotation.VERSION}</Badge>
             )}
-            <DropdownMenuItem
-              onClick={() => setDeleteDialogOpen(true)}
-              className="text-destructive focus:text-destructive"
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Created on {new Date(quotation.CREATED_AT).toLocaleDateString()}
+          </p>
+        </div>
       </div>
 
       {/* Status Badges */}

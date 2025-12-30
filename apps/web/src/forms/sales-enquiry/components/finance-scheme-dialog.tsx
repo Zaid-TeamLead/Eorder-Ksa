@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useCallback, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -29,6 +29,11 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import type { Lender } from "@/services/financing";
+import {
+  getFinanceSchemeDefaults,
+  transformFinanceSchemeToApi,
+  type FinanceSchemeFormData as FinanceFormData,
+} from "./utils/getFinanceSchemeDefaults";
 
 const financeSchemeSchema = z.object({
   lenderCode: z.string().min(1, "Lender is required"),
@@ -42,7 +47,7 @@ const financeSchemeSchema = z.object({
   saleCode: z.string().optional(),
 });
 
-type FinanceSchemeFormData = z.infer<typeof financeSchemeSchema>;
+type FinanceSchemeFormData = FinanceFormData;
 
 interface FinanceSchemeDialogProps {
   open: boolean;
@@ -59,68 +64,42 @@ export function FinanceSchemeDialog({
   onSubmit,
   initialData,
 }: FinanceSchemeDialogProps) {
+  // Memoize default values to prevent unnecessary recalculations
+  const defaultValues = useMemo(
+    () => getFinanceSchemeDefaults(initialData),
+    [initialData]
+  );
+
   const form = useForm<FinanceSchemeFormData>({
     resolver: zodResolver(financeSchemeSchema),
-    defaultValues: {
-      lenderCode: initialData?.LENDER_CODE || "",
-      vehiclePrice: initialData?.VEHICLE_PRICE?.toString() || "",
-      term: initialData?.TERM_MONTHS?.toString() || "",
-      downpayment: initialData?.DOWNPAYMENT?.toString() || "",
-      tradeInValue: initialData?.TRADE_IN_VALUE?.toString() || "",
-      interestRate: initialData?.INTEREST_RATE?.toString() || "",
-      fda: initialData?.FDA?.toString() || "",
-      gpvBalloon: initialData?.GPV_BALLOON?.toString() || "",
-      saleCode: initialData?.SALE_CODE || "",
-    },
+    defaultValues,
   });
 
+  // Reset form when initialData changes
+  // Using useCallback to prevent infinite loop warnings
+  const resetForm = useCallback(() => {
+    const newDefaults = getFinanceSchemeDefaults(initialData);
+    form.reset(newDefaults);
+  }, [form, initialData]);
+
   useEffect(() => {
-    if (initialData) {
-      form.reset({
-        lenderCode: initialData.LENDER_CODE || "",
-        vehiclePrice: initialData.VEHICLE_PRICE?.toString() || "",
-        term: initialData.TERM_MONTHS?.toString() || "",
-        downpayment: initialData.DOWNPAYMENT?.toString() || "",
-        tradeInValue: initialData.TRADE_IN_VALUE?.toString() || "",
-        interestRate: initialData.INTEREST_RATE?.toString() || "",
-        fda: initialData.FDA?.toString() || "",
-        gpvBalloon: initialData.GPV_BALLOON?.toString() || "",
-        saleCode: initialData.SALE_CODE || "",
-      });
-    } else {
-      form.reset({
-        lenderCode: "",
-        vehiclePrice: "",
-        term: "",
-        downpayment: "",
-        tradeInValue: "",
-        interestRate: "",
-        fda: "",
-        gpvBalloon: "",
-        saleCode: "",
-      });
-    }
-  }, [initialData, form]);
+    resetForm();
+  }, [resetForm]);
 
-  const handleSubmit = (data: FinanceSchemeFormData) => {
-    const selectedLender = lenders.find((l) => l.LENDER_CODE === data.lenderCode);
+  const handleSubmit = useCallback(
+    (data: FinanceSchemeFormData) => {
+      const selectedLender = lenders.find((l) => l.LENDER_CODE === data.lenderCode);
+      const apiData = transformFinanceSchemeToApi(
+        data,
+        selectedLender?.LENDER_NAME || ""
+      );
 
-    onSubmit({
-      lenderCode: data.lenderCode,
-      lenderName: selectedLender?.LENDER_NAME || "",
-      vehiclePrice: data.vehiclePrice ? parseFloat(data.vehiclePrice) : undefined,
-      termMonths: parseInt(data.term, 10),
-      downpayment: data.downpayment ? parseFloat(data.downpayment) : undefined,
-      tradeInValue: data.tradeInValue ? parseFloat(data.tradeInValue) : undefined,
-      interestRate: data.interestRate ? parseFloat(data.interestRate) : undefined,
-      fda: data.fda ? parseFloat(data.fda) : undefined,
-      gpvBalloon: data.gpvBalloon ? parseFloat(data.gpvBalloon) : undefined,
-      saleCode: data.saleCode,
-    });
-
-    form.reset();
-    onOpenChange(false);
-  };
+      onSubmit(apiData);
+      resetForm(); // Reset to clean state
+      onOpenChange(false);
+    },
+    [lenders, onSubmit, resetForm, onOpenChange]
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
