@@ -280,6 +280,7 @@ export default function SalesEnquiry({
         onConfirm={async () => {
           if (modal.deleteId) {
             await deleteEnquiryMutation(modal.deleteId);
+            toast.success("Enquiry deleted successfully");
             modal.close();
           }
         }}

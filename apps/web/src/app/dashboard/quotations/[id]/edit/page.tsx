@@ -71,6 +71,7 @@ export default function EditQuotationPage() {
       validateFormDataForNaN(updateData);
 
       await updateQuotation(quotationId, updateData);
+      toast.success('Quotation updated successfully');
       router.push(`/dashboard/quotations/${quotationId}`);
     } catch (error: any) {
       const errorMessage = error?.response?.data?.message || 'Failed to update quotation. Please try again.';

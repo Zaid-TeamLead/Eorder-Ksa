@@ -209,7 +209,7 @@ export function SearchCombobox<T>({
               <CommandGroup>
                 {results.map((item, index) => (
                   <CommandItem
-                    key={getKey(item, index)}
+                    key={`${getKey(item, index)}-${index}`}
                     value={getDisplayValue(item)}
                     onSelect={() => handleSelect(item)}
                     className="cursor-pointer"

@@ -32,6 +32,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body
         className={`${sans.variable} ${mono.variable} ${serif.variable} antialiased`}
+        suppressHydrationWarning
       >
         <Providers>
           <div className="grid grid-rows-[auto_1fr] h-svh">{children}</div>

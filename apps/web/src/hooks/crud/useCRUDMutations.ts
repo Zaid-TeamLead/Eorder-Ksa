@@ -6,10 +6,12 @@
  *
  * Benefits:
  * - Eliminates 20+ duplicate mutation setups across modules
- * - Standardized toast notifications
  * - Automatic query invalidation
  * - Type-safe operations
- * - Consistent error handling
+ * - Consistent error logging
+ *
+ * Note: This hook does NOT show toast notifications. User-facing success/error
+ * messages should be handled by higher-level hooks like useFormSubmit.
  *
  * @example
  * ```tsx
@@ -24,8 +26,8 @@
  */
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
 import type { CRUDMutationsConfig, CRUDMutationsReturn } from "@/types/common";
+import { logger } from "@/lib/logger";
 
 export function useCRUDMutations<TCreate, TUpdate = Partial<TCreate>>({
   createFn,
@@ -40,30 +42,31 @@ export function useCRUDMutations<TCreate, TUpdate = Partial<TCreate>>({
   const createMutation = useMutation({
     mutationFn: createFn,
     onSuccess: () => {
-      toast.success(`${entityName} created successfully`);
       queryClient.invalidateQueries({ queryKey });
     },
     onError: (error: any) => {
-      toast.error(
-        error?.response?.data?.message ||
-          `Failed to create ${entityName.toLowerCase()}`
-      );
+      logger.error(`Error creating ${entityName.toLowerCase()}:`, error);
     },
   });
 
   // Update Mutation
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: TUpdate }) =>
-      updateFn(id, data),
+    mutationFn: ({ id, data }: { id: number; data: TUpdate }) => {
+      logger.info(`[useCRUDMutations] Calling ${entityName} update API with ID: ${id}, Data:`, data);
+      return updateFn(id, data);
+    },
     onSuccess: () => {
-      toast.success(`${entityName} updated successfully`);
       queryClient.invalidateQueries({ queryKey });
     },
     onError: (error: any) => {
-      toast.error(
-        error?.response?.data?.message ||
-          `Failed to update ${entityName.toLowerCase()}`
-      );
+      logger.error(`Error updating ${entityName.toLowerCase()}:`, error);
+      logger.error(`Error details:`, {
+        message: error?.message,
+        status: error?.response?.status,
+        statusText: error?.response?.statusText,
+        data: error?.response?.data,
+        url: error?.config?.url,
+      });
     },
   });
 
@@ -71,14 +74,10 @@ export function useCRUDMutations<TCreate, TUpdate = Partial<TCreate>>({
   const deleteMutation = useMutation({
     mutationFn: deleteFn,
     onSuccess: () => {
-      toast.success(`${entityName} deleted successfully`);
       queryClient.invalidateQueries({ queryKey });
     },
     onError: (error: any) => {
-      toast.error(
-        error?.response?.data?.message ||
-          `Failed to delete ${entityName.toLowerCase()}`
-      );
+      logger.error(`Error deleting ${entityName.toLowerCase()}:`, error);
     },
   });
 

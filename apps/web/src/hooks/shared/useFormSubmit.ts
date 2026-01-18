@@ -67,7 +67,7 @@ export function useFormSubmit<TFormData, TPayload, TResponse>({
 
         let response: TResponse;
         if (isEditMode && selectedEntity) {
-          logger.info(`Updating ${entityName}:`, payload);
+          logger.info(`Updating ${entityName} ID ${selectedEntity.id}:`, payload);
           response = await updateMutation(selectedEntity.id, payload);
           toast.success(`${entityName} updated successfully`);
         } else {
@@ -77,9 +77,16 @@ export function useFormSubmit<TFormData, TPayload, TResponse>({
         }
 
         onSuccess?.(response);
-      } catch (error) {
+      } catch (error: any) {
         logger.error(`Error ${isEditMode ? 'updating' : 'creating'} ${entityName}:`, error);
-        toast.error(`Failed to ${isEditMode ? 'update' : 'create'} ${entityName.toLowerCase()}`);
+
+        // Show more detailed error message if available
+        const errorMessage =
+          error?.response?.data?.message ||
+          error?.message ||
+          `Failed to ${isEditMode ? 'update' : 'create'} ${entityName.toLowerCase()}`;
+
+        toast.error(errorMessage);
         throw error;
       }
     },

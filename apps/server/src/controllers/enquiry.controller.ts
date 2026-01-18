@@ -1,12 +1,12 @@
 import type { Request, Response } from 'express';
 import EnquiryService, { type CreateEnquiryData, type UpdateEnquiryData } from '../services/enquiry.service.js';
 import { sendSuccess } from '../utils/api-response.js';
-import { getAuditUser } from '../utils/user-context.js';
+import { getAuditUserWithSlpCode } from '../utils/user-context.js';
 
 export const createEnquiry = async (req: Request, res: Response) => {
   const enquiryData: CreateEnquiryData = {
     ...req.body,
-    createdBy: getAuditUser(req),
+    createdBy: getAuditUserWithSlpCode(req),
     slpCode: req.body.slpCode || req.user?.SlpCode,
     salesperson: req.body.salesperson || req.user?.name,
   };
@@ -37,7 +37,7 @@ export const getEnquiryById = async (req: Request, res: Response) => {
 
 export const updateEnquiry = async (req: Request, res: Response) => {
   const id = req.params.id;
-  const updatedBy = getAuditUser(req);
+  const updatedBy = getAuditUserWithSlpCode(req);
   const updateData: UpdateEnquiryData = req.body;
 
   // Admin-only: Allow slpCode/salesperson changes
@@ -54,7 +54,7 @@ export const updateEnquiry = async (req: Request, res: Response) => {
 export const updateEnquiryStatus = async (req: Request, res: Response) => {
   const id = req.params.id;
   const { status, notes } = req.body;
-  const updatedBy = getAuditUser(req);
+  const updatedBy = getAuditUserWithSlpCode(req);
 
   // Resource ownership already verified by middleware
   const result = await EnquiryService.updateEnquiryStatus(
@@ -68,7 +68,7 @@ export const updateEnquiryStatus = async (req: Request, res: Response) => {
 
 export const deleteEnquiry = async (req: Request, res: Response) => {
   const id = req.params.id;
-  const deletedBy = getAuditUser(req);
+  const deletedBy = getAuditUserWithSlpCode(req);
 
   // Resource ownership already verified by middleware
   const result = await EnquiryService.deleteEnquiry(id, deletedBy);

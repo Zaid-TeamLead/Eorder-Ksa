@@ -142,17 +142,20 @@ export default function BookTestDrive({
     try {
       if (modal.isEditMode && modal.selectedEntity) {
         await updateBooking(modal.selectedEntity.SLNO, data);
+        toast.success("Test drive booking updated successfully");
         modal.close();
         setIsImmediateBooking(false);
         formRef.current?.reset();
       } else {
         await createBooking(data);
+        toast.success("Test drive booking created successfully");
         modal.close();
         setIsImmediateBooking(false);
         formRef.current?.reset();
       }
     } catch (error) {
       logger.error("Error saving booking:", error);
+      toast.error("Failed to save test drive booking");
     }
   };
 
@@ -279,7 +282,13 @@ export default function BookTestDrive({
       timeIn: endTime,
     };
 
-    await updateBooking(event.id, updateData as BookTestDriveFormData);
+    try {
+      await updateBooking(event.id, updateData as BookTestDriveFormData);
+      toast.success("Test drive booking rescheduled successfully");
+    } catch (error) {
+      logger.error("Error rescheduling booking:", error);
+      toast.error("Failed to reschedule test drive booking");
+    }
   };
 
   const columns = createColumns(handleView, handleEdit, handleDelete);
@@ -379,6 +388,7 @@ export default function BookTestDrive({
           onConfirm={async () => {
             if (modal.deleteId) {
               await deleteBooking(modal.deleteId);
+              toast.success("Test drive booking deleted successfully");
               modal.close();
             }
           }}
