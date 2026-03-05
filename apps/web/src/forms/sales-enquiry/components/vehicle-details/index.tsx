@@ -43,8 +43,8 @@ export function VehicleDetails() {
   >(new Map());
 
   // Watch form fields
-  const customerId = form.watch("customerId");
-  const variant = form.watch("variant");
+  const customerId = form.watch("customerId") || "";
+  const variant = form.watch("variant") || "";
 
   // Custom hook for VIN fetching
   const { vinNumbers, setVinNumbers, loadingVinNumbers, getVinNumber } =
@@ -359,8 +359,8 @@ export function VehicleDetails() {
         vinNumbersCount={vinNumbers.length}
         selectedVinsCount={selectedVinsWithQuantity.size}
         onOpenVinDialog={() => setVinDialogOpen(true)}
-        customerId={customerId}
-        variant={variant}
+        customerId={customerId || ""}
+        variant={variant || ""}
       />
 
       {/* Selected VINs Display */}

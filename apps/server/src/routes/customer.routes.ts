@@ -26,18 +26,18 @@ router.post(
     const { search, slpCode } = req.body;
 
     // Use structured logging with privacy considerations
-    logger.debug('Customer search request received', {
+    logger.debug({
       searchLength: search?.length || 0,
       hasSlpCode: !!slpCode,
       slpCodeProvided: slpCode !== undefined && slpCode !== '',
-    });
+    }, 'Customer search request received');
 
     const customers = await searchCustomers(search, slpCode);
 
-    logger.info('Customer search completed', {
+    logger.info({
       resultCount: customers?.length ?? 0,
       hasResults: (customers?.length ?? 0) > 0,
-    });
+    }, 'Customer search completed');
 
     return sendSuccess(res, customers);
   })

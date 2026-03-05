@@ -8,18 +8,30 @@ import type { QueryKey } from "@tanstack/react-query";
 // Generic CRUD Types
 // ============================================================================
 
-export interface CRUDMutationsConfig<TCreate, TUpdate = Partial<TCreate>> {
-  createFn: (data: TCreate) => Promise<any>;
-  updateFn: (id: number, data: TUpdate) => Promise<any>;
-  deleteFn: (id: number) => Promise<any>;
+export interface CRUDMutationsConfig<
+  TCreate,
+  TUpdate = Partial<TCreate>,
+  TCreateResult = any,
+  TUpdateResult = any,
+  TDeleteResult = any
+> {
+  createFn: (data: TCreate) => Promise<TCreateResult>;
+  updateFn: (id: number, data: TUpdate) => Promise<TUpdateResult>;
+  deleteFn: (id: number) => Promise<TDeleteResult>;
   queryKey: QueryKey;
   entityName: string;
 }
 
-export interface CRUDMutationsReturn<TCreate, TUpdate = Partial<TCreate>> {
-  create: (data: TCreate) => Promise<void>;
-  update: (id: number, data: TUpdate) => Promise<void>;
-  delete: (id: number) => Promise<void>;
+export interface CRUDMutationsReturn<
+  TCreate,
+  TUpdate = Partial<TCreate>,
+  TCreateResult = any,
+  TUpdateResult = any,
+  TDeleteResult = any
+> {
+  create: (data: TCreate) => Promise<TCreateResult>;
+  update: (id: number, data: TUpdate) => Promise<TUpdateResult>;
+  delete: (id: number) => Promise<TDeleteResult>;
   isCreating: boolean;
   isUpdating: boolean;
   isDeleting: boolean;

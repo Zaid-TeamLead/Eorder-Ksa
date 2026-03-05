@@ -52,7 +52,8 @@ router.get(
   validate(idParamSchema, 'params'),
   asyncHandler(
     checkResourceOwnership({
-      getResourceById: BookTestDriveService.getBookTestDriveById,
+      getResourceById: (id) =>
+        BookTestDriveService.getBookTestDriveById(Number(id)),
       getOwnerId: (booking) => booking.SALESEXECUTIVE,
       getUserId: (req) => req.user?.SlpCode,
       resourceName: 'Book test drive',
@@ -82,7 +83,8 @@ router.put(
   validate(updateBookTestDriveSchema, 'body'),
   asyncHandler(
     checkResourceOwnership({
-      getResourceById: BookTestDriveService.getBookTestDriveById,
+      getResourceById: (id) =>
+        BookTestDriveService.getBookTestDriveById(Number(id)),
       getOwnerId: (booking) => booking.SALESEXECUTIVE,
       getUserId: (req) => req.user?.SlpCode,
       resourceName: 'Book test drive',
@@ -101,7 +103,8 @@ router.delete(
   validate(idParamSchema, 'params'),
   asyncHandler(
     checkResourceOwnership({
-      getResourceById: BookTestDriveService.getBookTestDriveById,
+      getResourceById: (id) =>
+        BookTestDriveService.getBookTestDriveById(Number(id)),
       getOwnerId: (booking) => booking.SALESEXECUTIVE,
       getUserId: (req) => req.user?.SlpCode,
       resourceName: 'Book test drive',

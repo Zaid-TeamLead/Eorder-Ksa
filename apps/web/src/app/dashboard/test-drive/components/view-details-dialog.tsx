@@ -8,18 +8,23 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import type { BookTestDrive } from "@/services/bookTestDrive";
+import type { TestVehicle } from "@/services/vehicles";
 import { formatDate, formatDateTime } from "@/lib/formatters";
 
 interface ViewDetailsDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     booking: BookTestDrive | null;
+    vehicleDetails?: TestVehicle | null;
+    isVehicleDetailsLoading?: boolean;
 }
 
 export function ViewDetailsDialog({
     open,
     onOpenChange,
     booking,
+    vehicleDetails,
+    isVehicleDetailsLoading = false,
 }: ViewDetailsDialogProps) {
     if (!booking) return null;
 
@@ -88,31 +93,41 @@ export function ViewDetailsDialog({
                                 <label className="text-xs font-medium text-muted-foreground">
                                     Registration Number
                                 </label>
-                                <p className="text-sm mt-1">{booking.REGISTRATIONNUM || "-"}</p>
+                                <p className="text-sm mt-1">
+                                    {vehicleDetails?.REGISTRATIONNUM || booking.REGISTRATIONNUM || "-"}
+                                </p>
                             </div>
                             <div>
                                 <label className="text-xs font-medium text-muted-foreground">
                                     Manufacturer
                                 </label>
-                                <p className="text-sm mt-1">{booking.MANUFACTURER || "-"}</p>
+                                <p className="text-sm mt-1">
+                                    {vehicleDetails?.MANUFACTURER || booking.MANUFACTURER || "-"}
+                                </p>
                             </div>
                             <div>
                                 <label className="text-xs font-medium text-muted-foreground">
                                     Model
                                 </label>
-                                <p className="text-sm mt-1">{booking.MODEL || "-"}</p>
+                                <p className="text-sm mt-1">
+                                    {vehicleDetails?.MODEL || booking.MODEL || "-"}
+                                </p>
                             </div>
                             <div>
                                 <label className="text-xs font-medium text-muted-foreground">
                                     Variant
                                 </label>
-                                <p className="text-sm mt-1">{booking.VARIANT || "-"}</p>
+                                <p className="text-sm mt-1">
+                                    {vehicleDetails?.VARIANT || booking.VARIANT || "-"}
+                                </p>
                             </div>
                             <div>
                                 <label className="text-xs font-medium text-muted-foreground">
                                     Body Style
                                 </label>
-                                <p className="text-sm mt-1">{booking.BODYSTYLE || "-"}</p>
+                                <p className="text-sm mt-1">
+                                    {vehicleDetails?.BODYSTYLE || booking.BODYSTYLE || "-"}
+                                </p>
                             </div>
                             <div>
                                 <label className="text-xs font-medium text-muted-foreground">
@@ -130,8 +145,33 @@ export function ViewDetailsDialog({
                                 <label className="text-xs font-medium text-muted-foreground">
                                     Description
                                 </label>
-                                <p className="text-sm mt-1">{booking.DESCRIPTION || "-"}</p>
+                                <p className="text-sm mt-1">
+                                    {vehicleDetails?.DESCRIPTION || booking.DESCRIPTION || "-"}
+                                </p>
                             </div>
+                            <div>
+                                <label className="text-xs font-medium text-muted-foreground">
+                                    Test Vehicle ID
+                                </label>
+                                <p className="text-sm mt-1">{vehicleDetails?.SLNO || "-"}</p>
+                            </div>
+                            <div>
+                                <label className="text-xs font-medium text-muted-foreground">
+                                    Vehicle Active
+                                </label>
+                                <p className="text-sm mt-1">
+                                    {vehicleDetails
+                                        ? vehicleDetails.VEHICLESTSATUS === "true"
+                                            ? "Yes"
+                                            : "No"
+                                        : "-"}
+                                </p>
+                            </div>
+                            {isVehicleDetailsLoading && (
+                                <div className="col-span-2 text-xs text-muted-foreground">
+                                    Loading latest vehicle details...
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -270,4 +310,3 @@ export function ViewDetailsDialog({
         </Dialog>
     );
 }
-

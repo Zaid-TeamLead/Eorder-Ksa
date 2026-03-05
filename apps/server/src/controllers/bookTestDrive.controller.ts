@@ -57,7 +57,7 @@ export const getBookTestDriveById = async (req: Request, res: Response) => {
  * @note Resource ownership already verified by middleware
  */
 export const updateBookTestDrive = async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id, 10);
+  const id = Number(req.params.id);
   const updatedBy = getAuditUserWithSlpCode(req);
 
   const booking = await BookTestDriveService.updateBookTestDrive(
@@ -79,7 +79,7 @@ export const updateBookTestDrive = async (req: Request, res: Response) => {
  * @note Resource ownership already verified by middleware
  */
 export const deleteBookTestDrive = async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id, 10);
+  const id = Number(req.params.id);
   const deletedBy = getAuditUserWithSlpCode(req);
 
   const result = await BookTestDriveService.deleteBookTestDrive(id, deletedBy);
@@ -91,7 +91,7 @@ export const deleteBookTestDrive = async (req: Request, res: Response) => {
  * @route GET /api/book-test-drive/currently-booked
  */
 export const getCurrentlyBookedVehicles = async (
-  req: Request,
+  _req: Request,
   res: Response
 ) => {
   const bookedVehicles =

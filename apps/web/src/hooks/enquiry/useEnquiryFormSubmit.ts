@@ -2,6 +2,7 @@ import { useEnquiryMutations } from '../entities/useEnquiryMutations';
 import type { SalesEnquiryFormSubmission } from '@/forms/sales-enquiry';
 import type { SalesEnquiry } from '@/services/enquiry';
 import { useFormSubmit } from '@/hooks/shared/useFormSubmit';
+import type { CreateEnquiryData } from '@/types/enquiry';
 
 export interface UseEnquiryFormSubmitParams {
   isEditMode: boolean;
@@ -17,7 +18,9 @@ export interface UseEnquiryFormSubmitReturn {
 /**
  * Transform form data to API payload format
  */
-function transformEnquiryFormData(data: SalesEnquiryFormSubmission) {
+function transformEnquiryFormData(
+  data: SalesEnquiryFormSubmission
+): CreateEnquiryData {
   return {
     customerId: data.customerId,
     customerName: data.customerName,

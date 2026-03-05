@@ -24,7 +24,7 @@ export const createTradeInAppraisal = async (req: Request, res: Response) => {
  * Get trade-in appraisal by ID
  */
 export const getTradeInAppraisalById = async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id, 10);
+  const id = Number(req.params.id);
 
   const appraisal = await tradeInAppraisalService.getTradeInAppraisalById(id);
 
@@ -39,7 +39,7 @@ export const getTradeInAppraisalById = async (req: Request, res: Response) => {
  * Get trade-in appraisal by enquiry ID
  */
 export const getTradeInAppraisalByEnquiryId = async (req: Request, res: Response) => {
-  const enquiryId = parseInt(req.params.enquiryId, 10);
+  const enquiryId = Number(req.params.enquiryId);
 
   const appraisal = await tradeInAppraisalService.getTradeInAppraisalByEnquiryId(enquiryId);
 
@@ -51,7 +51,7 @@ export const getTradeInAppraisalByEnquiryId = async (req: Request, res: Response
  * Update trade-in appraisal
  */
 export const updateTradeInAppraisal = async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id, 10);
+  const id = Number(req.params.id);
   const userId = getAuditUser(req);
 
   // Check if appraisal exists
@@ -73,7 +73,7 @@ export const updateTradeInAppraisal = async (req: Request, res: Response) => {
  * Request appraisal - assign to a user
  */
 export const requestAppraisal = async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id, 10);
+  const id = Number(req.params.id);
   const userId = getAuditUser(req);
 
   // Check if appraisal exists
@@ -96,7 +96,7 @@ export const requestAppraisal = async (req: Request, res: Response) => {
  * Update appraisal status
  */
 export const updateAppraisalStatus = async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id, 10);
+  const id = Number(req.params.id);
   const userId = getAuditUser(req);
 
   // Check if appraisal exists
@@ -120,7 +120,7 @@ export const updateAppraisalStatus = async (req: Request, res: Response) => {
  * Delete trade-in appraisal (soft delete)
  */
 export const deleteTradeInAppraisal = async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id, 10);
+  const id = Number(req.params.id);
   const userId = getAuditUser(req);
 
   // Check if appraisal exists

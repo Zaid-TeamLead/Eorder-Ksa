@@ -16,7 +16,7 @@ import { Search, Loader2, MapPin, DollarSign, Car, Building2, Phone, Mail, User,
 import { useDebounce } from "@/hooks/useDebounce";
 import { cn } from "@/lib/utils";
 import { DataTable } from "./components/data-table";
-import { columns } from "./components/columns";
+import { columns, type VehicleHistory } from "./components/columns";
 import { logger } from '@/lib/logger';
 
 interface Customer {
@@ -53,8 +53,8 @@ const CustomerMaster = () => {
                     debouncedSearch.toString(),
                     session.user.SlpCode.toString()
                 );
-                if (result?.success && result.data) {
-                    setCustomers(result.data);
+                if (Array.isArray(result)) {
+                    setCustomers(result);
                     setShowResults(true);
                 } else {
                     setCustomers([]);
@@ -225,10 +225,10 @@ const CustomerMaster = () => {
                                         <div className="flex items-center justify-center py-3">
                                             <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
                                         </div>
-                                    ) : addressData?.success && addressData?.data ? (
-                                        Array.isArray(addressData.data) && addressData.data.length > 0 ? (
+                                    ) : Array.isArray(addressData) ? (
+                                        addressData.length > 0 ? (
                                             <div className="space-y-2.5">
-                                                {addressData.data.map((address: any, index: number) => (
+                                                {addressData.map((address: any, index: number) => (
                                                     <div
                                                         key={index}
                                                         className={cn(
@@ -295,10 +295,10 @@ const CustomerMaster = () => {
                                         <div className="flex items-center justify-center py-3">
                                             <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
                                         </div>
-                                    ) : financialData?.success && financialData?.data ? (
-                                        Array.isArray(financialData.data) && financialData.data.length > 0 ? (
+                                    ) : Array.isArray(financialData) ? (
+                                        financialData.length > 0 ? (
                                             <div className="space-y-3">
-                                                {financialData.data.map((financial: any, index: number) => (
+                                                {financialData.map((financial: any, index: number) => (
                                                     <div key={index} className="space-y-2.5">
                                                         {/* Key Financial Metrics */}
                                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -434,11 +434,11 @@ const CustomerMaster = () => {
                                         <div className="flex items-center justify-center py-3">
                                             <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
                                         </div>
-                                    ) : vehicleHistoryData?.success && vehicleHistoryData?.data ? (
-                                        Array.isArray(vehicleHistoryData.data) && vehicleHistoryData.data.length > 0 ? (
+                                    ) : Array.isArray(vehicleHistoryData) ? (
+                                        vehicleHistoryData.length > 0 ? (
                                             <DataTable
                                                 columns={columns}
-                                                data={vehicleHistoryData.data}
+                                                data={vehicleHistoryData as unknown as VehicleHistory[]}
                                             />
                                         ) : (
                                             <p className="text-xs text-muted-foreground text-center py-2">No vehicle purchase history available</p>

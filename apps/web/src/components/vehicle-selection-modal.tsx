@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { IconSearch, IconCheck } from "@tabler/icons-react";
-import type { VehicleInventory } from "@/services/vehicleInventory";
+import type { VehicleInventory } from "@/services/vehicles";
 import { ButtonLoading } from "@/components/shared/button-loading";
 
 interface VehicleSelectionModalProps {

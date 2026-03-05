@@ -56,7 +56,7 @@ export function useFinancingMutations(
 
   // Set preferred scheme mutation (custom, not part of CRUD)
   const setPreferredMutation = useMutation({
-    mutationFn: ({ id }: { id: number }) => setPreferredScheme(id, enquiryId),
+    mutationFn: ({ id }: { id: number }) => setPreferredScheme(id),
     onSuccess: () => {
       toast.success("Preferred scheme updated successfully");
       queryClient.invalidateQueries({

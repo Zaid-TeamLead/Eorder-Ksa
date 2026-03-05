@@ -3,6 +3,12 @@
  */
 
 import { z } from "zod";
+import type {
+  CreateFinancingData as ServiceCreateFinancingData,
+  Financing as ServiceFinancing,
+  Lender as ServiceLender,
+  UpdateFinancingData as ServiceUpdateFinancingData,
+} from "@/services/financing";
 
 // ============================================================================
 // Form Validation Schemas
@@ -26,59 +32,15 @@ export type FinanceSchemeFormData = z.infer<typeof financeSchemeFormSchema>;
 // API Request Types
 // ============================================================================
 
-export interface CreateFinancingData {
-  enquirySlno: number;
-  lenderCode: string;
-  lenderName: string;
-  vehiclePrice?: number;
-  termMonths: number;
-  downpayment?: number;
-  tradeInValue?: number;
-  interestRate?: number;
-  fda?: number;
-  monthlyPayment?: number;
-  gpvBalloon?: number;
-  saleCode?: string;
-}
-
-export interface UpdateFinancingData
-  extends Partial<Omit<CreateFinancingData, "enquirySlno">> {}
+export type CreateFinancingData = ServiceCreateFinancingData;
+export type UpdateFinancingData = ServiceUpdateFinancingData;
 
 // ============================================================================
 // API Response Types (Matching Database Schema)
 // ============================================================================
 
-export interface Financing {
-  SLNO: number;
-  ENQUIRY_SLNO: number;
-  LENDER_CODE: string;
-  LENDER_NAME: string;
-  VEHICLE_PRICE: string | null;
-  DOWNPAYMENT: string | null;
-  TERM_MONTHS: number;
-  INTEREST_RATE: string | null;
-  MONTHLY_PAYMENT: string | null;
-  FDA: string | null;
-  GPV_BALLOON: string | null;
-  SALE_CODE: string | null;
-  TRADE_IN_VALUE: string | null;
-  IS_SELECTED: string;
-  STATUS: string;
-  IS_DELETED: string;
-  CREATED_DATE: string;
-  CREATED_BY: string | null;
-  LAST_UPDATED_DATE: string | null;
-  LAST_UPDATED_BY: string | null;
-}
-
-export interface Lender {
-  LENDER_CODE: string;
-  LENDER_NAME: string;
-  DESCRIPTION: string | null;
-  IS_ACTIVE: string;
-  CREATED_DATE: string;
-  CREATED_BY: string | null;
-}
+export type Financing = ServiceFinancing;
+export type Lender = ServiceLender;
 
 // ============================================================================
 // Hook Return Types

@@ -2,7 +2,7 @@ import { useQuery, type UseQueryOptions } from "@tanstack/react-query";
 
 interface UseEntityQueryOptions<T> {
   /** React Query key for this query */
-  queryKey: unknown[];
+  queryKey: readonly unknown[];
   /** Function to fetch the data */
   queryFn: () => Promise<T>;
   /** Default value to return when data is undefined. Default: [] */

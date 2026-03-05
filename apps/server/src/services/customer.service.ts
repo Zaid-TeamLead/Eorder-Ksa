@@ -14,7 +14,7 @@ export const searchCustomers = async (search: string, slpCode?: string) => {
       return customers;
     } catch (spError) {
       // If stored procedure fails, use direct query
-      logger.warn('Stored procedure failed, using direct query', spError);
+      logger.warn({ error: spError }, 'Stored procedure failed, using direct query');
 
       // First, try to find which schema has OCRD table by querying system catalog
       let schemaName: string | null = null;
@@ -28,10 +28,10 @@ export const searchCustomers = async (search: string, slpCode?: string) => {
 
         if (schemaResult && schemaResult.length > 0) {
           schemaName = schemaResult[0].SCHEMA_NAME;
-          logger.info(`Found OCRD table in schema: ${schemaName}`);
-        }
-      } catch (err) {
-        logger.warn('Could not query system catalog to find OCRD schema', err);
+        logger.info({ schemaName }, 'Found OCRD table in schema');
+      }
+    } catch (err) {
+        logger.warn({ error: err }, 'Could not query system catalog to find OCRD schema');
       }
 
       // If system catalog query didn't work, try querying all schemas
@@ -43,14 +43,14 @@ export const searchCustomers = async (search: string, slpCode?: string) => {
             WHERE HAS_PRIVILEGES = 'TRUE'
           `);
 
-          logger.info(`Searching OCRD in ${allSchemas.length} accessible schemas...`);
+          logger.info({ schemaCount: allSchemas.length }, 'Searching OCRD in accessible schemas');
 
           for (const schemaRow of allSchemas) {
             const schema = schemaRow.SCHEMA_NAME;
             try {
               await db.query(`SELECT TOP 1 "CardCode" FROM "${schema}"."OCRD"`);
               schemaName = schema;
-              logger.info(`Found OCRD table in schema: ${schema}`);
+              logger.info({ schema }, 'Found OCRD table in schema');
               break;
             } catch (err) {
               // Table doesn't exist in this schema, continue
@@ -58,7 +58,7 @@ export const searchCustomers = async (search: string, slpCode?: string) => {
             }
           }
         } catch (err) {
-          logger.warn('Could not query schemas list', err);
+          logger.warn({ error: err }, 'Could not query schemas list');
         }
       }
 
@@ -107,10 +107,10 @@ export const searchCustomers = async (search: string, slpCode?: string) => {
 
       // Log the first customer to help debug
       if (customers && customers.length > 0) {
-        logger.info('Customer search result sample:', {
+        logger.info({
           count: customers.length,
           firstCustomer: customers[0]
-        });
+        }, 'Customer search result sample');
       }
 
       return customers;

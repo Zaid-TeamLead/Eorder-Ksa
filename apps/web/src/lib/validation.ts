@@ -138,11 +138,11 @@ export function transformEmptyToUndefined<T extends Record<string, any>>(data: T
 /**
  * Create enum validator with custom error message
  */
-export function createEnumValidator<T extends readonly string[]>(
+export function createEnumValidator<T extends readonly [string, ...string[]]>(
   values: T,
   fieldName: string
 ) {
-  return z.enum(values as [string, ...string[]], {
-    errorMap: () => ({ message: `Invalid ${fieldName}` }),
+  return z.enum(values, {
+    error: `Invalid ${fieldName}`,
   });
 }

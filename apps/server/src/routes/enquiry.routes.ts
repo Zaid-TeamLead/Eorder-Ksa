@@ -64,7 +64,7 @@ router.get(
   validate(idParamSchema, 'params'),
   asyncHandler(
     checkResourceOwnership({
-      getResourceById: EnquiryService.getEnquiryById,
+      getResourceById: (id) => EnquiryService.getEnquiryById(Number(id)),
       getOwnerId: (enquiry) => enquiry.SLPCODE,
       getUserId: (req) => req.user?.SlpCode,
       resourceName: 'Enquiry',
@@ -84,7 +84,7 @@ router.put(
   validate(updateEnquirySchema),
   asyncHandler(
     checkResourceOwnership({
-      getResourceById: EnquiryService.getEnquiryById,
+      getResourceById: (id) => EnquiryService.getEnquiryById(Number(id)),
       getOwnerId: (enquiry) => enquiry.SLPCODE,
       getUserId: (req) => req.user?.SlpCode,
       resourceName: 'Enquiry',
@@ -104,7 +104,7 @@ router.patch(
   validate(updateStatusSchema),
   asyncHandler(
     checkResourceOwnership({
-      getResourceById: EnquiryService.getEnquiryById,
+      getResourceById: (id) => EnquiryService.getEnquiryById(Number(id)),
       getOwnerId: (enquiry) => enquiry.SLPCODE,
       getUserId: (req) => req.user?.SlpCode,
       resourceName: 'Enquiry',
@@ -123,7 +123,7 @@ router.delete(
   validate(idParamSchema, 'params'),
   asyncHandler(
     checkResourceOwnership({
-      getResourceById: EnquiryService.getEnquiryById,
+      getResourceById: (id) => EnquiryService.getEnquiryById(Number(id)),
       getOwnerId: (enquiry) => enquiry.SLPCODE,
       getUserId: (req) => req.user?.SlpCode,
       resourceName: 'Enquiry',

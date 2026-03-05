@@ -62,7 +62,7 @@ const tradeInSchema = z.object({
   tradeInYear: optionalString,
   tradeInKms: optionalString,
   tradeInExpectedPrice: optionalString,
-}).optional();
+});
 
 // Enquiry details
 const enquiryDetailsSchema = z.object({

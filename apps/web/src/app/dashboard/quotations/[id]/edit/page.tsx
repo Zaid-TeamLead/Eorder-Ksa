@@ -44,7 +44,7 @@ export default function EditQuotationPage() {
   const { updateQuotation, isUpdating } = useQuotationMutations();
 
   const form = useForm<QuotationFormData>({
-    resolver: zodResolver(quotationFormSchema),
+    resolver: zodResolver(quotationFormSchema) as any,
     defaultValues: defaultQuotationFormValues,
   });
 

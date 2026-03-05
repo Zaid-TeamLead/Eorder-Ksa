@@ -5,7 +5,7 @@ import { z } from 'zod';
 // ============================================================================
 
 // Helper for optional numeric fields - converts empty string to undefined
-const optionalNumber = (schema: z.ZodNumber) =>
+const optionalNumber = <T extends z.ZodType<number, any, any>>(schema: T) =>
   z.preprocess((val) => {
     if (val === '' || val === null || val === undefined) return undefined;
     return val;

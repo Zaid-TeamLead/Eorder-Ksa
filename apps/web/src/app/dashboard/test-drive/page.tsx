@@ -14,12 +14,20 @@ import { createColumns } from "./components/columns";
 import { ViewDetailsDialog } from "./components/view-details-dialog";
 import { TestDriveCalendar } from "./components/test-drive-calendar";
 import { IconTable, IconCalendar } from "@tabler/icons-react";
-import type { SlotInfo } from "react-big-calendar";
 
 import { useEntityModal } from "@/hooks/crud/useEntityModal";
 import { useTestDrives } from "@/hooks/entities/useTestDrives";
 import { useTestDriveMutations } from "@/hooks/entities/useTestDriveMutations";
-import type { BookTestDrive } from "@/services/bookTestDrive";
+import type {
+  BookTestDrive,
+  CreateBookTestDriveData,
+  UpdateBookTestDriveData,
+} from "@/services/bookTestDrive";
+import {
+  getAllTestVehicles,
+  getTestVehicleById,
+  type TestVehicle,
+} from "@/services/vehicles";
 import { logger } from '@/lib/logger';
 
 // Helper function to extract date from date string
@@ -107,6 +115,41 @@ const getFormDefaultValues = (
   };
 };
 
+const toBookingPayload = (
+  data: BookTestDriveFormData
+): CreateBookTestDriveData => ({
+  customerId: data.customerId,
+  customerName: data.customerName,
+  postcode: data.postcode,
+  address: data.address,
+  phoneNumber: data.phoneNumber,
+  email: data.email,
+  registrationNumber: data.registrationNumber,
+  manufacturer: data.manufacturer,
+  model: data.model,
+  variant: data.variant,
+  description: data.description,
+  bodyStyle: data.bodyStyle,
+  dateOut: data.dateOut,
+  timeOut: data.timeOut,
+  dateIn: data.dateIn,
+  timeIn: data.timeIn,
+  outBranch: data.outBranch,
+  outBranchName: data.outBranchName,
+  inBranch: data.inBranch,
+  inBranchName: data.inBranchName,
+  salesExecutive: data.salesExecutive,
+  approvedBy: data.approvedBy,
+  quickBooking: data.quickBooking,
+  newOrUsed: data.newOrUsed === "N" || data.newOrUsed === "U" ? data.newOrUsed : undefined,
+  newOrUsedLabel: data.newOrUsedLabel,
+  notes: data.notes,
+  fuelOut: data.fuelOut,
+  fuelIn: data.fuelIn,
+  mileageOut: data.mileageOut,
+  mileageIn: data.mileageIn,
+});
+
 export default function BookTestDrive({
   searchParams,
 }: {
@@ -124,6 +167,10 @@ export default function BookTestDrive({
   const modal = useEntityModal<BookTestDrive>();
   const [isImmediateBooking, setIsImmediateBooking] = useState(immediate);
   const [viewMode, setViewMode] = useState<"table" | "calendar">("table");
+  const [selectedVehicleDetails, setSelectedVehicleDetails] =
+    useState<TestVehicle | null>(null);
+  const [isVehicleDetailsLoading, setIsVehicleDetailsLoading] = useState(false);
+  const viewRequestRef = useRef(0);
 
   // Initialize modal based on URL params
   React.useEffect(() => {
@@ -139,15 +186,17 @@ export default function BookTestDrive({
   const { createBooking, updateBooking, deleteBooking } = useTestDriveMutations();
 
   const handleSubmit = async (data: BookTestDriveFormData) => {
+    const payload = toBookingPayload(data);
+
     try {
       if (modal.isEditMode && modal.selectedEntity) {
-        await updateBooking(modal.selectedEntity.SLNO, data);
+        await updateBooking(modal.selectedEntity.SLNO, payload);
         toast.success("Test drive booking updated successfully");
         modal.close();
         setIsImmediateBooking(false);
         formRef.current?.reset();
       } else {
-        await createBooking(data);
+        await createBooking(payload);
         toast.success("Test drive booking created successfully");
         modal.close();
         setIsImmediateBooking(false);
@@ -194,8 +243,35 @@ export default function BookTestDrive({
     modal.openCreate();
   };
 
-  const handleView = (booking: BookTestDrive) => {
+  const handleView = async (booking: BookTestDrive) => {
     modal.openView(booking);
+    setSelectedVehicleDetails(null);
+
+    if (!booking.REGISTRATIONNUM) return;
+
+    const requestId = ++viewRequestRef.current;
+    setIsVehicleDetailsLoading(true);
+
+    try {
+      const vehicles = await getAllTestVehicles();
+      const matchedVehicle = vehicles.find(
+        (vehicle) => vehicle.REGISTRATIONNUM === booking.REGISTRATIONNUM
+      );
+
+      if (!matchedVehicle?.SLNO) return;
+
+      const vehicleDetails = await getTestVehicleById(matchedVehicle.SLNO);
+
+      if (viewRequestRef.current === requestId) {
+        setSelectedVehicleDetails(vehicleDetails);
+      }
+    } catch (error) {
+      logger.error("Error fetching vehicle details for booking view:", error);
+    } finally {
+      if (viewRequestRef.current === requestId) {
+        setIsVehicleDetailsLoading(false);
+      }
+    }
   };
 
   const handleEdit = (booking: BookTestDrive) => {
@@ -206,7 +282,7 @@ export default function BookTestDrive({
     modal.openDelete(id);
   };
 
-  const handleSlotSelect = (slotInfo: SlotInfo) => {
+  const handleSlotSelect = () => {
     // Create a new booking with the selected time slot
     modal.openCreate();
     // Could potentially pre-fill date/time from slotInfo if needed
@@ -275,7 +351,7 @@ export default function BookTestDrive({
     const endDate = end.toISOString().split("T")[0];
 
     // Update the booking with new dates/times using mutation hook
-    const updateData: Partial<BookTestDriveFormData> = {
+    const updateData: UpdateBookTestDriveData = {
       dateOut: startDate,
       timeOut: startTime,
       dateIn: endDate,
@@ -283,7 +359,7 @@ export default function BookTestDrive({
     };
 
     try {
-      await updateBooking(event.id, updateData as BookTestDriveFormData);
+      await updateBooking(event.id, updateData);
       toast.success("Test drive booking rescheduled successfully");
     } catch (error) {
       logger.error("Error rescheduling booking:", error);
@@ -372,14 +448,22 @@ export default function BookTestDrive({
             ref={formRef}
             onSubmit={handleSubmit}
             onCustomerSearch={handleCustomerSearch}
-            defaultValues={getFormDefaultValues(modal.selectedEntity, isImmediateBooking, vehicleVin, session?.data?.user.name)}
+            defaultValues={getFormDefaultValues(modal.selectedEntity, isImmediateBooking, vehicleVin, session?.user.name)}
           />
         </CrudDialog>
 
         <ViewDetailsDialog
           open={modal.isViewMode}
-          onOpenChange={(open) => !open && modal.close()}
+          onOpenChange={(open) => {
+            if (!open) {
+              modal.close();
+              setSelectedVehicleDetails(null);
+              setIsVehicleDetailsLoading(false);
+            }
+          }}
           booking={modal.selectedEntity}
+          vehicleDetails={selectedVehicleDetails}
+          isVehicleDetailsLoading={isVehicleDetailsLoading}
         />
 
         <DeleteConfirmationDialog

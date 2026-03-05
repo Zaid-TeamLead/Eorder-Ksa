@@ -71,7 +71,7 @@ export function FinanceSchemeDialog({
   );
 
   const form = useForm<FinanceSchemeFormData>({
-    resolver: zodResolver(financeSchemeSchema),
+    resolver: zodResolver(financeSchemeSchema) as any,
     defaultValues,
   });
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
-import { Calendar, dateFnsLocalizer, View, SlotInfo } from "react-big-calendar";
+import { Calendar, dateFnsLocalizer } from "react-big-calendar";
 import withDragAndDrop from "react-big-calendar/lib/addons/dragAndDrop";
 import { format, parse, startOfWeek, getDay } from "date-fns";
 import { enUS } from "date-fns/locale";
@@ -36,10 +36,12 @@ interface TestDriveEvent {
   status?: string;
 }
 
+type CalendarView = "month" | "week" | "day" | "agenda" | "work_week";
+
 interface TestDriveCalendarProps {
   bookings: BookTestDrive[];
   onEventClick?: (booking: BookTestDrive) => void;
-  onSlotSelect?: (slotInfo: SlotInfo) => void;
+  onSlotSelect?: (slotInfo: unknown) => void;
   onEventDrop?: (event: TestDriveEvent, start: Date, end: Date) => void;
 }
 
@@ -49,7 +51,7 @@ export function TestDriveCalendar({
   onSlotSelect,
   onEventDrop,
 }: TestDriveCalendarProps) {
-  const [view, setView] = useState<View>("month");
+  const [view, setView] = useState<CalendarView>("month");
   const [date, setDate] = useState(new Date());
 
   // Convert bookings to calendar events
@@ -92,7 +94,7 @@ export function TestDriveCalendar({
     onEventClick?.(event.resource);
   };
 
-  const handleSelectSlot = (slotInfo: SlotInfo) => {
+  const handleSelectSlot = (slotInfo: unknown) => {
     onSlotSelect?.(slotInfo);
   };
 
@@ -100,7 +102,7 @@ export function TestDriveCalendar({
     setDate(newDate);
   };
 
-  const handleViewChange = (newView: View) => {
+  const handleViewChange = (newView: CalendarView) => {
     setView(newView);
   };
 

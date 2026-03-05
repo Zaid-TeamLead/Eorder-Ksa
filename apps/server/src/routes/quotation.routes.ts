@@ -131,7 +131,7 @@ router.put(
   validate(updateQuotationSchema),
   asyncHandler(
     checkResourceOwnership({
-      getResourceById: quotationService.getQuotationById,
+      getResourceById: (id) => quotationService.getQuotationById(Number(id)),
       getOwnerId: (quotation) => quotation.SLPCODE,
       getUserId: (req) => req.user?.SlpCode,
       resourceName: 'Quotation',
@@ -150,7 +150,7 @@ router.delete(
   validate(getQuotationByIdSchema, 'params'),
   asyncHandler(
     checkResourceOwnership({
-      getResourceById: quotationService.getQuotationById,
+      getResourceById: (id) => quotationService.getQuotationById(Number(id)),
       getOwnerId: (quotation) => quotation.SLPCODE,
       getUserId: (req) => req.user?.SlpCode,
       resourceName: 'Quotation',
@@ -174,7 +174,7 @@ router.post(
   validate(requestDiscountApprovalSchema),
   asyncHandler(
     checkResourceOwnership({
-      getResourceById: quotationService.getQuotationById,
+      getResourceById: (id) => quotationService.getQuotationById(Number(id)),
       getOwnerId: (quotation) => quotation.SLPCODE,
       getUserId: (req) => req.user?.SlpCode,
       resourceName: 'Quotation',
@@ -209,7 +209,7 @@ router.post(
   validate(passToCashierSchema),
   asyncHandler(
     checkResourceOwnership({
-      getResourceById: quotationService.getQuotationById,
+      getResourceById: (id) => quotationService.getQuotationById(Number(id)),
       getOwnerId: (quotation) => quotation.SLPCODE,
       getUserId: (req) => req.user?.SlpCode,
       resourceName: 'Quotation',
@@ -233,7 +233,7 @@ router.post(
   validate(createActivitySchema),
   asyncHandler(
     checkResourceOwnership({
-      getResourceById: quotationService.getQuotationById,
+      getResourceById: (id) => quotationService.getQuotationById(Number(id)),
       getOwnerId: (quotation) => quotation.SLPCODE,
       getUserId: (req) => req.user?.SlpCode,
       resourceName: 'Quotation',
@@ -252,7 +252,7 @@ router.get(
   validate(getQuotationByIdSchema, 'params'),
   asyncHandler(
     checkResourceOwnership({
-      getResourceById: quotationService.getQuotationById,
+      getResourceById: (id) => quotationService.getQuotationById(Number(id)),
       getOwnerId: (quotation) => quotation.SLPCODE,
       getUserId: (req) => req.user?.SlpCode,
       resourceName: 'Quotation',

@@ -340,7 +340,7 @@ export function DataTable({
   buttonName
 }: {
   data: z.infer<typeof schema>[]
-  onNewEnquiry: () => void;
+  onNewEnquiry?: () => void;
   buttonName?: string;
 }) {
   const [data, setData] = React.useState(() => initialData)
@@ -414,7 +414,7 @@ export function DataTable({
         </Label>
         <div className="w-full">
           <div className="flex justify-end items-center gap-2">
-            <Button variant="outline" size="sm" onClick={onNewEnquiry}>
+            <Button variant="outline" size="sm" onClick={onNewEnquiry ?? (() => {})}>
               <IconPlus />
               <span className="hidden lg:inline">{buttonName}</span>
             </Button>

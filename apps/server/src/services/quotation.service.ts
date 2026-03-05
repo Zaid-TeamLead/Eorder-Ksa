@@ -1,15 +1,14 @@
 import { db } from './database.service.js';
 import { logger } from '../utils/logger.js';
-import { addAuditFields } from '../utils/db-helpers.js';
 import type {
   CreateQuotationInput,
   UpdateQuotationInput,
   SupersedeQuotationInput,
-  LineItemInput,
   RequestDiscountApprovalInput,
   ApproveDiscountInput,
   PassToCashierInput,
   CreateActivityInput,
+  DiscountApprovalFilters,
 } from '../schemas/quotation.schema.js';
 
 // =====================================================
@@ -829,6 +828,7 @@ class QuotationService {
       // Copy line items from parent or use new ones
       const lineItemsToInsert = data.lineItems || parent.lineItems || [];
       for (const item of lineItemsToInsert) {
+        const normalizedItem = item as any;
         const lineItemQuery = `
           INSERT INTO "BI_NEGT_KSA"."DMS_QUOTATION_LINE_ITEMS" (
             "QUOTATION_SLNO", "LINE_NUMBER", "ITEM_TYPE", "ITEM_CODE",
@@ -841,21 +841,21 @@ class QuotationService {
 
         await db.execute(lineItemQuery, [
           quotationId,
-          item.lineNumber || item.LINE_NUMBER,
-          item.itemType || item.ITEM_TYPE,
-          item.itemCode || item.ITEM_CODE || null,
-          item.itemDescription || item.ITEM_DESCRIPTION,
-          item.itemCategory || item.ITEM_CATEGORY || null,
-          item.quantity || item.QUANTITY || 1,
-          item.unitPrice || item.UNIT_PRICE,
-          item.discountAmount || item.DISCOUNT_AMOUNT || 0,
-          item.discountPercentage || item.DISCOUNT_PERCENTAGE || 0,
-          item.netPrice || item.NET_PRICE,
-          item.taxIncluded || item.TAX_INCLUDED || 'N',
-          item.manufacturer || item.MANUFACTURER || null,
-          item.partNumber || item.PART_NUMBER || null,
-          item.warrantyPeriod || item.WARRANTY_PERIOD || null,
-          item.notes || item.NOTES || null,
+          normalizedItem.lineNumber || normalizedItem.LINE_NUMBER,
+          normalizedItem.itemType || normalizedItem.ITEM_TYPE,
+          normalizedItem.itemCode || normalizedItem.ITEM_CODE || null,
+          normalizedItem.itemDescription || normalizedItem.ITEM_DESCRIPTION,
+          normalizedItem.itemCategory || normalizedItem.ITEM_CATEGORY || null,
+          normalizedItem.quantity || normalizedItem.QUANTITY || 1,
+          normalizedItem.unitPrice || normalizedItem.UNIT_PRICE,
+          normalizedItem.discountAmount || normalizedItem.DISCOUNT_AMOUNT || 0,
+          normalizedItem.discountPercentage || normalizedItem.DISCOUNT_PERCENTAGE || 0,
+          normalizedItem.netPrice || normalizedItem.NET_PRICE,
+          normalizedItem.taxIncluded || normalizedItem.TAX_INCLUDED || 'N',
+          normalizedItem.manufacturer || normalizedItem.MANUFACTURER || null,
+          normalizedItem.partNumber || normalizedItem.PART_NUMBER || null,
+          normalizedItem.warrantyPeriod || normalizedItem.WARRANTY_PERIOD || null,
+          normalizedItem.notes || normalizedItem.NOTES || null,
           data.createdBy,
           currentDateTime,
         ]);
@@ -1092,7 +1092,12 @@ class QuotationService {
   /**
    * Log activity
    */
-  async logActivity(data: CreateActivityInput & { createdBy: string }): Promise<void> {
+  async logActivity(
+    data: Omit<CreateActivityInput, 'isFollowUp'> & {
+      createdBy: string;
+      isFollowUp?: 'Y' | 'N';
+    }
+  ): Promise<void> {
     try {
       const currentDateTime = this.getCurrentDateTime();
 
@@ -1249,6 +1254,25 @@ class QuotationService {
     } catch (error: any) {
       logger.error('Error fetching pending discount approvals:', error);
       throw new Error('Failed to fetch pending discount approvals: ' + error.message);
+    }
+  }
+
+  /**
+   * Get all activities for a quotation
+   */
+  async getQuotationActivities(quotationSlno: number) {
+    try {
+      const query = `
+        SELECT *
+        FROM "BI_NEGT_KSA"."DMS_QUOTATION_ACTIVITY"
+        WHERE "QUOTATION_SLNO" = ? AND "IS_DELETED" = 'N'
+        ORDER BY "CREATED_DATE" DESC
+      `;
+
+      return await db.query(query, [quotationSlno]);
+    } catch (error: any) {
+      logger.error('Error fetching quotation activities:', error);
+      throw new Error('Failed to fetch quotation activities: ' + error.message);
     }
   }
 }

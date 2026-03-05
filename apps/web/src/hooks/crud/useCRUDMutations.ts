@@ -29,13 +29,31 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { CRUDMutationsConfig, CRUDMutationsReturn } from "@/types/common";
 import { logger } from "@/lib/logger";
 
-export function useCRUDMutations<TCreate, TUpdate = Partial<TCreate>>({
+export function useCRUDMutations<
+  TCreate,
+  TUpdate = Partial<TCreate>,
+  TCreateResult = any,
+  TUpdateResult = any,
+  TDeleteResult = any
+>({
   createFn,
   updateFn,
   deleteFn,
   queryKey,
   entityName,
-}: CRUDMutationsConfig<TCreate, TUpdate>): CRUDMutationsReturn<TCreate, TUpdate> {
+}: CRUDMutationsConfig<
+  TCreate,
+  TUpdate,
+  TCreateResult,
+  TUpdateResult,
+  TDeleteResult
+>): CRUDMutationsReturn<
+  TCreate,
+  TUpdate,
+  TCreateResult,
+  TUpdateResult,
+  TDeleteResult
+> {
   const queryClient = useQueryClient();
 
   // Create Mutation

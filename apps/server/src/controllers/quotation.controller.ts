@@ -64,7 +64,9 @@ export const getAllQuotations = async (req: Request, res: Response) => {
     slpCode: req.query.slpCode as string,
     dateFrom: req.query.dateFrom as string,
     dateTo: req.query.dateTo as string,
-    enquirySlno: req.query.enquirySlno ? parseInt(req.query.enquirySlno as string) : undefined,
+    enquirySlno: req.query.enquirySlno
+      ? Number(req.query.enquirySlno as string)
+      : undefined,
     quotationNumber: req.query.quotationNumber as string,
   };
 
@@ -77,7 +79,7 @@ export const getAllQuotations = async (req: Request, res: Response) => {
  * GET /api/quotations/:id
  */
 export const getQuotationById = async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
+  const id = Number(req.params.id);
   const quotation = await quotationService.getQuotationById(id);
 
   if (!quotation) {
@@ -95,7 +97,7 @@ export const getQuotationById = async (req: Request, res: Response) => {
  * GET /api/quotations/enquiry/:enquiryId
  */
 export const getQuotationsByEnquiryId = async (req: Request, res: Response) => {
-  const enquiryId = parseInt(req.params.enquiryId);
+  const enquiryId = Number(req.params.enquiryId);
   const quotations = await quotationService.getQuotationsByEnquiryId(enquiryId);
   sendSuccess(res, quotations);
 };
@@ -105,7 +107,7 @@ export const getQuotationsByEnquiryId = async (req: Request, res: Response) => {
  * PUT /api/quotations/:id
  */
 export const updateQuotation = async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
+  const id = Number(req.params.id);
   const updatedBy = getAuditUser(req);
   const updateData: UpdateQuotationInput = req.body;
 
@@ -133,7 +135,7 @@ export const supersedeQuotation = async (req: Request, res: Response) => {
   } = {
     ...req.body,
     createdBy: getAuditUser(req),
-    slpCode: req.body.slpCode || req.user?.SlpCode,
+    slpCode: req.body.slpCode || req.user?.SlpCode || '',
   };
 
   const result = await quotationService.supersedeQuotation(supersedeData);
@@ -145,7 +147,7 @@ export const supersedeQuotation = async (req: Request, res: Response) => {
  * DELETE /api/quotations/:id
  */
 export const deleteQuotation = async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
+  const id = Number(req.params.id);
   const deletedBy = getAuditUser(req);
 
   // Resource ownership already verified by middleware
@@ -158,7 +160,7 @@ export const deleteQuotation = async (req: Request, res: Response) => {
  * POST /api/quotations/:id/request-approval
  */
 export const requestDiscountApproval = async (req: Request, res: Response) => {
-  const quotationId = parseInt(req.params.id);
+  const quotationId = Number(req.params.id);
   const approvalData: RequestDiscountApprovalInput & {
     requestedBy: string;
     slpCode: string;
@@ -177,7 +179,7 @@ export const requestDiscountApproval = async (req: Request, res: Response) => {
  * POST /api/quotations/approvals/:approvalId
  */
 export const approveDiscount = async (req: Request, res: Response) => {
-  const approvalId = parseInt(req.params.approvalId);
+  const approvalId = Number(req.params.approvalId);
   const approvalData: ApproveDiscountInput & {
     approvedBy: string;
     slpCode: string;
@@ -223,7 +225,7 @@ export const getPendingDiscountApprovals = async (req: Request, res: Response) =
  * POST /api/quotations/:id/pass-to-cashier
  */
 export const passToCashier = async (req: Request, res: Response) => {
-  const quotationId = parseInt(req.params.id);
+  const quotationId = Number(req.params.id);
   const cashierData: PassToCashierInput & { passedBy: string } = {
     ...req.body,
     passedBy: getAuditUser(req),
@@ -238,7 +240,7 @@ export const passToCashier = async (req: Request, res: Response) => {
  * POST /api/quotations/:id/activity
  */
 export const logActivity = async (req: Request, res: Response) => {
-  const quotationSlno = parseInt(req.params.id);
+  const quotationSlno = Number(req.params.id);
   const activityData: CreateActivityInput & { createdBy: string } = {
     ...req.body,
     quotationSlno,
@@ -254,7 +256,7 @@ export const logActivity = async (req: Request, res: Response) => {
  * GET /api/quotations/:id/activities
  */
 export const getQuotationActivities = async (req: Request, res: Response) => {
-  const quotationSlno = parseInt(req.params.id);
+  const quotationSlno = Number(req.params.id);
   const activities = await quotationService.getQuotationActivities(quotationSlno);
   sendSuccess(res, activities);
 };

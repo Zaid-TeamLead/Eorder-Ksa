@@ -5,7 +5,7 @@
  * Centralizes status handling and display logic to ensure consistency.
  */
 
-import type { BadgeProps } from '@/components/ui/badge';
+type BadgeVariant = 'default' | 'secondary' | 'destructive' | 'outline';
 
 /**
  * Get badge variant for quotation status
@@ -19,7 +19,7 @@ import type { BadgeProps } from '@/components/ui/badge';
  */
 export const getQuotationStatusVariant = (
   status: string
-): BadgeProps['variant'] => {
+): BadgeVariant => {
   switch (status) {
     case 'Draft':
       return 'secondary';

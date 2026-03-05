@@ -1,16 +1,11 @@
 import { z } from 'zod';
-import {
-  optionalStringValidator,
-  requiredStringValidator,
-  idParamSchema as baseIdParamSchema,
-} from './shared/base.schema.js';
 
 // =====================================================
 // Helper Functions
 // =====================================================
 
 // Helper for optional numeric fields - converts empty string to undefined
-const optionalNumber = (schema: z.ZodNumber) =>
+const optionalNumber = <T extends z.ZodType<number, any, any>>(schema: T) =>
   z.preprocess((val) => {
     if (val === '' || val === null || val === undefined) return undefined;
     return val;
@@ -192,7 +187,7 @@ export const requestDiscountApprovalSchema = z.object({
 export const approveDiscountSchema = z
   .object({
     approvalStatus: z.enum(['Approved', 'Rejected'], {
-      errorMap: () => ({ message: 'Status must be either Approved or Rejected' }),
+      error: 'Status must be either Approved or Rejected',
     }),
     approvalNotes: z.string().max(5000).optional(),
     rejectionReason: z.string().max(5000).optional(),

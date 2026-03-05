@@ -15,24 +15,7 @@ import { useSession } from "@/lib/auth-client";
 import { useCart, type CartItem } from "@/lib/cart-context";
 import { toast } from "sonner";
 import { useCallback } from "react";
-
-// Type definitions for customer data
-interface Customer {
-  CardCode?: string;
-  CardName?: string;
-  Street?: string;
-  Block?: string;
-  StreetNo?: string;
-  Address2?: string;
-  Address3?: string;
-  City?: string;
-  County?: string;
-  ZipCode?: string;
-  Phone1?: string;
-  Phone2?: string;
-  Cellular?: string;
-  E_Mail?: string;
-}
+import type { Customer } from "@/components/shared/customer-search";
 
 interface CustomerSearchResult {
   success: boolean;
@@ -126,7 +109,7 @@ export const SalesEnquiryForm = forwardRef<
     const { items: cartItems } = useCart();
 
     const form = useForm<SalesEnquiryFormData>({
-      resolver: zodResolver(salesEnquirySchema),
+      resolver: zodResolver(salesEnquirySchema) as any,
       defaultValues: {
         ...getInitialFormValues(),
         salesperson: session?.data?.user.name || "",
@@ -184,7 +167,7 @@ export const SalesEnquiryForm = forwardRef<
       return undefined;
     }, [onCustomerSearch]);
 
-    const handleCustomerSelect = useCallback(async (customer: Customer) => {
+    const handleCustomerSelect = useCallback((customer: Customer) => {
       const addressParts = [
         customer.Street,
         customer.Block,

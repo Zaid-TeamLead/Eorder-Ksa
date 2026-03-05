@@ -5,7 +5,7 @@
  * Used across the application when no data is available.
  */
 
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
 interface EmptyStateProps {
   /**

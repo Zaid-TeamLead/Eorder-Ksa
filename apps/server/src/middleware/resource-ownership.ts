@@ -67,9 +67,9 @@ export interface ResourceOwnershipConfig<T = any> {
  * );
  */
 export function checkResourceOwnership<T>(config: ResourceOwnershipConfig<T>) {
-  return async (req: Request, res: Response, next: NextFunction) => {
+  return async (req: Request, _res: Response, next: NextFunction) => {
     try {
-      const id = req.params.id;
+      const id = req.params.id ?? '';
       const resource = await config.getResourceById(id);
 
       if (!resource) {
@@ -148,7 +148,7 @@ export function enforceOwnershipFilter(
   getUserFilter: (req: Request) => string | undefined,
   filterParamName: string = 'slpCode'
 ) {
-  return (req: Request, res: Response, next: NextFunction) => {
+  return (req: Request, _res: Response, next: NextFunction) => {
     try {
       // Admin can view all
       if (req.user?.role === 'admin') {

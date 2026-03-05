@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, type Router as ExpressRouter } from 'express';
 import { z } from 'zod';
 import * as financingController from '../controllers/financing.controller.js';
 import { validate } from '../middleware/validator.js';
@@ -8,7 +8,7 @@ import {
   idParamSchema,
 } from '../schemas/financing.schema.js';
 
-const router = Router();
+const router: ExpressRouter = Router();
 
 /**
  * Financing Routes

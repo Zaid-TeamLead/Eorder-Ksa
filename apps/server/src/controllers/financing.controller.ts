@@ -9,7 +9,7 @@ import { getAuditUser } from '../utils/user-context.js';
  * Get all financing schemes for an enquiry
  */
 export const getFinancingByEnquiryId = async (req: Request, res: Response) => {
-  const enquiryId = parseInt(req.params.enquiryId, 10);
+  const enquiryId = Number(req.params.enquiryId);
 
   const schemes = await financingService.getByEnquiryId(enquiryId);
 
@@ -20,7 +20,7 @@ export const getFinancingByEnquiryId = async (req: Request, res: Response) => {
  * Get financing scheme by ID
  */
 export const getFinancingById = async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id, 10);
+  const id = Number(req.params.id);
 
   const scheme = await financingService.getById(id);
 
@@ -51,7 +51,7 @@ export const createFinancing = async (req: Request, res: Response) => {
  * Update an existing financing scheme
  */
 export const updateFinancing = async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id, 10);
+  const id = Number(req.params.id);
   const userId = getAuditUser(req);
 
   // Check if financing scheme exists
@@ -74,7 +74,7 @@ export const updateFinancing = async (req: Request, res: Response) => {
  * Delete a financing scheme (soft delete)
  */
 export const deleteFinancing = async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id, 10);
+  const id = Number(req.params.id);
   const userId = getAuditUser(req);
 
   // Check if financing scheme exists
@@ -93,7 +93,7 @@ export const deleteFinancing = async (req: Request, res: Response) => {
 /**
  * Get all active lenders
  */
-export const getLenders = async (req: Request, res: Response) => {
+export const getLenders = async (_req: Request, res: Response) => {
   const lenders = await financingService.getLenders();
 
   return sendSuccess(res, lenders);
@@ -103,7 +103,7 @@ export const getLenders = async (req: Request, res: Response) => {
  * Set a financing scheme as preferred
  */
 export const setPreferredScheme = async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id, 10);
+  const id = Number(req.params.id);
   const userId = getAuditUser(req);
 
   // Check if financing scheme exists

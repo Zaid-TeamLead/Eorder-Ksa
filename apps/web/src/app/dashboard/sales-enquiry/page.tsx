@@ -253,9 +253,26 @@ export default function SalesEnquiry({
                   vinDetails: modal.selectedEntity.VINDETAILS || undefined,
                   branch: modal.selectedEntity.BRANCH || "",
                   budget: modal.selectedEntity.BUDGET || "",
-                  financing: modal.selectedEntity.FINANCING || undefined,
-                  preferredContact: modal.selectedEntity.PREFERREDCONTACT || undefined,
-                  preferredTime: modal.selectedEntity.PREFERREDTIME || undefined,
+                  financing:
+                    modal.selectedEntity.FINANCING === "yes" ||
+                    modal.selectedEntity.FINANCING === "no" ||
+                    modal.selectedEntity.FINANCING === "maybe"
+                      ? modal.selectedEntity.FINANCING
+                      : undefined,
+                  preferredContact:
+                    modal.selectedEntity.PREFERREDCONTACT === "phone" ||
+                    modal.selectedEntity.PREFERREDCONTACT === "email" ||
+                    modal.selectedEntity.PREFERREDCONTACT === "whatsapp" ||
+                    modal.selectedEntity.PREFERREDCONTACT === "sms"
+                      ? modal.selectedEntity.PREFERREDCONTACT
+                      : undefined,
+                  preferredTime:
+                    modal.selectedEntity.PREFERREDTIME === "morning" ||
+                    modal.selectedEntity.PREFERREDTIME === "afternoon" ||
+                    modal.selectedEntity.PREFERREDTIME === "evening" ||
+                    modal.selectedEntity.PREFERREDTIME === "anytime"
+                      ? modal.selectedEntity.PREFERREDTIME
+                      : undefined,
                   preferredDelivery: modal.selectedEntity.PREFERREDDELIVERY || "",
                   source: modal.selectedEntity.SOURCE || "",
                   sales_type: modal.selectedEntity.SALESTYPE || "",

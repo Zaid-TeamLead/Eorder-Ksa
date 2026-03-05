@@ -39,7 +39,7 @@ export default function CreateQuotationPage() {
   const supersedeId = searchParams.get('supersede');
 
   const form = useForm<QuotationFormData>({
-    resolver: zodResolver(quotationFormSchema),
+    resolver: zodResolver(quotationFormSchema) as any,
     defaultValues: defaultQuotationFormValues,
   });
 

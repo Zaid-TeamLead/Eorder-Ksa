@@ -36,7 +36,7 @@ export const getEnquiryById = async (req: Request, res: Response) => {
 };
 
 export const updateEnquiry = async (req: Request, res: Response) => {
-  const id = req.params.id;
+  const id = Number(req.params.id);
   const updatedBy = getAuditUserWithSlpCode(req);
   const updateData: UpdateEnquiryData = req.body;
 
@@ -52,7 +52,7 @@ export const updateEnquiry = async (req: Request, res: Response) => {
 };
 
 export const updateEnquiryStatus = async (req: Request, res: Response) => {
-  const id = req.params.id;
+  const id = Number(req.params.id);
   const { status, notes } = req.body;
   const updatedBy = getAuditUserWithSlpCode(req);
 
@@ -67,7 +67,7 @@ export const updateEnquiryStatus = async (req: Request, res: Response) => {
 };
 
 export const deleteEnquiry = async (req: Request, res: Response) => {
-  const id = req.params.id;
+  const id = Number(req.params.id);
   const deletedBy = getAuditUserWithSlpCode(req);
 
   // Resource ownership already verified by middleware

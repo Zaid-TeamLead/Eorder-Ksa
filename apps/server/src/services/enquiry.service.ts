@@ -361,7 +361,7 @@ class EnquiryService {
         SET "STATUS" = ?, "UPDATEDDATE" = ?, "UPDATEDBY" = ?
       `;
 
-      const parameters = [status, currentDateTime, updatedBy];
+      const parameters: any[] = [status, currentDateTime, updatedBy];
 
       if (notes) {
         query += `, "FOLLOWUPNOTES" = ?`;
