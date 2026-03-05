@@ -3,20 +3,74 @@ import { db } from './database.service';
 import { validateUserId } from '@/utils/db-helpers';
 
 export const searchVehicles = async (search?: string) => {
-  try {
-    const vehicles = await db.query(`CALL "BI_NEGT_KSA".h()`);
+  const searchTerm = search?.trim() || '';
 
-    // Filter on frontend if search term provided (until stored procedure supports search)
-    if (search && search.trim()) {
-      const searchLower = search.toLowerCase();
-      return vehicles.filter(
-        (vehicle: any) =>
-          vehicle.ItemCode?.toLowerCase().includes(searchLower) ||
-          vehicle.ItemName?.toLowerCase().includes(searchLower)
-      );
+  const applyLocalFilter = (vehicles: any[]) => {
+    if (!searchTerm) {
+      return vehicles;
     }
 
-    return vehicles;
+    const searchLower = searchTerm.toLowerCase();
+    return vehicles.filter((vehicle) =>
+      [vehicle.ItemCode, vehicle.ItemName, vehicle.ItmsGrpNam, vehicle['Model Description']]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(searchLower))
+    );
+  };
+
+  try {
+    // Primary source: dedicated vehicle search procedure.
+    // If this proc is unavailable/fails in an environment, fallback to inventory-based search.
+    try {
+      const vehicles = await db.query<any>(
+        `CALL "BI_NEGT_KSA".DMS_KSA_100007(?)`,
+        [searchTerm || null]
+      );
+      return applyLocalFilter(vehicles);
+    } catch (primaryError) {
+      logger.warn(
+        { error: primaryError, searchTerm },
+        'Vehicle search procedure failed, using inventory fallback'
+      );
+
+      const inventoryRows = await db.query<any>(`CALL "BI_NEGT_KSA".DMS_KSA_100016()`);
+
+      // Aggregate VIN-level rows into item-level rows expected by the vehicle search UI.
+      const grouped = new Map<string, any>();
+
+      for (const row of inventoryRows) {
+        const itemCode = row?.ItemCode || '';
+        if (!itemCode) {
+          continue;
+        }
+
+        const existing = grouped.get(itemCode);
+
+        if (!existing) {
+          grouped.set(itemCode, {
+            ItemCode: itemCode,
+            ItemName: row?.U_Veh_ModelFull || row?.U_Veh_ModelDescr || row?.U_Veh_Model || itemCode,
+            FrgnName: row?.U_Veh_ModelFull || row?.U_Veh_ModelDescr || null,
+            ItmsGrpNam: [row?.U_Veh_Brand, row?.U_Veh_Model].filter(Boolean).join(' ') || row?.U_Veh_Brand || '',
+            SuppCatNum: row?.U_Vehicle_MC || '',
+            U_Veh_Color: row?.U_Veh_Color || '',
+            'Model Description': row?.U_Veh_ModelDescr || row?.U_Veh_Model || '',
+            'Model Year': row?.U_Veh_MY || '',
+            'Model Code': row?.U_Vehicle_MC || '',
+            'Total Stock': 1,
+            'In Sales Orders': 0,
+            Allocated: 0,
+            Available: 1,
+          });
+        } else {
+          existing['Total Stock'] += 1;
+          existing.Available += 1;
+        }
+      }
+
+      const vehicles = Array.from(grouped.values());
+      return applyLocalFilter(vehicles);
+    }
   } catch (error) {
     logger.error(error, 'Failed to search vehicles');
     throw new Error('Failed to search vehicles');

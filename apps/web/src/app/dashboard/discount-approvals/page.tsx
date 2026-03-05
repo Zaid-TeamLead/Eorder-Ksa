@@ -138,10 +138,12 @@ export default function DiscountApprovalsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredApprovals.map((approval) => (
-                  <>
+                {filteredApprovals.map((approval) => {
+                  const discountPercentage = Number(approval.DISCOUNT_PERCENTAGE || 0);
+
+                  return [
                     <TableRow
-                      key={approval.SLNO}
+                      key={`row-${approval.SLNO}`}
                       className="cursor-pointer hover:bg-muted/50"
                       onClick={() => toggleExpandApproval(approval.SLNO)}
                     >
@@ -164,7 +166,7 @@ export default function DiscountApprovalsPage() {
                         </div>
                       </TableCell>
                       <TableCell>{formatCurrency(approval.DISCOUNT_AMOUNT)}</TableCell>
-                      <TableCell>{approval.DISCOUNT_PERCENTAGE.toFixed(2)}%</TableCell>
+                      <TableCell>{discountPercentage.toFixed(2)}%</TableCell>
                       <TableCell>
                         <span className="font-medium text-destructive">
                           {formatCurrency(approval.AMOUNT_OVER_LIMIT)}
@@ -209,10 +211,10 @@ export default function DiscountApprovalsPage() {
                         </div>
                       </TableCell>
                     </TableRow>
+                    ,
 
-                    {/* Expanded Details Row */}
-                    {expandedApprovalId === approval.SLNO && (
-                      <TableRow>
+                    expandedApprovalId === approval.SLNO && (
+                      <TableRow key={`details-${approval.SLNO}`}>
                         <TableCell colSpan={9} className="bg-muted/30 p-6">
                           <div className="grid grid-cols-2 gap-6">
                             <div>
@@ -297,9 +299,9 @@ export default function DiscountApprovalsPage() {
                           </div>
                         </TableCell>
                       </TableRow>
-                    )}
-                  </>
-                ))}
+                    ),
+                  ];
+                })}
               </TableBody>
             </Table>
           )}
@@ -309,12 +311,7 @@ export default function DiscountApprovalsPage() {
       {/* Approve/Reject Dialog */}
       {selectedApproval && (
         <ApproveDiscountDialog
-          approvalId={selectedApproval.SLNO}
-          quotationSlno={selectedApproval.QUOTATION_SLNO}
-          discountAmount={selectedApproval.DISCOUNT_AMOUNT}
-          discountPercentage={selectedApproval.DISCOUNT_PERCENTAGE}
-          requestedBy={selectedApproval.REQUESTED_BY}
-          justification={selectedApproval.JUSTIFICATION}
+          approval={selectedApproval}
           open={approvalDialogOpen}
           onOpenChange={setApprovalDialogOpen}
           onSuccess={handleApprovalSuccess}

@@ -16,15 +16,17 @@ import {
   SalesEnquiryForm,
   type SalesEnquiryFormSubmission,
 } from "@/forms/sales-enquiry";
+import { VehicleSelectionModal } from "@/components/vehicle-selection-modal";
 import axios from "axios";
 import { useSession, authClient } from "@/lib/auth-client";
 import { logger } from '@/lib/logger';
+import { useVehicles } from "@/hooks/entities/useVehicles";
+import { useVehicleSelection } from "@/hooks/forms/useVehicleSelection";
 
 const TABS = [
   { id: "customer-information", label: "Customer Information" },
   { id: "vehicle-details", label: "Vehicle Details" },
   { id: "enquiry-details", label: "Enquiry Details" },
-  { id: "trade-in", label: "Trade-in Vehicle" },
   { id: "additional", label: "Additional Info" },
 ] as const;
 
@@ -41,13 +43,26 @@ export default function SalesEnquiry({
   const slpCode = session?.user.SlpCode;
   const [isCreate, setIsCreate] = useState(action === "create");
   const [currentTab, setCurrentTab] = useState<TabId>("customer-information");
+  const [vehicleModalOpen, setVehicleModalOpen] = useState(false);
   const formRef = useRef<{ submit: () => void }>(null);
+  const { vehicles, isLoading: isLoadingVehicles } = useVehicles();
+  const { handleVehicleSelect } = useVehicleSelection();
 
   useEffect(() => {
     setIsCreate(action === "create");
     if (!isCreate) {
       setCurrentTab("customer-information");
     }
+  }, []);
+
+  useEffect(() => {
+    const handleOpenModal = () => {
+      setVehicleModalOpen(true);
+    };
+
+    window.addEventListener("openVehicleInventoryModal", handleOpenModal);
+    return () =>
+      window.removeEventListener("openVehicleInventoryModal", handleOpenModal);
   }, []);
 
   const handleNext = () => {
@@ -104,6 +119,11 @@ export default function SalesEnquiry({
     setIsCreate(true);
   };
 
+  const handleVehicleSelectWithClose = (vehicle: any) => {
+    handleVehicleSelect(vehicle);
+    setVehicleModalOpen(false);
+  };
+
   return (
     <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
       <DataTable data={data} onNewEnquiry={handleNewEnquiry} buttonName="Create New Sales Enquiry" />
@@ -132,6 +152,7 @@ export default function SalesEnquiry({
             onCustomerSearch={handleCustomerSearch}
             onNewCustomer={handleNewCustomer}
             onSubmit={handleSubmit}
+            onSelectFromInventory={() => setVehicleModalOpen(true)}
           />
           <DialogFooter className="mt-auto border-t px-6 py-3 flex items-center justify-between bg-muted/30">
             <div className="flex gap-2">
@@ -183,6 +204,14 @@ export default function SalesEnquiry({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <VehicleSelectionModal
+        open={vehicleModalOpen}
+        onOpenChange={setVehicleModalOpen}
+        onSelectVehicle={handleVehicleSelectWithClose}
+        vehicles={vehicles}
+        isLoading={isLoadingVehicles}
+      />
     </div>
   );
 }

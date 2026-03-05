@@ -23,7 +23,8 @@
  * ```
  */
 
-import { useMutation, UseMutationOptions } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
+import type { UseMutationOptions } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { MutationWithToastConfig } from "@/types/common";
 
@@ -44,13 +45,13 @@ export function useMutationWithToast<TData, TVariables>({
     onSuccess: (data, variables, context) => {
       // Show toast
       if (typeof successMessage === "function") {
-        toast.success(successMessage(data));
+        toast.success(successMessage(data, variables));
       } else {
         toast.success(successMessage);
       }
 
       // Call custom onSuccess handler if provided
-      onSuccess?.(data);
+      onSuccess?.(data, variables);
     },
     onError: (error: any, variables, context) => {
       // Show toast
@@ -64,7 +65,7 @@ export function useMutationWithToast<TData, TVariables>({
       }
 
       // Call custom onError handler if provided
-      onError?.(error);
+      onError?.(error, variables);
     },
     ...options,
   });

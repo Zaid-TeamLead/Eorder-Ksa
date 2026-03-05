@@ -2,18 +2,11 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { ArrowLeft, MoreVertical, Printer, Copy, Trash2, Send } from 'lucide-react';
+import { ArrowLeft, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import {
   Table,
   TableBody,
@@ -30,6 +23,7 @@ import { formatCurrency } from '@/lib/formatters';
 import { LoadingState } from '@/components/shared/loading-state';
 import { QuotationStatusBadge } from '@/components/quotation/status-badge';
 import { ErrorState } from '@/components/shared/error-state';
+import { RequestDiscountApprovalDialog } from '@/components/quotation/request-discount-approval-dialog';
 
 // Custom hooks
 import { useQuotationActions } from '@/hooks/quotation/useQuotationActions';
@@ -39,17 +33,14 @@ export default function QuotationDetailPage() {
   const router = useRouter();
   const quotationId = parseInt(params.id as string, 10);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [requestApprovalDialogOpen, setRequestApprovalDialogOpen] = useState(false);
 
-  const { quotation, isLoading, error } = useQuotationById(quotationId);
+  const { quotation, isLoading, error, refetch } = useQuotationById(quotationId);
 
   // Use custom hook for all actions
   const {
     handleBack,
-    handlePrint,
     handleDelete,
-    handleSupersede: handleCreateNewVersion,
-    handlePassToCashier,
-    handleRequestApproval,
     isDeleting,
   } = useQuotationActions({
     quotationId,
@@ -71,6 +62,18 @@ export default function QuotationDetailPage() {
     );
   }
 
+  const totalDiscountAmount = Number(quotation.TOTAL_DISCOUNT_AMOUNT || 0);
+  const lineItemsDiscountAmount = (quotation.lineItems || []).reduce(
+    (sum, item) => sum + Number(item.DISCOUNT_AMOUNT || 0),
+    0
+  );
+  // Fallback to line-item discounts when TOTAL_DISCOUNT_AMOUNT is not synced.
+  const effectiveDiscountAmount =
+    totalDiscountAmount !== 0 ? totalDiscountAmount : lineItemsDiscountAmount;
+  const discountPercentage = Number(quotation.DISCOUNT_PERCENTAGE || 0);
+  const canRequestApproval =
+    effectiveDiscountAmount < 0 && quotation.DISCOUNT_APPROVAL_STATUS !== 'Approved';
+
   return (
     <div className="flex flex-col gap-6 p-6">
       {/* Header */}
@@ -86,7 +89,7 @@ export default function QuotationDetailPage() {
             )}
           </div>
           <p className="text-sm text-muted-foreground">
-            Created on {new Date(quotation.CREATED_AT).toLocaleDateString()}
+            Created on {new Date(quotation.CREATED_DATE).toLocaleDateString()}
           </p>
         </div>
       </div>
@@ -98,6 +101,23 @@ export default function QuotationDetailPage() {
           <Badge variant="outline">Superseded</Badge>
         )}
       </div>
+
+      {canRequestApproval && (
+        <Card>
+          <CardContent className="flex items-center justify-between gap-4 py-4">
+            <div>
+              <p className="text-sm font-medium">Discount Approval Required</p>
+              <p className="text-sm text-muted-foreground">
+                Discount {formatCurrency(effectiveDiscountAmount)} ({discountPercentage.toFixed(2)}%)
+              </p>
+            </div>
+            <Button onClick={() => setRequestApprovalDialogOpen(true)}>
+              <Send className="mr-2 h-4 w-4" />
+              Request Approval
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Separator />
 
@@ -325,11 +345,24 @@ export default function QuotationDetailPage() {
       <DeleteConfirmationDialog
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
-        onConfirm={handleDelete}
+        onConfirm={() => handleDelete()}
         title="Delete Quotation"
         description={`Are you sure you want to delete quotation ${quotation.QUOTATION_NUMBER}? This action cannot be undone.`}
-        isLoading={isDeleting}
+        isDeleting={isDeleting}
       />
+
+      {canRequestApproval && (
+        <RequestDiscountApprovalDialog
+          open={requestApprovalDialogOpen}
+          onOpenChange={setRequestApprovalDialogOpen}
+          quotationId={quotationId}
+          discountAmount={effectiveDiscountAmount}
+          discountPercentage={discountPercentage}
+          onSuccess={() => {
+            void refetch();
+          }}
+        />
+      )}
     </div>
   );
 }

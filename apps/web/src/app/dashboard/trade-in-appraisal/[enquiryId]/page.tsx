@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -30,6 +30,31 @@ import { RequestAppraisalDialog } from "@/forms/sales-enquiry/components/request
 import { LoadingState } from "@/components/shared/loading-state";
 import { ButtonLoading } from "@/components/shared/button-loading";
 
+function buildEnquiryPrefill(enquiry: any): TradeInAppraisalFormData {
+  const tradeInYearText = enquiry?.TRADEINYEAR ? `Year: ${enquiry.TRADEINYEAR}` : "";
+
+  return {
+    registrationNumber: "",
+    vin: "",
+    manufacturer: enquiry?.TRADEINMAKE || "",
+    model: enquiry?.TRADEINMODEL || "",
+    variant: "",
+    description: tradeInYearText,
+    colour: "",
+    trim: "",
+    bodyStyle: "",
+    transmission: "",
+    fuelType: "",
+    engineSize: "",
+    numberOfDoors: "",
+    registrationDate: "",
+    odometerReading: enquiry?.TRADEINKMS || "",
+    customerExpectedPrice: enquiry?.TRADEINEXPECTEDPRICE || "",
+    marketValue: "",
+    appraisalOffer: "",
+  };
+}
+
 export default function TradeInAppraisalPage() {
   const params = useParams();
   const router = useRouter();
@@ -38,6 +63,7 @@ export default function TradeInAppraisalPage() {
 
   const [requestDialogOpen, setRequestDialogOpen] = useState(false);
   const [appraisalId, setAppraisalId] = useState<number | null>(null);
+  const hasInitialPrefill = useRef(false);
 
   // Fetch enquiry details
   const { data: enquiry, isLoading: isLoadingEnquiry } = useQuery({
@@ -81,12 +107,21 @@ export default function TradeInAppraisalPage() {
       appraisalOffer: "",
     },
   });
+  const { reset } = form;
+
+  // Reset prefill guard when navigating to a different enquiry
+  useEffect(() => {
+    hasInitialPrefill.current = false;
+    setAppraisalId(null);
+  }, [enquiryId]);
 
   // Populate form when appraisal data is loaded
   useEffect(() => {
     if (appraisal) {
-      setAppraisalId(appraisal.SLNO);
-      form.reset({
+      if (appraisalId !== appraisal.SLNO) {
+        setAppraisalId(appraisal.SLNO);
+      }
+      reset({
         registrationNumber: appraisal.REGISTRATION_NUMBER || "",
         vin: appraisal.VIN || "",
         manufacturer: appraisal.MANUFACTURER || "",
@@ -106,8 +141,16 @@ export default function TradeInAppraisalPage() {
         marketValue: appraisal.MARKET_VALUE || "",
         appraisalOffer: appraisal.APPRAISAL_OFFER || "",
       });
+      hasInitialPrefill.current = true;
+      return;
     }
-  }, [appraisal, form]);
+
+    // If no appraisal exists yet, prefill from enquiry response
+    if (enquiry && !hasInitialPrefill.current) {
+      reset(buildEnquiryPrefill(enquiry));
+      hasInitialPrefill.current = true;
+    }
+  }, [appraisal, appraisalId, enquiry, reset]);
 
   // Create appraisal mutation
   const createMutation = useMutation({
@@ -274,7 +317,8 @@ export default function TradeInAppraisalPage() {
             <div>
               <span className="text-muted-foreground">Vehicle:</span>
               <p className="font-medium">
-                {enquiry.MAKENAME} {enquiry.MODELNAME} {enquiry.VARIANTNAME || ""}
+                {enquiry.MAKENAME || enquiry.MAKE || ""} {enquiry.MODELNAME || enquiry.MODEL || ""}{" "}
+                {enquiry.VARIANTNAME || enquiry.VARIANT || ""}
               </p>
             </div>
           </div>

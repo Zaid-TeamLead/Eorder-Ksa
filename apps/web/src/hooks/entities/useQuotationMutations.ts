@@ -114,8 +114,8 @@ export function useQuotationMutations(): UseQuotationMutationsReturn {
       approvalId: number;
       data: ApproveDiscountData;
     }) => approveDiscount(approvalId, data),
-    successMessage: (data) =>
-      data.approvalStatus === "Approved"
+    successMessage: (_, variables) =>
+      variables.data.approvalStatus === "Approved"
         ? "Discount approved successfully"
         : "Discount request rejected",
     onSuccess: () => {

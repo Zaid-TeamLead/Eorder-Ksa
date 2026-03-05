@@ -2,7 +2,7 @@
  * Common Type Definitions Shared Across Modules
  */
 
-import { QueryKey } from "@tanstack/react-query";
+import type { QueryKey } from "@tanstack/react-query";
 
 // ============================================================================
 // Generic CRUD Types
@@ -71,10 +71,10 @@ export interface FormSyncConfig<T> {
 
 export interface MutationWithToastConfig<TData, TVariables> {
   mutationFn: (variables: TVariables) => Promise<TData>;
-  successMessage: string | ((data: TData) => string);
+  successMessage: string | ((data: TData, variables: TVariables) => string);
   errorMessage?: string | ((error: any) => string);
-  onSuccess?: (data: TData) => void;
-  onError?: (error: any) => void;
+  onSuccess?: (data: TData, variables: TVariables) => void;
+  onError?: (error: any, variables: TVariables) => void;
 }
 
 // ============================================================================

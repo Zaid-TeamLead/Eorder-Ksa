@@ -46,6 +46,9 @@ export function ApproveDiscountDialog({
   const { approveDiscount } = useQuotationMutations();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<'Approved' | 'Rejected' | null>(null);
+  const discountPercentage = Number(approval.DISCOUNT_PERCENTAGE || 0);
+  const userDiscountLimit = Number(approval.USER_DISCOUNT_LIMIT || 0);
+  const amountOverLimit = Number(approval.AMOUNT_OVER_LIMIT || 0);
 
   const form = useForm<ApproveDiscountFormData>({
     resolver: zodResolver(approveDiscountFormSchema),
@@ -117,18 +120,18 @@ export function ApproveDiscountDialog({
             </div>
             <div>
               <p className="text-muted-foreground">Discount Percentage:</p>
-              <p className="text-lg font-bold">{approval.DISCOUNT_PERCENTAGE.toFixed(2)}%</p>
+              <p className="text-lg font-bold">{discountPercentage.toFixed(2)}%</p>
             </div>
             <div>
               <p className="text-muted-foreground">User's Discount Limit:</p>
               <p className="font-medium">
-                SAR {approval.USER_DISCOUNT_LIMIT.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                SAR {userDiscountLimit.toLocaleString('en-US', { minimumFractionDigits: 2 })}
               </p>
             </div>
             <div>
               <p className="text-muted-foreground">Amount Over Limit:</p>
               <Badge variant="destructive">
-                SAR {approval.AMOUNT_OVER_LIMIT.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                SAR {amountOverLimit.toLocaleString('en-US', { minimumFractionDigits: 2 })}
               </Badge>
             </div>
           </div>

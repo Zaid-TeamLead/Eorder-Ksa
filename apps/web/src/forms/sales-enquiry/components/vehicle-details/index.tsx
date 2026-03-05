@@ -53,6 +53,43 @@ export function VehicleDetails() {
   // Vehicle selection hook for cross-component communication
   const { listenForSelection } = useVehicleSelection();
 
+  // Resolve "make" from multiple possible API payload shapes.
+  const resolveMake = useCallback((vehicle: any): string => {
+    if (!vehicle || typeof vehicle !== "object") return "";
+
+    // Direct known keys first
+    const direct =
+      vehicle.U_Veh_Brand ||
+      vehicle.U_VEH_BRAND ||
+      vehicle.MAKENAME ||
+      vehicle.MAKE ||
+      vehicle.Make;
+
+    if (direct) return String(direct).trim();
+
+    // Common fallback from grouped item name
+    if (vehicle.ItmsGrpNam) {
+      return String(vehicle.ItmsGrpNam).trim().split(" ")[0] || "";
+    }
+
+    // Last fallback: first token from full model text
+    const fullModel = vehicle.U_Veh_ModelFull || vehicle.U_Veh_ModelDescr || vehicle.U_VEH_MODELFULL;
+    if (fullModel) {
+      return String(fullModel).trim().split(" ")[0] || "";
+    }
+
+    const modelLike =
+      vehicle.U_Veh_Model ||
+      vehicle.U_VEH_MODEL ||
+      vehicle["Model Description"] ||
+      vehicle.ItemCode;
+    if (modelLike) {
+      return String(modelLike).trim().split(" ")[0] || "";
+    }
+
+    return "";
+  }, []);
+
   // Auto-open dialog when VINs are loaded
   useEffect(() => {
     if (!loadingVinNumbers && vinNumbers.length > 0) {
@@ -83,7 +120,8 @@ export function VehicleDetails() {
     return listenForSelection((vehicle: VehicleInventory) => {
       // Populate form fields with inventory vehicle data
       const options = { shouldDirty: false };
-      form.setValue("make", vehicle.U_Veh_Brand || "", options);
+      const make = resolveMake(vehicle) || String(form.getValues("make") || "");
+      form.setValue("make", make, options);
       form.setValue("model", vehicle.U_Veh_Model || "", options);
       form.setValue("variant", vehicle.ItemCode || "", options);
       form.setValue("year", vehicle.U_Veh_MY || "", options);
@@ -94,7 +132,7 @@ export function VehicleDetails() {
 
       toast.success("Vehicle selected from inventory");
     });
-  }, [form, listenForSelection]);
+  }, [form, listenForSelection, resolveMake]);
 
   // Search vehicles handler
   const handleSearchVehicles = useCallback(async (query: string) => {
@@ -121,9 +159,7 @@ export function VehicleDetails() {
     (vehicle: any) => {
       // Store selected vehicle for quantity validation
       setSelectedVehicle(vehicle);
-
-      // Extract make from ItmsGrpNam (e.g., "ISUZU PICKUP" -> "ISUZU")
-      const make = vehicle.ItmsGrpNam?.split(" ")[0] || "";
+      const make = resolveMake(vehicle);
 
       // Map API response to form fields with shouldDirty: false to prevent unnecessary re-renders
       const options = { shouldDirty: false };
@@ -138,7 +174,7 @@ export function VehicleDetails() {
       form.setValue("vinNumber", "", options); // Reset VIN number when vehicle changes
       form.setValue("vinDetails", undefined, options); // Reset VIN details when vehicle changes
     },
-    [form]
+    [form, resolveMake]
   );
 
   // Browse inventory handler
@@ -191,6 +227,11 @@ export function VehicleDetails() {
           form.setValue("vinNumber", vinValue, { shouldDirty: false });
           form.setValue("vinDetails", firstSelectedVin, { shouldDirty: false });
 
+          // Keep make populated from VIN payload when available.
+          const makeFromVin =
+            resolveMake(firstSelectedVin) || String(form.getValues("make") || "");
+          form.setValue("make", makeFromVin, { shouldDirty: false });
+
           // Update vehicle details from first selected VIN
           if (firstSelectedVin.U_Veh_Color) {
             form.setValue("color", firstSelectedVin.U_Veh_Color, {
@@ -215,7 +256,7 @@ export function VehicleDetails() {
         }
       }
     },
-    [form, vinNumbers]
+    [form, vinNumbers, resolveMake]
   );
 
   // Add to cart handler
