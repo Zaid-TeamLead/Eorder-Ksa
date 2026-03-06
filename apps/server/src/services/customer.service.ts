@@ -3,12 +3,14 @@ import { db } from './database.service';
 import { InternalServerError, NotFoundError } from '@/types/errors';
 
 export const searchCustomers = async (search: string, slpCode?: string) => {
+  const normalizedSlpCode = typeof slpCode === 'string' && slpCode.trim() !== '' ? slpCode.trim() : null;
+
   try {
     // Try stored procedure first with parameterized queries
     try {
       // Use parameterized queries to prevent SQL injection
       const spQuery = `CALL "BI_NEGT_KSA".DMS_KSA_100002(?, ?)`;
-      const params = [search, slpCode && slpCode !== '' ? slpCode : null];
+      const params = [search, normalizedSlpCode];
 
       const customers = await db.query(spQuery, params);
       return customers;
@@ -79,15 +81,6 @@ export const searchCustomers = async (search: string, slpCode?: string) => {
           "Phone2",
           "Cellular",
           "E_Mail",
-          "Address",
-          "MailAddres" AS "Street",
-          "Block",
-          "Building" AS "StreetNo",
-          "City",
-          "County",
-          "ZipCode",
-          '' AS "Address2",
-          '' AS "Address3",
           "SlpCode"
         FROM "${schemaName}"."OCRD"
         WHERE (
@@ -98,10 +91,12 @@ export const searchCustomers = async (search: string, slpCode?: string) => {
         )
       `;
 
-      if (slpCode && slpCode !== '') {
+      if (normalizedSlpCode) {
         query += ` AND "SlpCode" = ?`;
-        parameters.push(slpCode);
+        parameters.push(normalizedSlpCode);
       }
+
+      query += ` ORDER BY "CardName"`;
 
       const customers = await db.query(query, parameters);
 
@@ -116,11 +111,14 @@ export const searchCustomers = async (search: string, slpCode?: string) => {
       return customers;
     }
   } catch (error) {
-    logger.error(error, 'Failed to search customers');
+    logger.error({ error, searchLength: search.length, hasSlpCode: !!normalizedSlpCode }, 'Failed to search customers');
+
+    // Search should fail gracefully and never break the customer-master page.
     if (error instanceof NotFoundError) {
-      throw error;
+      return [];
     }
-    throw new InternalServerError('Failed to search customers');
+
+    return [];
   }
 };
 

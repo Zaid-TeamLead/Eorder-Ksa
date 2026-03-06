@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { DataTable } from "./components/data-table";
 import { columns, type VehicleHistory } from "./components/columns";
 import { logger } from '@/lib/logger';
+import type { AxiosError } from "axios";
 
 interface Customer {
     CardCode: string;
@@ -28,6 +29,36 @@ interface Customer {
     E_Mail?: string | null;
 }
 
+const isCustomer = (value: unknown): value is Customer => {
+    if (typeof value !== "object" || value === null) {
+        return false;
+    }
+
+    const customer = value as Partial<Customer>;
+    return typeof customer.CardCode === "string" && typeof customer.CardName === "string";
+};
+
+const normalizeCustomers = (rows: unknown[]): Customer[] => {
+    const seen = new Set<string>();
+    const uniqueCustomers: Customer[] = [];
+
+    for (const row of rows) {
+        if (!isCustomer(row)) {
+            continue;
+        }
+
+        const customerKey = `${row.CardCode.trim().toUpperCase()}::${row.CardName.trim().toUpperCase()}`;
+        if (seen.has(customerKey)) {
+            continue;
+        }
+
+        seen.add(customerKey);
+        uniqueCustomers.push(row);
+    }
+
+    return uniqueCustomers;
+};
+
 const CustomerMaster = () => {
     const { data: session } = useSession();
     const [searchQuery, setSearchQuery] = useState("");
@@ -35,6 +66,7 @@ const CustomerMaster = () => {
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [showResults, setShowResults] = useState(false);
+    const [searchError, setSearchError] = useState<string | null>(null);
 
     const debouncedSearch = useDebounce(searchQuery, 300);
 
@@ -44,26 +76,34 @@ const CustomerMaster = () => {
             if (!debouncedSearch.trim() || !session?.user?.SlpCode) {
                 setCustomers([]);
                 setShowResults(false);
+                setSearchError(null);
                 return;
             }
 
             setIsSearching(true);
+            setSearchError(null);
             try {
                 const result = await searchCustomers(
                     debouncedSearch.toString(),
                     session.user.SlpCode.toString()
                 );
                 if (Array.isArray(result)) {
-                    setCustomers(result);
+                    setCustomers(normalizeCustomers(result));
                     setShowResults(true);
                 } else {
                     setCustomers([]);
                     setShowResults(true);
                 }
             } catch (error) {
+                const axiosError = error as AxiosError<{ message?: string }>;
+                const errorMessage =
+                    axiosError.response?.data?.message ||
+                    "Customer search is temporarily unavailable. Please try again.";
+
                 logger.error("Search error:", error);
                 setCustomers([]);
-                setShowResults(false);
+                setShowResults(true);
+                setSearchError(errorMessage);
             } finally {
                 setIsSearching(false);
             }
@@ -95,6 +135,7 @@ const CustomerMaster = () => {
         setSelectedCustomer(customer);
         setSearchQuery(`${customer.CardCode} - ${customer.CardName}`);
         setShowResults(false);
+        setSearchError(null);
         setCustomers([]);
     };
 
@@ -103,6 +144,7 @@ const CustomerMaster = () => {
         setSelectedCustomer(null);
         setCustomers([]);
         setShowResults(false);
+        setSearchError(null);
     };
 
     return (
@@ -145,6 +187,7 @@ const CustomerMaster = () => {
                             />
                             {searchQuery && (
                                 <button
+                                    type="button"
                                     onClick={handleClear}
                                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                                 >
@@ -161,11 +204,16 @@ const CustomerMaster = () => {
                                         <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                                         <span className="ml-2 text-sm text-muted-foreground">Searching...</span>
                                     </div>
+                                ) : searchError ? (
+                                    <div className="p-4 text-sm text-center text-destructive">
+                                        {searchError}
+                                    </div>
                                 ) : customers.length > 0 ? (
                                     <div className="p-1">
                                         {customers.map((customer) => (
                                             <button
-                                                key={customer.CardCode}
+                                                type="button"
+                                                key={`${customer.CardCode}-${customer.CardName}`}
                                                 onClick={() => handleSelectCustomer(customer)}
                                                 className="w-full text-left px-3 py-2 rounded-sm hover:bg-muted cursor-pointer transition-colors"
                                             >
