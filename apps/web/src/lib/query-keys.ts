@@ -66,6 +66,7 @@ export const queryKeys = {
     all: ["quotations"] as const,
     byEnquiry: (enquiryId: number) => ["quotations", "enquiry", enquiryId] as const,
     detail: (id: number) => ["quotation", id] as const,
+    openDeposits: ["quotations", "open-deposits"] as const,
     versions: (quotationNumber: string) => ["quotation-versions", quotationNumber] as const,
     activities: (quotationId: number) => ["quotation-activities", quotationId] as const,
   },

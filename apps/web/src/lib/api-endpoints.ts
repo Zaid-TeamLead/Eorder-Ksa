@@ -19,6 +19,8 @@ export const API_ENDPOINTS = {
   QUOTATION_DISCOUNT_APPROVAL: (id: string | number) => `/api/quotations/${id}/discount-approval`,
   QUOTATION_APPROVE_DISCOUNT: (id: string | number) => `/api/quotations/${id}/approve-discount`,
   QUOTATIONS_BY_ENQUIRY: (enquiryId: number) => `/api/quotations/enquiry/${enquiryId}` as const,
+  QUOTATIONS_OPEN_DEPOSITS: '/api/quotations/open-deposits',
+  QUOTATION_ALLOCATE_DEPOSIT: (id: string | number) => `/api/quotations/${id}/allocate-deposit`,
 
   // Vehicle endpoints
   VEHICLES: '/api/vehicles',

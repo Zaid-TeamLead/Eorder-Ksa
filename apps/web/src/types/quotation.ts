@@ -264,8 +264,14 @@ export interface ApproveDiscountData {
 }
 
 export interface PassToCashierData {
+  assignedTo: string;
   depositAmount?: number;
-  notes?: string;
+  requestNotes?: string;
+}
+
+export interface AllocateDepositData {
+  depositAmount: number;
+  allocationNotes?: string;
 }
 
 export interface CreateActivityData {
@@ -331,6 +337,7 @@ export interface UseQuotationMutationsReturn {
   requestApproval: (quotationId: number, data: RequestDiscountApprovalData) => Promise<void>;
   approveDiscount: (approvalId: number, data: ApproveDiscountData) => Promise<void>;
   passToCashier: (quotationId: number, data: PassToCashierData) => Promise<void>;
+  allocateDeposit: (quotationId: number, data: AllocateDepositData) => Promise<void>;
   isCreating: boolean;
   isUpdating: boolean;
   isDeleting: boolean;

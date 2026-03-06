@@ -7,6 +7,7 @@ import type {
   RequestDiscountApprovalInput,
   ApproveDiscountInput,
   PassToCashierInput,
+  AllocateDepositInput,
   CreateActivityInput,
   QuotationFilters,
   DiscountApprovalFilters,
@@ -232,6 +233,30 @@ export const passToCashier = async (req: Request, res: Response) => {
   };
 
   const result = await quotationService.passToCashier(quotationId, cashierData);
+  sendSuccess(res, result);
+};
+
+/**
+ * Get open deposits (passed to cashier but not yet allocated)
+ * GET /api/quotations/open-deposits
+ */
+export const getOpenDeposits = async (_req: Request, res: Response) => {
+  const deposits = await quotationService.getOpenDeposits();
+  sendSuccess(res, deposits);
+};
+
+/**
+ * Allocate deposit to enquiry/quotation
+ * POST /api/quotations/:id/allocate-deposit
+ */
+export const allocateDeposit = async (req: Request, res: Response) => {
+  const quotationId = Number(req.params.id);
+  const allocationData: AllocateDepositInput & { allocatedBy: string } = {
+    ...req.body,
+    allocatedBy: getAuditUser(req),
+  };
+
+  const result = await quotationService.allocateDeposit(quotationId, allocationData);
   sendSuccess(res, result);
 };
 

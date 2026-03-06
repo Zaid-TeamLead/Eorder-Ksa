@@ -42,6 +42,11 @@ export const SIDEBAR_MENU = {
       icon: IconReceipt,
     },
     {
+      title: 'Open Deposits',
+      url: '/dashboard/open-deposits',
+      icon: IconReceiptDollar,
+    },
+    {
       title: ' Book Test Drive',
       url: '/dashboard/test-drive',
       icon: IconCar,

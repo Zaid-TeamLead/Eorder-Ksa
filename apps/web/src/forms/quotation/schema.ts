@@ -141,8 +141,18 @@ export const approveDiscountFormSchema = z
 // ============================================================================
 
 export const passToCashierFormSchema = z.object({
+  assignedTo: z.string().min(1, 'Cashier/assignee is required'),
   depositAmount: z.number().nonnegative().optional(),
-  notes: z.string().max(5000).optional(),
+  requestNotes: z.string().max(5000).optional(),
+});
+
+// ============================================================================
+// Allocate Deposit Schema
+// ============================================================================
+
+export const allocateDepositFormSchema = z.object({
+  depositAmount: z.number().positive('Deposit amount must be greater than 0'),
+  allocationNotes: z.string().max(5000).optional(),
 });
 
 // ============================================================================
@@ -154,6 +164,7 @@ export type LineItemFormData = z.infer<typeof lineItemFormSchema>;
 export type DiscountApprovalRequestFormData = z.infer<typeof discountApprovalRequestFormSchema>;
 export type ApproveDiscountFormData = z.infer<typeof approveDiscountFormSchema>;
 export type PassToCashierFormData = z.infer<typeof passToCashierFormSchema>;
+export type AllocateDepositFormData = z.infer<typeof allocateDepositFormSchema>;
 
 // ============================================================================
 // Default Values

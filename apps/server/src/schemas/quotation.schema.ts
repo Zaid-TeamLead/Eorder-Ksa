@@ -210,8 +210,21 @@ export const approveDiscountSchema = z
 // =====================================================
 
 export const passToCashierSchema = z.object({
+  assignedTo: z
+    .string()
+    .min(1, { message: 'Cashier/assignee is required' })
+    .max(100),
   depositAmount: z.number().nonnegative().optional(),
-  notes: z.string().max(5000).optional(),
+  requestNotes: z.string().max(5000).optional(),
+});
+
+// =====================================================
+// Allocate Deposit Schema
+// =====================================================
+
+export const allocateDepositSchema = z.object({
+  depositAmount: z.number().positive({ message: 'Deposit amount must be greater than 0' }),
+  allocationNotes: z.string().max(5000).optional(),
 });
 
 // =====================================================
@@ -276,6 +289,7 @@ export type LineItemInput = z.infer<typeof lineItemSchema>;
 export type RequestDiscountApprovalInput = z.infer<typeof requestDiscountApprovalSchema>;
 export type ApproveDiscountInput = z.infer<typeof approveDiscountSchema>;
 export type PassToCashierInput = z.infer<typeof passToCashierSchema>;
+export type AllocateDepositInput = z.infer<typeof allocateDepositSchema>;
 export type CreateActivityInput = z.infer<typeof createActivitySchema>;
 export type QuotationFilters = z.infer<typeof quotationFiltersSchema>;
 export type DiscountApprovalFilters = z.infer<typeof discountApprovalFiltersSchema>;

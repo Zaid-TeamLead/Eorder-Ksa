@@ -17,6 +17,8 @@ import {
   getAllDiscountApprovals,
   getPendingDiscountApprovals,
   passToCashier,
+  getOpenDeposits,
+  allocateDeposit,
   logActivity,
   getQuotationActivities,
 } from '../controllers/quotation.controller.js';
@@ -34,6 +36,7 @@ import {
   requestDiscountApprovalSchema,
   approveDiscountSchema,
   passToCashierSchema,
+  allocateDepositSchema,
   createActivitySchema,
   getQuotationByIdSchema,
   getQuotationsByEnquirySchema,
@@ -108,6 +111,15 @@ router.get(
 router.get(
   '/discount-approvals/pending',
   asyncHandler(getPendingDiscountApprovals)
+);
+
+/**
+ * GET /api/quotations/open-deposits
+ * Get quotations passed to cashier with unallocated deposits
+ */
+router.get(
+  '/open-deposits',
+  asyncHandler(getOpenDeposits)
 );
 
 /**
@@ -217,6 +229,17 @@ router.post(
     })
   ),
   asyncHandler(passToCashier)
+);
+
+/**
+ * POST /api/quotations/:id/allocate-deposit
+ * Allocate (collect) a deposit against a passed enquiry/quotation
+ */
+router.post(
+  '/:id/allocate-deposit',
+  validate(getQuotationByIdSchema, 'params'),
+  validate(allocateDepositSchema),
+  asyncHandler(allocateDeposit)
 );
 
 // ============================================================================

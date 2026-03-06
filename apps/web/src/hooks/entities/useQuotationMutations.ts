@@ -54,6 +54,7 @@ import {
   requestDiscountApproval,
   approveDiscount,
   passToCashier,
+  allocateDeposit,
   logActivity,
 } from "@/services/quotation";
 import type {
@@ -63,6 +64,7 @@ import type {
   RequestDiscountApprovalData,
   ApproveDiscountData,
   PassToCashierData,
+  AllocateDepositData,
   CreateActivityData,
   UseQuotationMutationsReturn,
 } from "@/types/quotation";
@@ -136,6 +138,23 @@ export function useQuotationMutations(): UseQuotationMutationsReturn {
     successMessage: "Quotation passed to cashier successfully",
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.quotations.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.quotations.openDeposits });
+    },
+  });
+
+  // Allocate deposit mutation
+  const allocateDepositMutation = useMutationWithToast({
+    mutationFn: ({
+      quotationId,
+      data,
+    }: {
+      quotationId: number;
+      data: AllocateDepositData;
+    }) => allocateDeposit(quotationId, data),
+    successMessage: "Deposit allocated successfully",
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.quotations.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.quotations.openDeposits });
     },
   });
 
@@ -174,6 +193,9 @@ export function useQuotationMutations(): UseQuotationMutationsReturn {
     },
     passToCashier: async (quotationId: number, data: PassToCashierData) => {
       await passToCashierMutation.mutateAsync({ quotationId, data });
+    },
+    allocateDeposit: async (quotationId: number, data: AllocateDepositData) => {
+      await allocateDepositMutation.mutateAsync({ quotationId, data });
     },
     isCreating,
     isUpdating,

@@ -12,6 +12,7 @@ import type {
   RequestDiscountApprovalData,
   ApproveDiscountData,
   PassToCashierData,
+  AllocateDepositData,
   CreateActivityData,
   QuotationFilters,
   DiscountApprovalFilters,
@@ -133,6 +134,23 @@ export const passToCashier = async (
   data: PassToCashierData
 ): Promise<{ success: boolean; message: string }> => {
   return apiClient.post(`${API_ENDPOINTS.QUOTATIONS}/${quotationId}/pass-to-cashier`, data);
+};
+
+/**
+ * Get open deposits received (passed to cashier but not allocated yet)
+ */
+export const getOpenDeposits = async (): Promise<Quotation[]> => {
+  return apiClient.get<Quotation[]>(API_ENDPOINTS.QUOTATIONS_OPEN_DEPOSITS);
+};
+
+/**
+ * Allocate deposit to an enquiry/quotation
+ */
+export const allocateDeposit = async (
+  quotationId: number,
+  data: AllocateDepositData
+): Promise<{ success: boolean; message: string }> => {
+  return apiClient.post(API_ENDPOINTS.QUOTATION_ALLOCATE_DEPOSIT(quotationId), data);
 };
 
 // ============================================================================

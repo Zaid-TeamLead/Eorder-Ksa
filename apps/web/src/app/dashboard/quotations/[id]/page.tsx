@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { ArrowLeft, Send } from 'lucide-react';
+import { ArrowLeft, Send, Wallet, CircleDollarSign } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -24,6 +24,8 @@ import { LoadingState } from '@/components/shared/loading-state';
 import { QuotationStatusBadge } from '@/components/quotation/status-badge';
 import { ErrorState } from '@/components/shared/error-state';
 import { RequestDiscountApprovalDialog } from '@/components/quotation/request-discount-approval-dialog';
+import { PassToCashierDialog } from '@/components/quotation/pass-to-cashier-dialog';
+import { AllocateDepositDialog } from '@/components/quotation/allocate-deposit-dialog';
 
 // Custom hooks
 import { useQuotationActions } from '@/hooks/quotation/useQuotationActions';
@@ -34,6 +36,8 @@ export default function QuotationDetailPage() {
   const quotationId = parseInt(params.id as string, 10);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [requestApprovalDialogOpen, setRequestApprovalDialogOpen] = useState(false);
+  const [passToCashierDialogOpen, setPassToCashierDialogOpen] = useState(false);
+  const [allocateDepositDialogOpen, setAllocateDepositDialogOpen] = useState(false);
 
   const { quotation, isLoading, error, refetch } = useQuotationById(quotationId);
 
@@ -73,6 +77,10 @@ export default function QuotationDetailPage() {
   const discountPercentage = Number(quotation.DISCOUNT_PERCENTAGE || 0);
   const canRequestApproval =
     effectiveDiscountAmount < 0 && quotation.DISCOUNT_APPROVAL_STATUS !== 'Approved';
+  const isPassedToCashier = quotation.PASSED_TO_CASHIER === 'Y';
+  const isDepositCollected = quotation.DEPOSIT_COLLECTED === 'Y';
+  const canPassToCashier = !isPassedToCashier;
+  const canAllocateDeposit = isPassedToCashier && !isDepositCollected;
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -115,6 +123,47 @@ export default function QuotationDetailPage() {
               <Send className="mr-2 h-4 w-4" />
               Request Approval
             </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {(canPassToCashier || canAllocateDeposit) && (
+        <Card>
+          <CardContent className="flex items-center justify-between gap-4 py-4">
+            <div>
+              <p className="text-sm font-medium">Deposit Workflow</p>
+              {canPassToCashier ? (
+                <p className="text-sm text-muted-foreground">
+                  Pass this enquiry to cashier/superior for deposit handling.
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Enquiry already passed to cashier. Allocate deposit once received.
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {canPassToCashier && (
+                <Button onClick={() => setPassToCashierDialogOpen(true)}>
+                  <Wallet className="mr-2 h-4 w-4" />
+                  Pass To Cashier
+                </Button>
+              )}
+              {canAllocateDeposit && (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => router.push('/dashboard/open-deposits')}
+                  >
+                    Open Deposits Received
+                  </Button>
+                  <Button onClick={() => setAllocateDepositDialogOpen(true)}>
+                    <CircleDollarSign className="mr-2 h-4 w-4" />
+                    Allocate Deposit
+                  </Button>
+                </>
+              )}
+            </div>
           </CardContent>
         </Card>
       )}
@@ -358,6 +407,30 @@ export default function QuotationDetailPage() {
           quotationId={quotationId}
           discountAmount={effectiveDiscountAmount}
           discountPercentage={discountPercentage}
+          onSuccess={() => {
+            void refetch();
+          }}
+        />
+      )}
+
+      {canPassToCashier && (
+        <PassToCashierDialog
+          open={passToCashierDialogOpen}
+          onOpenChange={setPassToCashierDialogOpen}
+          quotationId={quotationId}
+          initialDepositAmount={Number(quotation.DEPOSIT_AMOUNT || 0)}
+          onSuccess={() => {
+            void refetch();
+          }}
+        />
+      )}
+
+      {canAllocateDeposit && (
+        <AllocateDepositDialog
+          open={allocateDepositDialogOpen}
+          onOpenChange={setAllocateDepositDialogOpen}
+          quotationId={quotationId}
+          defaultAmount={Number(quotation.DEPOSIT_AMOUNT || 0)}
           onSuccess={() => {
             void refetch();
           }}

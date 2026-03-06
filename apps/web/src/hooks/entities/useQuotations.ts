@@ -11,7 +11,13 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query-keys";
-import { getAllQuotations, getQuotationById, getQuotationsByEnquiryId, getQuotationActivities } from "@/services/quotation";
+import {
+  getAllQuotations,
+  getQuotationById,
+  getQuotationsByEnquiryId,
+  getQuotationActivities,
+  getOpenDeposits,
+} from "@/services/quotation";
 import type { QuotationFilters } from "@/types/quotation";
 import type {
   UseQuotationsReturn,
@@ -110,6 +116,30 @@ export function useQuotationActivities(quotationId: number) {
 
   return {
     activities: activities || [],
+    isLoading,
+    error: error as Error | null,
+    refetch: async () => {
+      await refetch();
+    },
+  };
+}
+
+/**
+ * Fetch quotations with open deposits (passed to cashier, not yet allocated)
+ */
+export function useOpenDeposits() {
+  const {
+    data: deposits,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: queryKeys.quotations.openDeposits,
+    queryFn: getOpenDeposits,
+  });
+
+  return {
+    deposits: deposits || [],
     isLoading,
     error: error as Error | null,
     refetch: async () => {

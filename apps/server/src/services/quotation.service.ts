@@ -7,6 +7,7 @@ import type {
   RequestDiscountApprovalInput,
   ApproveDiscountInput,
   PassToCashierInput,
+  AllocateDepositInput,
   CreateActivityInput,
   DiscountApprovalFilters,
 } from '../schemas/quotation.schema.js';
@@ -1064,7 +1065,7 @@ class QuotationService {
 
       await db.execute(query, [
         currentDateTime,
-        data.passedBy,
+        data.assignedTo,
         data.depositAmount || 0,
         data.passedBy,
         currentDateTime,
@@ -1075,8 +1076,10 @@ class QuotationService {
       await this.logActivity({
         quotationSlno: quotationId,
         activityType: 'PassedToCashier',
-        activityDescription: 'Quotation passed to cashier for deposit collection',
-        activityNotes: data.notes,
+        activityDescription: `Deposit request assigned to ${data.assignedTo}`,
+        activityNotes: data.requestNotes,
+        isFollowUp: 'Y',
+        followUpAssignedTo: data.assignedTo,
         createdBy: data.passedBy,
       });
 
@@ -1086,6 +1089,80 @@ class QuotationService {
     } catch (error: any) {
       logger.error('Error passing quotation to cashier:', error);
       throw new Error('Failed to pass quotation to cashier: ' + error.message);
+    }
+  }
+
+  /**
+   * Get open deposits (passed to cashier but not yet allocated)
+   */
+  async getOpenDeposits(): Promise<Quotation[]> {
+    try {
+      const query = `
+        SELECT *
+        FROM "BI_NEGT_KSA"."DMS_QUOTATION"
+        WHERE "PASSED_TO_CASHIER" = 'Y'
+          AND ("DEPOSIT_COLLECTED" IS NULL OR "DEPOSIT_COLLECTED" = 'N')
+          AND "IS_DELETED" = 'N'
+        ORDER BY "PASSED_TO_CASHIER_DATE" DESC, "UPDATED_DATE" DESC
+      `;
+
+      return await db.query(query);
+    } catch (error: any) {
+      logger.error('Error fetching open deposits:', error);
+      throw new Error('Failed to fetch open deposits: ' + error.message);
+    }
+  }
+
+  /**
+   * Allocate/collect a deposit against a quotation
+   */
+  async allocateDeposit(
+    quotationId: number,
+    data: AllocateDepositInput & { allocatedBy: string }
+  ): Promise<{ success: boolean }> {
+    try {
+      const currentDateTime = this.getCurrentDateTime();
+
+      // Ensure quotation is passed to cashier first
+      const quotation = await this.getQuotationById(quotationId);
+      if (!quotation) {
+        throw new Error('Quotation not found');
+      }
+
+      if (quotation.PASSED_TO_CASHIER !== 'Y') {
+        throw new Error('Quotation has not been passed to cashier yet');
+      }
+
+      const query = `
+        UPDATE "BI_NEGT_KSA"."DMS_QUOTATION"
+        SET "DEPOSIT_AMOUNT" = ?,
+            "DEPOSIT_COLLECTED" = 'Y',
+            "UPDATED_BY" = ?,
+            "UPDATED_DATE" = ?
+        WHERE "SLNO" = ?
+      `;
+
+      await db.execute(query, [
+        data.depositAmount,
+        data.allocatedBy,
+        currentDateTime,
+        quotationId,
+      ]);
+
+      await this.logActivity({
+        quotationSlno: quotationId,
+        activityType: 'DepositAllocated',
+        activityDescription: `Deposit allocated: ${data.depositAmount}`,
+        activityNotes: data.allocationNotes,
+        createdBy: data.allocatedBy,
+      });
+
+      logger.info({ quotationId, amount: data.depositAmount }, 'Deposit allocated successfully');
+
+      return { success: true };
+    } catch (error: any) {
+      logger.error('Error allocating deposit:', error);
+      throw new Error('Failed to allocate deposit: ' + error.message);
     }
   }
 
