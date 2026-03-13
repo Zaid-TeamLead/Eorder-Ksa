@@ -41,6 +41,14 @@ export function VehicleSelectionModal({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedVehicle, setSelectedVehicle] = useState<VehicleInventory | null>(null);
 
+  const getVehicleVin = (vehicle: VehicleInventory) =>
+    vehicle.VIN ||
+    vehicle.VINNUMBER ||
+    vehicle.vin ||
+    vehicle.vinNumber ||
+    vehicle.U_Veh_StockID ||
+    "";
+
   // Filter vehicles based on search query
   const filteredVehicles = vehicles.filter((vehicle) => {
     const query = searchQuery.toLowerCase();
@@ -48,7 +56,7 @@ export function VehicleSelectionModal({
       vehicle.U_Veh_Brand?.toLowerCase().includes(query) ||
       vehicle.U_Veh_Model?.toLowerCase().includes(query) ||
       vehicle.U_Veh_ModelDescr?.toLowerCase().includes(query) ||
-      vehicle.VIN?.toLowerCase().includes(query) ||
+      getVehicleVin(vehicle).toLowerCase().includes(query) ||
       vehicle.U_Veh_Color?.toLowerCase().includes(query)
     );
   });
@@ -114,10 +122,12 @@ export function VehicleSelectionModal({
                 </TableHeader>
                 <TableBody>
                   {filteredVehicles.map((vehicle) => {
-                    const isSelected = selectedVehicle?.VIN === vehicle.VIN;
+                    const vehicleVin = getVehicleVin(vehicle);
+                    const selectedVin = selectedVehicle ? getVehicleVin(selectedVehicle) : "";
+                    const isSelected = selectedVin === vehicleVin;
                     return (
                       <TableRow
-                        key={vehicle.VIN}
+                        key={`${vehicleVin}-${vehicle.ItemCode}-${vehicle.InDate}`}
                         className={`cursor-pointer ${
                           isSelected ? "bg-muted" : "hover:bg-muted/50"
                         }`}
@@ -128,7 +138,7 @@ export function VehicleSelectionModal({
                             <IconCheck className="h-4 w-4 text-primary" />
                           )}
                         </TableCell>
-                        <TableCell className="font-medium">{vehicle.VIN}</TableCell>
+                        <TableCell className="font-medium">{vehicleVin || "N/A"}</TableCell>
                         <TableCell>{vehicle.U_Veh_Brand || "N/A"}</TableCell>
                         <TableCell>{vehicle.U_Veh_Model || "N/A"}</TableCell>
                         <TableCell className="max-w-[200px] truncate">
@@ -157,7 +167,7 @@ export function VehicleSelectionModal({
               <div className="text-sm font-medium mb-2">Selected Vehicle:</div>
               <div className="text-sm text-muted-foreground">
                 {selectedVehicle.U_Veh_Brand} {selectedVehicle.U_Veh_Model} -{" "}
-                {selectedVehicle.U_Veh_ModelDescr} (VIN: {selectedVehicle.VIN})
+                {selectedVehicle.U_Veh_ModelDescr} (VIN: {getVehicleVin(selectedVehicle) || "N/A"})
               </div>
             </div>
           )}

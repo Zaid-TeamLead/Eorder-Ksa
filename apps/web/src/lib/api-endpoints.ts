@@ -21,6 +21,18 @@ export const API_ENDPOINTS = {
   QUOTATIONS_BY_ENQUIRY: (enquiryId: number) => `/api/quotations/enquiry/${enquiryId}` as const,
   QUOTATIONS_OPEN_DEPOSITS: '/api/quotations/open-deposits',
   QUOTATION_ALLOCATE_DEPOSIT: (id: string | number) => `/api/quotations/${id}/allocate-deposit`,
+  QUOTATION_CANCEL: (id: string | number) => `/api/quotations/${id}/cancel`,
+
+  // Sales Order endpoints
+  SALES_ORDERS: '/api/sales-orders',
+  SALES_ORDER_BY_ID: (id: string | number) => `/api/sales-orders/${id}`,
+  SALES_ORDER_FROM_QUOTATION: '/api/sales-orders/from-quotation',
+  SALES_ORDER_PRINT: (id: string | number) => `/api/sales-orders/${id}/print`,
+  SALES_ORDER_PASS_TO_VA: (id: string | number) => `/api/sales-orders/${id}/pass-to-vehicle-admin`,
+  SALES_ORDER_RESERVE_VEHICLE: (id: string | number) => `/api/sales-orders/${id}/reserve-vehicle`,
+  SALES_ORDER_CREATE_HANDOVER: (id: string | number) => `/api/sales-orders/${id}/create-handover-booking`,
+  SALES_ORDER_RECORD_LOST: (id: string | number) => `/api/sales-orders/${id}/record-lost-sale`,
+  SALES_ORDER_CANCEL: (id: string | number) => `/api/sales-orders/${id}/cancel`,
 
   // Vehicle endpoints
   VEHICLES: '/api/vehicles',

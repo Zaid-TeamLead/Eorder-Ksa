@@ -1,6 +1,7 @@
 'use client';
 
-import { Printer, Eye, Edit, Copy, Trash2, MoreHorizontal } from 'lucide-react';
+import { useState } from 'react';
+import { Printer, Eye, Edit, Copy, Trash2, MoreHorizontal, CircleX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -33,6 +34,7 @@ import { useQuotations } from '@/hooks/entities/useQuotations';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { LoadingState } from '@/components/shared/loading-state';
 import { QuotationStatusBadge } from '@/components/quotation/status-badge';
+import { CancelQuotationDialog } from '@/components/quotation/cancel-quotation-dialog';
 
 // Custom hooks
 import { useQuotationsTable } from '@/hooks/quotation/useQuotationsTable';
@@ -40,6 +42,11 @@ import { useQuotationActions } from '@/hooks/quotation/useQuotationActions';
 
 export default function QuotationsPage() {
   const { quotations, isLoading, refetch } = useQuotations();
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+  const [quotationToCancel, setQuotationToCancel] = useState<{
+    id: number;
+    number: string;
+  } | null>(null);
 
   // Use custom hooks for table filtering and actions
   const { filteredQuotations, statusFilter, setStatusFilter } = useQuotationsTable({
@@ -47,7 +54,15 @@ export default function QuotationsPage() {
     initialFilter: 'all',
   });
 
-  const { handleView, handlePrint, handleEdit, handleDelete, handleSupersede } =
+  const {
+    handleView,
+    handlePrint,
+    handleEdit,
+    handleDelete,
+    handleCancel,
+    handleSupersede,
+    isCancelling,
+  } =
     useQuotationActions({
       onSuccess: () => refetch(),
     });
@@ -85,6 +100,7 @@ export default function QuotationsPage() {
                   <SelectItem value="Rejected">Rejected</SelectItem>
                   <SelectItem value="Expired">Expired</SelectItem>
                   <SelectItem value="Superseded">Superseded</SelectItem>
+                  <SelectItem value="Cancelled">Cancelled</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -186,6 +202,22 @@ export default function QuotationsPage() {
                               <Copy className="mr-2 h-4 w-4" />
                               Create New Version
                             </DropdownMenuItem>
+                            {quotation.STATUS !== 'Cancelled' &&
+                              quotation.STATUS !== 'Superseded' && (
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setQuotationToCancel({
+                                    id: quotation.SLNO,
+                                    number: quotation.QUOTATION_NUMBER,
+                                  });
+                                  setIsCancelDialogOpen(true);
+                                }}
+                                className="text-destructive"
+                              >
+                                <CircleX className="mr-2 h-4 w-4" />
+                                Cancel Quotation
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                               onClick={() => handleDelete(quotation.SLNO)}
@@ -203,6 +235,28 @@ export default function QuotationsPage() {
               </TableBody>
             </Table>
           </div>
+
+          <CancelQuotationDialog
+            open={isCancelDialogOpen}
+            onOpenChange={(open) => {
+              setIsCancelDialogOpen(open);
+              if (!open) {
+                setQuotationToCancel(null);
+              }
+            }}
+            quotationNumber={quotationToCancel?.number}
+            isCancelling={isCancelling}
+            onConfirm={async (reason) => {
+              if (!quotationToCancel) return;
+              await handleCancel(
+                {
+                  cancellationReason: reason,
+                },
+                quotationToCancel.id
+              );
+              setQuotationToCancel(null);
+            }}
+          />
         </CardContent>
       </Card>
     </div>

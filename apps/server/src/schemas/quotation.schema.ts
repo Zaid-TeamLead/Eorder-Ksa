@@ -33,6 +33,7 @@ export const quotationStatusEnum = z.enum([
   'Rejected',
   'Expired',
   'Superseded',
+  'Cancelled',
 ]);
 
 export const approvalStatusEnum = z.enum(['Pending', 'Approved', 'Rejected', 'Cancelled']);
@@ -228,6 +229,17 @@ export const allocateDepositSchema = z.object({
 });
 
 // =====================================================
+// Cancel Quotation Schema
+// =====================================================
+
+export const cancelQuotationSchema = z.object({
+  cancellationReason: z
+    .string()
+    .min(3, { message: 'Cancellation reason is required' })
+    .max(5000),
+});
+
+// =====================================================
 // Activity Log Schema
 // =====================================================
 
@@ -290,6 +302,7 @@ export type RequestDiscountApprovalInput = z.infer<typeof requestDiscountApprova
 export type ApproveDiscountInput = z.infer<typeof approveDiscountSchema>;
 export type PassToCashierInput = z.infer<typeof passToCashierSchema>;
 export type AllocateDepositInput = z.infer<typeof allocateDepositSchema>;
+export type CancelQuotationInput = z.infer<typeof cancelQuotationSchema>;
 export type CreateActivityInput = z.infer<typeof createActivitySchema>;
 export type QuotationFilters = z.infer<typeof quotationFiltersSchema>;
 export type DiscountApprovalFilters = z.infer<typeof discountApprovalFiltersSchema>;

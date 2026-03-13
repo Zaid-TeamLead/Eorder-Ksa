@@ -16,7 +16,10 @@ export interface TestVehicle {
 
 export interface VehicleInventory {
   Location: string;
-  VIN: string;
+  VIN?: string;
+  VINNUMBER?: string;
+  vin?: string;
+  vinNumber?: string;
   WhsCode: string;
   WhsName: string;
   ItemCode: string;

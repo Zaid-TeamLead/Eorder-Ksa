@@ -71,6 +71,12 @@ export const queryKeys = {
     activities: (quotationId: number) => ["quotation-activities", quotationId] as const,
   },
 
+  // Sales Orders
+  salesOrders: {
+    all: ['sales-orders'] as const,
+    detail: (id: number) => ['sales-order', id] as const,
+  },
+
   // Discount Approvals
   discountApprovals: {
     all: ["discount-approvals"] as const,

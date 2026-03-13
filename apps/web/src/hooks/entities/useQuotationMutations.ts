@@ -55,6 +55,7 @@ import {
   approveDiscount,
   passToCashier,
   allocateDeposit,
+  cancelQuotation,
   logActivity,
 } from "@/services/quotation";
 import type {
@@ -65,6 +66,7 @@ import type {
   ApproveDiscountData,
   PassToCashierData,
   AllocateDepositData,
+  CancelQuotationData,
   CreateActivityData,
   UseQuotationMutationsReturn,
 } from "@/types/quotation";
@@ -158,6 +160,25 @@ export function useQuotationMutations(): UseQuotationMutationsReturn {
     },
   });
 
+  // Cancel quotation mutation
+  const cancelQuotationMutation = useMutationWithToast({
+    mutationFn: ({
+      quotationId,
+      data,
+    }: {
+      quotationId: number;
+      data: CancelQuotationData;
+    }) => cancelQuotation(quotationId, data),
+    successMessage: "Quotation cancelled successfully",
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.quotations.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.quotations.openDeposits });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.quotations.detail(variables.quotationId),
+      });
+    },
+  });
+
   // Log activity mutation
   const logActivityMutation = useMutationWithToast({
     mutationFn: ({
@@ -197,9 +218,13 @@ export function useQuotationMutations(): UseQuotationMutationsReturn {
     allocateDeposit: async (quotationId: number, data: AllocateDepositData) => {
       await allocateDepositMutation.mutateAsync({ quotationId, data });
     },
+    cancelQuotation: async (quotationId: number, data: CancelQuotationData) => {
+      await cancelQuotationMutation.mutateAsync({ quotationId, data });
+    },
     isCreating,
     isUpdating,
     isDeleting,
     isSuperseding: supersedeMutation.isPending,
+    isCancelling: cancelQuotationMutation.isPending,
   };
 }

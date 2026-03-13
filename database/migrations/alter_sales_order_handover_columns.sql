@@ -1,0 +1,30 @@
+-- =====================================================
+-- Sales Order Handover Columns Migration
+-- =====================================================
+-- Description: Adds handover booking fields for sales order workflow
+-- Date: 2026-03-13
+-- =====================================================
+
+ALTER TABLE "BI_NEGT_KSA"."DMS_SALES_ORDER"
+  ADD ("HANDOVER_BOOKED" NVARCHAR(1) DEFAULT 'N');
+
+ALTER TABLE "BI_NEGT_KSA"."DMS_SALES_ORDER"
+  ADD ("HANDOVER_DATE" NVARCHAR(30));
+
+ALTER TABLE "BI_NEGT_KSA"."DMS_SALES_ORDER"
+  ADD ("HANDOVER_TIME" NVARCHAR(30));
+
+ALTER TABLE "BI_NEGT_KSA"."DMS_SALES_ORDER"
+  ADD ("HANDOVER_LOCATION" NVARCHAR(255));
+
+ALTER TABLE "BI_NEGT_KSA"."DMS_SALES_ORDER"
+  ADD ("HANDOVER_NOTES" NCLOB);
+
+ALTER TABLE "BI_NEGT_KSA"."DMS_SALES_ORDER"
+  ADD ("HANDOVER_BOOKED_BY" NVARCHAR(100));
+
+ALTER TABLE "BI_NEGT_KSA"."DMS_SALES_ORDER"
+  ADD ("HANDOVER_BOOKED_DATE" NVARCHAR(30));
+
+CREATE INDEX "IDX_SALES_ORDER_HANDOVER_BOOKED"
+  ON "BI_NEGT_KSA"."DMS_SALES_ORDER"("HANDOVER_BOOKED");

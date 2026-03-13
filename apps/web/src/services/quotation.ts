@@ -13,6 +13,7 @@ import type {
   ApproveDiscountData,
   PassToCashierData,
   AllocateDepositData,
+  CancelQuotationData,
   CreateActivityData,
   QuotationFilters,
   DiscountApprovalFilters,
@@ -151,6 +152,16 @@ export const allocateDeposit = async (
   data: AllocateDepositData
 ): Promise<{ success: boolean; message: string }> => {
   return apiClient.post(API_ENDPOINTS.QUOTATION_ALLOCATE_DEPOSIT(quotationId), data);
+};
+
+/**
+ * Cancel quotation with reason
+ */
+export const cancelQuotation = async (
+  quotationId: number,
+  data: CancelQuotationData
+): Promise<{ success: boolean; message: string }> => {
+  return apiClient.post(API_ENDPOINTS.QUOTATION_CANCEL(quotationId), data);
 };
 
 // ============================================================================

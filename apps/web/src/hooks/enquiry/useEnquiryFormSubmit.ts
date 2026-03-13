@@ -18,9 +18,45 @@ export interface UseEnquiryFormSubmitReturn {
 /**
  * Transform form data to API payload format
  */
+function extractVinFromUnknown(input: unknown): string {
+  if (!input || typeof input !== 'object') return '';
+
+  const record = input as Record<string, unknown>;
+  const directKeys = [
+    'VINNUMBER',
+    'VIN',
+    'vinNumber',
+    'vin',
+    'U_Veh_StockID',
+    'u_veh_stockid',
+  ];
+
+  for (const key of directKeys) {
+    const value = record[key];
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      return String(value).trim();
+    }
+  }
+
+  const dynamicMatch = Object.entries(record).find(([key, value]) => {
+    if (value === undefined || value === null) return false;
+    if (String(value).trim() === '') return false;
+    return key.toLowerCase().includes('vin');
+  });
+
+  return dynamicMatch ? String(dynamicMatch[1]).trim() : '';
+}
+
 function transformEnquiryFormData(
   data: SalesEnquiryFormSubmission
 ): CreateEnquiryData {
+  const primaryCartItem = data.cartItems?.[0];
+  const resolvedVinNumber =
+    data.vinNumber ||
+    extractVinFromUnknown(data.vinDetails) ||
+    primaryCartItem?.vinNumber ||
+    '';
+
   return {
     customerId: data.customerId,
     customerName: data.customerName,
@@ -30,15 +66,15 @@ function transformEnquiryFormData(
     workPhone: data.workPhone,
     mobile: data.mobile,
     homeEmail: data.homeEmail,
-    make: data.make,
-    model: data.model,
-    variant: data.variant,
-    year: data.year,
-    color: data.color,
+    make: data.make || primaryCartItem?.make || '',
+    model: data.model || primaryCartItem?.model || '',
+    variant: data.variant || primaryCartItem?.variant || primaryCartItem?.itemCode || '',
+    year: data.year || primaryCartItem?.year || '',
+    color: data.color || primaryCartItem?.color || '',
     suppCatNum: data.suppCatNum,
     modelCode: data.modelCode,
-    quantity: data.quantity,
-    vinNumber: data.vinNumber,
+    quantity: data.quantity || primaryCartItem?.quantity,
+    vinNumber: resolvedVinNumber,
     vinDetails: data.vinDetails,
     branch: data.branch,
     budget: data.budget,

@@ -1,217 +1,238 @@
-"use client";
-import { use, useState, useEffect, useRef } from "react";
-import { DataTable } from "@/components/data-table";
-import data from "../data.json";
-import { Button } from "@/components/ui/button";
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Plus, Eye } from 'lucide-react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from '@/components/ui/dialog';
 import {
-  SalesEnquiryForm,
-  type SalesEnquiryFormSubmission,
-} from "@/forms/sales-enquiry";
-import { VehicleSelectionModal } from "@/components/vehicle-selection-modal";
-import axios from "axios";
-import { useSession, authClient } from "@/lib/auth-client";
-import { logger } from '@/lib/logger';
-import { useVehicles } from "@/hooks/entities/useVehicles";
-import { useVehicleSelection } from "@/hooks/forms/useVehicleSelection";
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 
-const TABS = [
-  { id: "customer-information", label: "Customer Information" },
-  { id: "vehicle-details", label: "Vehicle Details" },
-  { id: "enquiry-details", label: "Enquiry Details" },
-  { id: "additional", label: "Additional Info" },
-] as const;
+import { useSalesOrders } from '@/hooks/entities/useSalesOrders';
+import { useSalesOrderMutations } from '@/hooks/entities/useSalesOrderMutations';
+import { LoadingState } from '@/components/shared/loading-state';
+import { ErrorState } from '@/components/shared/error-state';
+import { formatCurrency, formatDate } from '@/lib/formatters';
 
-type TabId = (typeof TABS)[number]["id"];
+const createSalesOrderSchema = z.object({
+  quotationSlno: z.coerce.number().int().positive('Valid quotation ID is required'),
+  notes: z.string().max(5000).optional(),
+});
 
-export default function SalesEnquiry({
-  searchParams,
-}: {
-  searchParams: Promise<{ action?: string }>;
-}) {
-  const params = use(searchParams);
-  const action = params.action;
-  const { data: session } = useSession();
-  const slpCode = session?.user.SlpCode;
-  const [isCreate, setIsCreate] = useState(action === "create");
-  const [currentTab, setCurrentTab] = useState<TabId>("customer-information");
-  const [vehicleModalOpen, setVehicleModalOpen] = useState(false);
-  const formRef = useRef<{ submit: () => void }>(null);
-  const { vehicles, isLoading: isLoadingVehicles } = useVehicles();
-  const { handleVehicleSelect } = useVehicleSelection();
+type CreateSalesOrderFormData = z.infer<typeof createSalesOrderSchema>;
+
+export default function SalesOrderPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const quotationIdParam = searchParams.get('quotationId');
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+
+  const { salesOrders, isLoading, error, refetch } = useSalesOrders();
+  const { createFromQuotation, isCreating } = useSalesOrderMutations();
+
+  const form = useForm<CreateSalesOrderFormData>({
+    resolver: zodResolver(createSalesOrderSchema) as any,
+    defaultValues: {
+      quotationSlno: 0,
+      notes: '',
+    },
+  });
 
   useEffect(() => {
-    setIsCreate(action === "create");
-    if (!isCreate) {
-      setCurrentTab("customer-information");
+    if (!quotationIdParam) return;
+    const quotationId = Number.parseInt(quotationIdParam, 10);
+    if (!Number.isNaN(quotationId) && quotationId > 0) {
+      form.setValue('quotationSlno', quotationId);
+      setCreateDialogOpen(true);
     }
-  }, []);
+  }, [quotationIdParam, form]);
 
-  useEffect(() => {
-    const handleOpenModal = () => {
-      setVehicleModalOpen(true);
-    };
-
-    window.addEventListener("openVehicleInventoryModal", handleOpenModal);
-    return () =>
-      window.removeEventListener("openVehicleInventoryModal", handleOpenModal);
-  }, []);
-
-  const handleNext = () => {
-    const currentIndex = TABS.findIndex((tab) => tab.id === currentTab);
-    if (currentIndex < TABS.length - 1) {
-      setCurrentTab(TABS[currentIndex + 1].id);
-    }
+  const onSubmit = async (data: CreateSalesOrderFormData) => {
+    await createFromQuotation(data);
+    setCreateDialogOpen(false);
+    form.reset({ quotationSlno: 0, notes: '' });
+    await refetch();
   };
 
-  const handlePrevious = () => {
-    const currentIndex = TABS.findIndex((tab) => tab.id === currentTab);
-    if (currentIndex > 0) {
-      setCurrentTab(TABS[currentIndex - 1].id);
-    }
-  };
+  if (isLoading) {
+    return <LoadingState message="Loading sales orders..." />;
+  }
 
-  const handleSubmit = async (data: SalesEnquiryFormSubmission) => {
-    // Handle form submission here
-    setIsCreate(false);
-  };
-
-  const handleCustomerSearch = async (query: string) => {
-    try {
-      const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_SERVER_URL}/api/customers/search`,
-        {
-          search: query,
-          slpCode: slpCode?.toString() || "",
-        },
-        {
-          headers: {
-            "Content-Type": "application/json",
-          },
-          withCredentials: true,
-        }
-      );
-
-      return response.data as { success: boolean; data: any[] };
-    } catch (error: any) {
-      logger.error("Error searching customers:", error);
-      if (error.response?.status === 401) {
-        logger.error("Authentication failed. Please log in again.");
-      }
-      throw error;
-    }
-  };
-
-  const handleNewCustomer = () => {
-    logger.log("Creating new customer");
-    // Implement new customer logic
-  };
-
-  const handleNewEnquiry = () => {
-    setIsCreate(true);
-  };
-
-  const handleVehicleSelectWithClose = (vehicle: any) => {
-    handleVehicleSelect(vehicle);
-    setVehicleModalOpen(false);
-  };
+  if (error) {
+    return (
+      <ErrorState
+        title="Error Loading Sales Orders"
+        message={error.message || 'Failed to load sales orders'}
+        onRetry={() => {
+          void refetch();
+        }}
+      />
+    );
+  }
 
   return (
-    <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-      <DataTable data={data} onNewEnquiry={handleNewEnquiry} buttonName="Create New Sales Enquiry" />
-      <Dialog
-        open={isCreate}
-        onOpenChange={(open) => {
-          setIsCreate(open);
-          if (!open) {
-            setCurrentTab("customer-information");
-          }
-        }}
-      >
-        <DialogContent className="max-h-[calc(100vh-2rem)] w-full h-full flex flex-col sm:max-w-7xl p-0 gap-0">
-          <DialogHeader className="px-6 pt-6 pb-4 border-b">
-            <DialogTitle className="text-xl font-semibold">
+    <div className="container mx-auto py-6">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Sales Orders</CardTitle>
+              <CardDescription>Create and manage sales orders</CardDescription>
+            </div>
+            <Button onClick={() => setCreateDialogOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
               Create Sales Order
-            </DialogTitle>
-            <DialogDescription className="text-sm text-muted-foreground">
-              Fill in all the required information across the tabs below
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Order #</TableHead>
+                  <TableHead>Quotation #</TableHead>
+                  <TableHead>Customer</TableHead>
+                  <TableHead>Vehicle</TableHead>
+                  <TableHead>Total</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {salesOrders.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                      No sales orders found.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  salesOrders.map((order) => (
+                    <TableRow key={order.SLNO}>
+                      <TableCell className="font-medium">{order.SALES_ORDER_NUMBER}</TableCell>
+                      <TableCell>#{order.QUOTATION_SLNO}</TableCell>
+                      <TableCell>{order.CUSTOMER_NAME || 'N/A'}</TableCell>
+                      <TableCell>
+                        {`${order.VEHICLE_MAKE || ''} ${order.VEHICLE_MODEL || ''}`.trim() || 'N/A'}
+                      </TableCell>
+                      <TableCell>{formatCurrency(order.GRAND_TOTAL)}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{order.STATUS}</Badge>
+                      </TableCell>
+                      <TableCell>{formatDate(order.CREATED_DATE)}</TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => router.push(`/dashboard/sales-order/${order.SLNO}`)}
+                        >
+                          <Eye className="mr-2 h-3.5 w-3.5" />
+                          View
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Sales Order</DialogTitle>
+            <DialogDescription>
+              Create a provisional sales order from an existing quotation.
             </DialogDescription>
           </DialogHeader>
-          <SalesEnquiryForm
-            ref={formRef}
-            currentTab={currentTab}
-            onTabChange={setCurrentTab}
-            onCustomerSearch={handleCustomerSearch}
-            onNewCustomer={handleNewCustomer}
-            onSubmit={handleSubmit}
-            onSelectFromInventory={() => setVehicleModalOpen(true)}
-          />
-          <DialogFooter className="mt-auto border-t px-6 py-3 flex items-center justify-between bg-muted/30">
-            <div className="flex gap-2">
-              {TABS.findIndex((tab) => tab.id === currentTab) > 0 && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handlePrevious}
-                  className="h-8"
-                >
-                  Previous
-                </Button>
-              )}
-              {TABS.findIndex((tab) => tab.id === currentTab) <
-                TABS.length - 1 && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={handleNext}
-                    className="h-8"
-                  >
-                    Next
-                  </Button>
+
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="quotationSlno"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Quotation ID *</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        type="number"
+                        min="1"
+                        step="1"
+                        placeholder="e.g. 123"
+                        onChange={(e) =>
+                          field.onChange(Number.parseInt(e.target.value, 10) || 0)
+                        }
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
                 )}
-            </div>
-            <div className="flex gap-2">
-              <DialogClose asChild>
+              />
+
+              <FormField
+                control={form.control}
+                name="notes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Notes</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Optional notes" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <DialogFooter>
                 <Button
                   type="button"
                   variant="outline"
-                  size="sm"
-                  className="h-8"
+                  onClick={() => setCreateDialogOpen(false)}
+                  disabled={isCreating}
                 >
                   Cancel
                 </Button>
-              </DialogClose>
-              {currentTab === TABS[TABS.length - 1].id && (
-                <Button
-                  type="button"
-                  size="sm"
-                  className="h-8"
-                  onClick={() => formRef.current?.submit()}
-                >
-                  Save changes
+                <Button type="submit" disabled={isCreating}>
+                  {isCreating ? 'Creating...' : 'Create'}
                 </Button>
-              )}
-            </div>
-          </DialogFooter>
+              </DialogFooter>
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
-
-      <VehicleSelectionModal
-        open={vehicleModalOpen}
-        onOpenChange={setVehicleModalOpen}
-        onSelectVehicle={handleVehicleSelectWithClose}
-        vehicles={vehicles}
-        isLoading={isLoadingVehicles}
-      />
     </div>
   );
 }

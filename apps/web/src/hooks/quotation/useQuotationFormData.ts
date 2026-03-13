@@ -13,6 +13,35 @@ interface UseQuotationFormDataParams {
   onDataLoaded?: (data: QuotationFormData) => void;
 }
 
+function extractVinFromUnknown(input: unknown): string {
+  if (!input || typeof input !== 'object') return '';
+
+  const record = input as Record<string, unknown>;
+  const directKeys = [
+    'VINNUMBER',
+    'VIN',
+    'vinNumber',
+    'vin',
+    'U_Veh_StockID',
+    'u_veh_stockid',
+  ];
+
+  for (const key of directKeys) {
+    const value = record[key];
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      return String(value).trim();
+    }
+  }
+
+  const dynamicMatch = Object.entries(record).find(([key, value]) => {
+    if (value === undefined || value === null) return false;
+    if (String(value).trim() === '') return false;
+    return key.toLowerCase().includes('vin');
+  });
+
+  return dynamicMatch ? String(dynamicMatch[1]).trim() : '';
+}
+
 /**
  * Custom hook for loading and preparing quotation form data
  * Handles both create-from-enquiry and supersede flows
@@ -48,6 +77,23 @@ export function useQuotationFormData({
       setError(null);
       const enquiryData = await getEnquiryById(id);
       setEnquiry(enquiryData);
+      const enquiryVinDetails = enquiryData.VINDETAILS as string | Record<string, unknown> | undefined;
+      let vinFromDetails = '';
+      if (typeof enquiryVinDetails === 'string') {
+        try {
+          vinFromDetails = extractVinFromUnknown(JSON.parse(enquiryVinDetails));
+        } catch {
+          vinFromDetails = '';
+        }
+      } else {
+        vinFromDetails = extractVinFromUnknown(enquiryVinDetails);
+      }
+      const enquiryRecord = enquiryData as unknown as Record<string, unknown>;
+      const rawVinNumber = enquiryRecord.vinNumber;
+      const vinFromRecord =
+        rawVinNumber !== undefined && rawVinNumber !== null && String(rawVinNumber).trim() !== ''
+          ? String(rawVinNumber).trim()
+          : '';
 
       // Prepare form data from enquiry
       const formData: QuotationFormData = {
@@ -61,7 +107,11 @@ export function useQuotationFormData({
         vehicleVariant: enquiryData.VARIANT || '',
         vehicleYear: enquiryData.YEAR || '',
         vehicleColor: enquiryData.COLOR || '',
-        vinNumber: enquiryData.VINNUMBER || '',
+        vinNumber:
+          enquiryData.VINNUMBER ||
+          vinFromRecord ||
+          vinFromDetails ||
+          '',
         vehicleBasePrice: 0,
         vehicleDiscount: 0,
         vehicleNetPrice: 0,

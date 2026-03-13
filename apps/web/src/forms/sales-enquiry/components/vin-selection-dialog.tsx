@@ -33,9 +33,28 @@ export function VinSelectionDialog({
     onSelectedVinsChange,
     onConfirm,
 }: VinSelectionDialogProps) {
+    const getVinValue = (vin: any): string => {
+        if (!vin || typeof vin !== "object") return "";
+        const direct =
+            vin.VIN ||
+            vin.VINNUMBER ||
+            vin.vin ||
+            vin.vinNumber ||
+            vin.U_Veh_StockID ||
+            vin.u_veh_stockid;
+        if (direct) return String(direct);
+
+        const entry = Object.entries(vin).find(([key, value]) => {
+            if (!value) return false;
+            const lower = key.toLowerCase();
+            return lower.includes("vin") || lower.includes("stockid");
+        });
+        return entry ? String(entry[1]) : "";
+    };
+
     const handleSelectAll = (checked: boolean) => {
         if (checked) {
-            const allVins = new Set(vinNumbers.map((vin: any) => vin.VIN || vin.vin || vin.vinNumber));
+            const allVins = new Set(vinNumbers.map((vin: any) => getVinValue(vin)).filter(Boolean));
             onSelectedVinsChange(allVins);
         } else {
             onSelectedVinsChange(new Set());
@@ -94,7 +113,7 @@ export function VinSelectionDialog({
                             </TableHeader>
                             <TableBody>
                                 {vinNumbers.map((vin: any) => {
-                                    const vinValue = vin.VIN || vin.vin || vin.vinNumber;
+                                    const vinValue = getVinValue(vin);
                                     const isSelected = selectedVins.has(vinValue);
                                     return (
                                         <TableRow
@@ -156,4 +175,3 @@ export function VinSelectionDialog({
         </Dialog>
     );
 }
-

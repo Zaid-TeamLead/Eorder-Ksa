@@ -19,6 +19,7 @@ import {
   passToCashier,
   getOpenDeposits,
   allocateDeposit,
+  cancelQuotation,
   logActivity,
   getQuotationActivities,
 } from '../controllers/quotation.controller.js';
@@ -37,6 +38,7 @@ import {
   approveDiscountSchema,
   passToCashierSchema,
   allocateDepositSchema,
+  cancelQuotationSchema,
   createActivitySchema,
   getQuotationByIdSchema,
   getQuotationsByEnquirySchema,
@@ -240,6 +242,26 @@ router.post(
   validate(getQuotationByIdSchema, 'params'),
   validate(allocateDepositSchema),
   asyncHandler(allocateDeposit)
+);
+
+/**
+ * POST /api/quotations/:id/cancel
+ * Cancel a quotation
+ */
+router.post(
+  '/:id/cancel',
+  validate(getQuotationByIdSchema, 'params'),
+  validate(cancelQuotationSchema),
+  asyncHandler(
+    checkResourceOwnership({
+      getResourceById: (id) => quotationService.getQuotationById(Number(id)),
+      getOwnerId: (quotation) => quotation.SLPCODE,
+      getUserId: (req) => req.user?.SlpCode,
+      resourceName: 'Quotation',
+      allowUnassigned: false,
+    })
+  ),
+  asyncHandler(cancelQuotation)
 );
 
 // ============================================================================

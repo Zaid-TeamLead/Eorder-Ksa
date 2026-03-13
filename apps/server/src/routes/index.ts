@@ -11,6 +11,7 @@ import enquiryRoutes from './enquiry.routes.js';
 import tradeInAppraisalRoutes from './tradeInAppraisal.routes.js';
 import financingRoutes from './financing.routes.js';
 import quotationRoutes from './quotation.routes.js';
+import salesOrderRoutes from './salesOrder.routes.js';
 
 export function registerRoutes(app: Router): void {
   app.use('/', healthRoutes);
@@ -31,4 +32,5 @@ export function registerRoutes(app: Router): void {
   app.use('/api/trade-in-appraisal', authenticate, tradeInAppraisalRoutes);
   app.use('/api/financing', authenticate, financingRoutes);
   app.use('/api/quotations', authenticate, quotationRoutes);
+  app.use('/api/sales-orders', authenticate, salesOrderRoutes);
 }

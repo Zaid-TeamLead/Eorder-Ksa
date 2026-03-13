@@ -53,6 +53,23 @@ export function VehicleDetails() {
   // Vehicle selection hook for cross-component communication
   const { listenForSelection } = useVehicleSelection();
 
+  const getVehicleVin = useCallback((vehicle: any): string => {
+    if (!vehicle || typeof vehicle !== "object") return "";
+    const direct =
+      vehicle.VIN ||
+      vehicle.VINNUMBER ||
+      vehicle.vin ||
+      vehicle.vinNumber ||
+      vehicle.U_Veh_StockID;
+    if (direct) return String(direct).trim();
+
+    const entry = Object.entries(vehicle).find(([key, value]) => {
+      if (!value) return false;
+      return key.toLowerCase().includes("vin");
+    });
+    return entry ? String(entry[1]).trim() : "";
+  }, []);
+
   // Resolve "make" from multiple possible API payload shapes.
   const resolveMake = useCallback((vehicle: any): string => {
     if (!vehicle || typeof vehicle !== "object") return "";
@@ -97,9 +114,10 @@ export function VehicleDetails() {
     }
   }, [vinNumbers, loadingVinNumbers]);
 
-  // Clear VIN selections when customerId or variant changes
+  // Clear VIN selections when variant is cleared.
+  // Do NOT clear on empty customerId because browse-inventory flow can work without it.
   useEffect(() => {
-    if (!customerId || !variant) {
+    if (!variant) {
       setSelectedVins(new Set());
       setSelectedVinsWithQuantity(new Map());
 
@@ -113,11 +131,13 @@ export function VehicleDetails() {
         form.setValue("vinDetails", undefined, { shouldDirty: false });
       }
     }
-  }, [customerId, variant, form]);
+  }, [variant, form]);
 
   // Listen for vehicle selection from inventory modal
   useEffect(() => {
     return listenForSelection((vehicle: VehicleInventory) => {
+      const resolvedVin = getVehicleVin(vehicle);
+
       // Populate form fields with inventory vehicle data
       const options = { shouldDirty: false };
       const make = resolveMake(vehicle) || String(form.getValues("make") || "");
@@ -127,12 +147,13 @@ export function VehicleDetails() {
       form.setValue("year", vehicle.U_Veh_MY || "", options);
       form.setValue("color", vehicle.U_Veh_Color || "", options);
       form.setValue("modelCode", vehicle.U_Vehicle_MC || "", options);
-      form.setValue("vinNumber", vehicle.VIN || "", options);
+      form.setValue("vinNumber", resolvedVin, options);
+      form.setValue("vinDetails", vehicle as any, options);
       form.setValue("quantity", 1, options);
 
       toast.success("Vehicle selected from inventory");
     });
-  }, [form, listenForSelection, resolveMake]);
+  }, [form, listenForSelection, resolveMake, getVehicleVin]);
 
   // Search vehicles handler
   const handleSearchVehicles = useCallback(async (query: string) => {
@@ -204,7 +225,7 @@ export function VehicleDetails() {
         const newMap = new Map<string, { vin: any; quantity: number }>();
         vins.forEach((vinValue) => {
           const vin = vinNumbers.find((v: any) => {
-            const vValue = v.VIN || v.vin || v.vinNumber;
+            const vValue = getVehicleVin(v);
             return vValue === vinValue;
           });
           if (vin) {
@@ -215,15 +236,12 @@ export function VehicleDetails() {
 
         // Get the first selected VIN for form field (for backward compatibility)
         const firstSelectedVin = vinNumbers.find((vin: any) => {
-          const vinValue = vin.VIN || vin.vin || vin.vinNumber;
+          const vinValue = getVehicleVin(vin);
           return vins.has(vinValue);
         });
 
         if (firstSelectedVin) {
-          const vinValue =
-            firstSelectedVin.VIN ||
-            firstSelectedVin.vin ||
-            firstSelectedVin.vinNumber;
+          const vinValue = getVehicleVin(firstSelectedVin);
           form.setValue("vinNumber", vinValue, { shouldDirty: false });
           form.setValue("vinDetails", firstSelectedVin, { shouldDirty: false });
 
@@ -256,7 +274,7 @@ export function VehicleDetails() {
         }
       }
     },
-    [form, vinNumbers, resolveMake]
+    [form, vinNumbers, resolveMake, getVehicleVin]
   );
 
   // Add to cart handler

@@ -67,7 +67,16 @@ export interface Quotation {
   DISCOUNT_APPROVED_DATE: string | null;
 
   // Status
-  STATUS: 'Draft' | 'Pending' | 'Approved' | 'Sent' | 'Accepted' | 'Rejected' | 'Expired' | 'Superseded';
+  STATUS:
+    | 'Draft'
+    | 'Pending'
+    | 'Approved'
+    | 'Sent'
+    | 'Accepted'
+    | 'Rejected'
+    | 'Expired'
+    | 'Superseded'
+    | 'Cancelled';
 
   // Quotation Details
   VALID_UNTIL: string | null;
@@ -274,6 +283,10 @@ export interface AllocateDepositData {
   allocationNotes?: string;
 }
 
+export interface CancelQuotationData {
+  cancellationReason: string;
+}
+
 export interface CreateActivityData {
   activityType: string;
   activityDescription?: string;
@@ -338,10 +351,12 @@ export interface UseQuotationMutationsReturn {
   approveDiscount: (approvalId: number, data: ApproveDiscountData) => Promise<void>;
   passToCashier: (quotationId: number, data: PassToCashierData) => Promise<void>;
   allocateDeposit: (quotationId: number, data: AllocateDepositData) => Promise<void>;
+  cancelQuotation: (quotationId: number, data: CancelQuotationData) => Promise<void>;
   isCreating: boolean;
   isUpdating: boolean;
   isDeleting: boolean;
   isSuperseding: boolean;
+  isCancelling: boolean;
 }
 
 export interface UseDiscountApprovalsReturn {

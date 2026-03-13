@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { ArrowLeft, Send, Wallet, CircleDollarSign } from 'lucide-react';
+import { ArrowLeft, Send, Wallet, CircleDollarSign, FileText, CircleX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -26,6 +26,7 @@ import { ErrorState } from '@/components/shared/error-state';
 import { RequestDiscountApprovalDialog } from '@/components/quotation/request-discount-approval-dialog';
 import { PassToCashierDialog } from '@/components/quotation/pass-to-cashier-dialog';
 import { AllocateDepositDialog } from '@/components/quotation/allocate-deposit-dialog';
+import { CancelQuotationDialog } from '@/components/quotation/cancel-quotation-dialog';
 
 // Custom hooks
 import { useQuotationActions } from '@/hooks/quotation/useQuotationActions';
@@ -38,6 +39,7 @@ export default function QuotationDetailPage() {
   const [requestApprovalDialogOpen, setRequestApprovalDialogOpen] = useState(false);
   const [passToCashierDialogOpen, setPassToCashierDialogOpen] = useState(false);
   const [allocateDepositDialogOpen, setAllocateDepositDialogOpen] = useState(false);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
 
   const { quotation, isLoading, error, refetch } = useQuotationById(quotationId);
 
@@ -45,7 +47,9 @@ export default function QuotationDetailPage() {
   const {
     handleBack,
     handleDelete,
+    handleCancel,
     isDeleting,
+    isCancelling,
   } = useQuotationActions({
     quotationId,
     onSuccess: () => router.push('/dashboard/quotations'),
@@ -71,16 +75,23 @@ export default function QuotationDetailPage() {
     (sum, item) => sum + Number(item.DISCOUNT_AMOUNT || 0),
     0
   );
+  const isCancelled = quotation.STATUS === 'Cancelled';
+  const isSuperseded = quotation.STATUS === 'Superseded';
+  const isTerminalStatus = isCancelled || isSuperseded;
   // Fallback to line-item discounts when TOTAL_DISCOUNT_AMOUNT is not synced.
   const effectiveDiscountAmount =
     totalDiscountAmount !== 0 ? totalDiscountAmount : lineItemsDiscountAmount;
   const discountPercentage = Number(quotation.DISCOUNT_PERCENTAGE || 0);
   const canRequestApproval =
-    effectiveDiscountAmount < 0 && quotation.DISCOUNT_APPROVAL_STATUS !== 'Approved';
+    !isTerminalStatus &&
+    effectiveDiscountAmount < 0 &&
+    quotation.DISCOUNT_APPROVAL_STATUS !== 'Approved';
   const isPassedToCashier = quotation.PASSED_TO_CASHIER === 'Y';
   const isDepositCollected = quotation.DEPOSIT_COLLECTED === 'Y';
-  const canPassToCashier = !isPassedToCashier;
-  const canAllocateDeposit = isPassedToCashier && !isDepositCollected;
+  const canPassToCashier = !isTerminalStatus && !isPassedToCashier;
+  const canAllocateDeposit = !isTerminalStatus && isPassedToCashier && !isDepositCollected;
+  const canCreateSalesOrder = !isTerminalStatus;
+  const canCancel = !isCancelled && !isSuperseded;
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -164,6 +175,42 @@ export default function QuotationDetailPage() {
                 </>
               )}
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardContent className="flex items-center justify-between gap-4 py-4">
+          <div>
+            <p className="text-sm font-medium">Sales Order</p>
+            <p className="text-sm text-muted-foreground">
+              Create a provisional sales order from this quotation.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => router.push(`/dashboard/sales-order?quotationId=${quotationId}`)}
+            disabled={!canCreateSalesOrder}
+          >
+            <FileText className="mr-2 h-4 w-4" />
+            Create Sales Order
+          </Button>
+        </CardContent>
+      </Card>
+
+      {canCancel && (
+        <Card>
+          <CardContent className="flex items-center justify-between gap-4 py-4">
+            <div>
+              <p className="text-sm font-medium">Cancel Quotation</p>
+              <p className="text-sm text-muted-foreground">
+                Stop this quotation from continuing in the sales flow.
+              </p>
+            </div>
+            <Button variant="destructive" onClick={() => setCancelDialogOpen(true)}>
+              <CircleX className="mr-2 h-4 w-4" />
+              Cancel Quotation
+            </Button>
           </CardContent>
         </Card>
       )}
@@ -436,6 +483,16 @@ export default function QuotationDetailPage() {
           }}
         />
       )}
+
+      <CancelQuotationDialog
+        open={cancelDialogOpen}
+        onOpenChange={setCancelDialogOpen}
+        quotationNumber={quotation.QUOTATION_NUMBER}
+        isCancelling={isCancelling}
+        onConfirm={async (reason) => {
+          await handleCancel({ cancellationReason: reason });
+        }}
+      />
     </div>
   );
 }

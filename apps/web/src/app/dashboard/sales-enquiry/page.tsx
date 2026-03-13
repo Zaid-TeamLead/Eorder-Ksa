@@ -1,8 +1,9 @@
 "use client";
-import { use, useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
 import { toast } from "sonner";
 import { IconPlus } from "@tabler/icons-react";
+import { useSearchParams } from "next/navigation";
 
 import { GenericDataTable } from "@/components/shared/generic-data-table";
 import { CrudDialog } from "@/components/shared/crud-dialog";
@@ -34,13 +35,9 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]["id"];
 
-export default function SalesEnquiry({
-  searchParams,
-}: {
-  searchParams: Promise<{ action?: string }>;
-}) {
-  const params = use(searchParams);
-  const action = params.action;
+export default function SalesEnquiry() {
+  const searchParams = useSearchParams();
+  const action = searchParams.get("action");
   const { data: session } = useSession();
   const slpCode = session?.user.SlpCode;
   const formRef = useRef<{ submit: () => void }>(null);
@@ -84,6 +81,7 @@ export default function SalesEnquiry({
     handleTradeInAppraisal,
     handleBankFunding,
     handleGenerateQuotation,
+    handleBookTestDriveNow,
   } = useEnquiryActions();
 
   useEffect(() => {
@@ -159,8 +157,9 @@ export default function SalesEnquiry({
         onTradeInAppraisal: handleTradeInAppraisal,
         onBankFunding: handleBankFunding,
         onGenerateQuotation: handleGenerateQuotation,
+        onBookTestDriveNow: handleBookTestDriveNow,
       }),
-    [modal, updateStatus]
+    [modal, updateStatus, handleTradeInAppraisal, handleBankFunding, handleGenerateQuotation, handleBookTestDriveNow]
   );
 
   return (

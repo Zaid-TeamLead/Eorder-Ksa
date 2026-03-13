@@ -8,6 +8,7 @@ import type {
   ApproveDiscountInput,
   PassToCashierInput,
   AllocateDepositInput,
+  CancelQuotationInput,
   CreateActivityInput,
   QuotationFilters,
   DiscountApprovalFilters,
@@ -257,6 +258,21 @@ export const allocateDeposit = async (req: Request, res: Response) => {
   };
 
   const result = await quotationService.allocateDeposit(quotationId, allocationData);
+  sendSuccess(res, result);
+};
+
+/**
+ * Cancel quotation
+ * POST /api/quotations/:id/cancel
+ */
+export const cancelQuotation = async (req: Request, res: Response) => {
+  const quotationId = Number(req.params.id);
+  const cancellationData: CancelQuotationInput & { cancelledBy: string } = {
+    ...req.body,
+    cancelledBy: getAuditUser(req),
+  };
+
+  const result = await quotationService.cancelQuotation(quotationId, cancellationData);
   sendSuccess(res, result);
 };
 

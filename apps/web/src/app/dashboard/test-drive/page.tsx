@@ -28,6 +28,7 @@ import {
   getTestVehicleById,
   type TestVehicle,
 } from "@/services/vehicles";
+import { getEnquiryById } from "@/services/enquiry";
 import { logger } from '@/lib/logger';
 
 // Helper function to extract date from date string
@@ -41,10 +42,49 @@ const extractDate = (dateString?: string): string => {
   }
 };
 
-// Get immediate booking defaults from URL params (vehicleVin)
-const getImmediateBookingDefaults = (vehicleVin?: string, userName?: string): Partial<BookTestDriveFormData> | undefined => {
-  if (!vehicleVin) return undefined;
+const extractEnquiryVin = (enquiry: any): string => {
+  const direct =
+    enquiry?.VINNUMBER ||
+    enquiry?.VIN ||
+    enquiry?.vinNumber ||
+    enquiry?.vin;
+  if (direct) return String(direct).trim();
 
+  const details = enquiry?.VINDETAILS;
+  if (details && typeof details === "object") {
+    const record = details as Record<string, unknown>;
+    const directKeys = [
+      "VINNUMBER",
+      "VIN",
+      "vinNumber",
+      "vin",
+      "U_Veh_StockID",
+      "u_veh_stockid",
+    ];
+    for (const key of directKeys) {
+      const value = record[key];
+      if (value !== undefined && value !== null && String(value).trim() !== "") {
+        return String(value).trim();
+      }
+    }
+    const dynamicMatch = Object.entries(record).find(([key, value]) => {
+      if (value === undefined || value === null) return false;
+      if (String(value).trim() === "") return false;
+      const lower = key.toLowerCase();
+      return lower.includes("vin") || lower.includes("stockid");
+    });
+    if (dynamicMatch) return String(dynamicMatch[1]).trim();
+  }
+
+  return "";
+};
+
+// Get immediate booking defaults from URL params (vehicleVin)
+const getImmediateBookingDefaults = (
+  vehicleVin?: string,
+  userName?: string,
+  enquiryDefaults?: Partial<BookTestDriveFormData>
+): Partial<BookTestDriveFormData> => {
   const now = new Date();
   const currentDate = now.toISOString().split('T')[0];
   const currentTime = now.toTimeString().slice(0, 5);
@@ -55,7 +95,8 @@ const getImmediateBookingDefaults = (vehicleVin?: string, userName?: string): Pa
   const endTimeStr = endTime.toTimeString().slice(0, 5);
 
   return {
-    registrationNumber: vehicleVin,
+    ...enquiryDefaults,
+    registrationNumber: vehicleVin || enquiryDefaults?.registrationNumber || "",
     dateOut: currentDate,
     timeOut: currentTime,
     dateIn: endDate,
@@ -63,7 +104,7 @@ const getImmediateBookingDefaults = (vehicleVin?: string, userName?: string): Pa
     quickBooking: true,
     newOrUsed: "N",
     newOrUsedLabel: "New",
-    salesExecutive: userName || "",
+    salesExecutive: userName || enquiryDefaults?.salesExecutive || "",
   };
 };
 
@@ -72,11 +113,12 @@ const getFormDefaultValues = (
   booking: BookTestDrive | null,
   isImmediateBooking: boolean,
   vehicleVin?: string,
-  userName?: string
+  userName?: string,
+  immediateEnquiryDefaults?: Partial<BookTestDriveFormData>
 ): Partial<BookTestDriveFormData> | undefined => {
   // If immediate booking, use immediate defaults
   if (isImmediateBooking && !booking) {
-    return getImmediateBookingDefaults(vehicleVin, userName);
+    return getImmediateBookingDefaults(vehicleVin, userName, immediateEnquiryDefaults);
   }
 
   if (!booking) return undefined;
@@ -153,12 +195,13 @@ const toBookingPayload = (
 export default function BookTestDrive({
   searchParams,
 }: {
-  searchParams: Promise<{ action?: string; immediate?: string; vehicleVin?: string }>;
+  searchParams: Promise<{ action?: string; immediate?: string; vehicleVin?: string; enquiryId?: string }>;
 }) {
   const params = use(searchParams);
   const action = params.action;
   const immediate = params.immediate === "true";
   const vehicleVin = params.vehicleVin;
+  const enquiryId = params.enquiryId;
   const { data: session } = useSession();
   const slpCode = session?.user.SlpCode;
   const formRef = useRef<{ submit: () => void; reset: () => void }>(null);
@@ -170,6 +213,9 @@ export default function BookTestDrive({
   const [selectedVehicleDetails, setSelectedVehicleDetails] =
     useState<TestVehicle | null>(null);
   const [isVehicleDetailsLoading, setIsVehicleDetailsLoading] = useState(false);
+  const [immediateEnquiryDefaults, setImmediateEnquiryDefaults] = useState<
+    Partial<BookTestDriveFormData> | undefined
+  >(undefined);
   const viewRequestRef = useRef(0);
 
   // Initialize modal based on URL params
@@ -178,6 +224,58 @@ export default function BookTestDrive({
       modal.openCreate();
     }
   }, [action]);
+
+  React.useEffect(() => {
+    let isCancelled = false;
+
+    const loadImmediateEnquiryDefaults = async () => {
+      if (!immediate || !enquiryId) {
+        setImmediateEnquiryDefaults(undefined);
+        return;
+      }
+
+      const parsedId = Number.parseInt(enquiryId, 10);
+      if (Number.isNaN(parsedId) || parsedId <= 0) {
+        setImmediateEnquiryDefaults(undefined);
+        return;
+      }
+
+      try {
+        const enquiry = await getEnquiryById(parsedId);
+        if (isCancelled) return;
+
+        const manufacturer = enquiry.MAKENAME || enquiry.MAKE || "";
+        const model = enquiry.MODELNAME || enquiry.MODEL || "";
+        const variant = enquiry.VARIANTNAME || enquiry.VARIANT || "";
+        const description = [manufacturer, model, variant].filter(Boolean).join(" ");
+
+        setImmediateEnquiryDefaults({
+          customerId: enquiry.CUSTOMERID || "",
+          customerName: enquiry.CUSTOMERNAME || "",
+          postcode: enquiry.POSTCODE || "",
+          address: enquiry.ADDRESS || "",
+          phoneNumber: enquiry.MOBILE || enquiry.HOMEPHONE || enquiry.WORKPHONE || "",
+          email: enquiry.HOMEEMAIL || "",
+          registrationNumber: vehicleVin || extractEnquiryVin(enquiry),
+          manufacturer,
+          model,
+          variant,
+          description,
+        });
+      } catch (error) {
+        logger.error("Failed to load enquiry defaults for immediate test drive:", error);
+        if (!isCancelled) {
+          setImmediateEnquiryDefaults(undefined);
+        }
+      }
+    };
+
+    void loadImmediateEnquiryDefaults();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [immediate, enquiryId, vehicleVin]);
 
   // Fetch bookings using custom hook
   const { bookings, isLoading, error } = useTestDrives();
@@ -448,7 +546,13 @@ export default function BookTestDrive({
             ref={formRef}
             onSubmit={handleSubmit}
             onCustomerSearch={handleCustomerSearch}
-            defaultValues={getFormDefaultValues(modal.selectedEntity, isImmediateBooking, vehicleVin, session?.user.name)}
+            defaultValues={getFormDefaultValues(
+              modal.selectedEntity,
+              isImmediateBooking,
+              vehicleVin,
+              session?.user.name,
+              immediateEnquiryDefaults
+            )}
           />
         </CrudDialog>
 

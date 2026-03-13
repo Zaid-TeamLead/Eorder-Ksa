@@ -8,6 +8,7 @@ import type {
   ApproveDiscountInput,
   PassToCashierInput,
   AllocateDepositInput,
+  CancelQuotationInput,
   CreateActivityInput,
   DiscountApprovalFilters,
 } from '../schemas/quotation.schema.js';
@@ -141,6 +142,35 @@ export interface DiscountApproval {
   IS_DELETED: string;
 }
 
+function extractVinFromUnknown(input: unknown): string {
+  if (!input || typeof input !== 'object') return '';
+
+  const record = input as Record<string, unknown>;
+  const directKeys = [
+    'VINNUMBER',
+    'VIN',
+    'vinNumber',
+    'vin',
+    'U_Veh_StockID',
+    'u_veh_stockid',
+  ];
+
+  for (const key of directKeys) {
+    const value = record[key];
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      return String(value).trim();
+    }
+  }
+
+  const dynamicMatch = Object.entries(record).find(([key, value]) => {
+    if (value === undefined || value === null) return false;
+    if (String(value).trim() === '') return false;
+    return key.toLowerCase().includes('vin');
+  });
+
+  return dynamicMatch ? String(dynamicMatch[1]).trim() : '';
+}
+
 // =====================================================
 // Quotation Service Class
 // =====================================================
@@ -237,6 +267,25 @@ class QuotationService {
     return new Date().toISOString().replace('T', ' ').substring(0, 19);
   }
 
+  private async getQuotationOrThrow(
+    id: number
+  ): Promise<Quotation & { lineItems: QuotationLineItem[] }> {
+    const quotation = await this.getQuotationById(id);
+    if (!quotation) {
+      throw new Error('Quotation not found');
+    }
+    return quotation;
+  }
+
+  private ensureActionAllowed(quotation: Quotation): void {
+    if (quotation.STATUS === 'Cancelled') {
+      throw new Error('Quotation is cancelled and cannot be changed');
+    }
+    if (quotation.STATUS === 'Superseded') {
+      throw new Error('Superseded quotation cannot be changed');
+    }
+  }
+
   /**
    * Create a new quotation with line items
    */
@@ -246,6 +295,35 @@ class QuotationService {
     try {
       const currentDateTime = this.getCurrentDateTime();
       const quotationNumber = await this.generateQuotationNumber();
+      let resolvedVinNumber = data.vinNumber || null;
+
+      // Fallback: if VIN not provided from UI, source it from enquiry record.
+      if (!resolvedVinNumber && data.enquirySlno) {
+        const enquiry = await db.queryOne<{
+          VINNUMBER?: string | null;
+          VINDETAILS?: string | null;
+        }>(
+          `
+          SELECT "VINNUMBER", "VINDETAILS"
+          FROM "BI_NEGT_KSA"."DMS_SALESENQUIRY"
+          WHERE "SLNO" = ?
+        `,
+          [data.enquirySlno]
+        );
+
+        if (enquiry) {
+          resolvedVinNumber = enquiry.VINNUMBER || null;
+
+          if (!resolvedVinNumber && enquiry.VINDETAILS) {
+            try {
+              const vinDetails = JSON.parse(enquiry.VINDETAILS) as unknown;
+              resolvedVinNumber = extractVinFromUnknown(vinDetails) || null;
+            } catch {
+              // Ignore JSON parsing issues and continue with null VIN
+            }
+          }
+        }
+      }
 
       // Check if discount requires approval
       const discountCheck = await this.checkDiscountLimit(data.totalDiscountAmount, data.createdBy);
@@ -299,7 +377,7 @@ class QuotationService {
         data.vehicleVariant || null,
         data.vehicleYear || null,
         data.vehicleColor || null,
-        data.vinNumber || null,
+        resolvedVinNumber,
         data.vehicleBasePrice,
         data.vehicleDiscount,
         data.vehicleNetPrice,
@@ -896,6 +974,8 @@ class QuotationService {
   ): Promise<{ success: boolean; id: number }> {
     try {
       const currentDateTime = this.getCurrentDateTime();
+      const quotation = await this.getQuotationOrThrow(quotationId);
+      this.ensureActionAllowed(quotation);
 
       // Get user's discount limit
       const limitCheck = await this.checkDiscountLimit(data.discountAmount, data.requestedBy);
@@ -1049,6 +1129,8 @@ class QuotationService {
     data: PassToCashierInput & { passedBy: string }
   ): Promise<{ success: boolean }> {
     try {
+      const quotation = await this.getQuotationOrThrow(quotationId);
+      this.ensureActionAllowed(quotation);
       const currentDateTime = this.getCurrentDateTime();
 
       const query = `
@@ -1102,6 +1184,7 @@ class QuotationService {
         FROM "BI_NEGT_KSA"."DMS_QUOTATION"
         WHERE "PASSED_TO_CASHIER" = 'Y'
           AND ("DEPOSIT_COLLECTED" IS NULL OR "DEPOSIT_COLLECTED" = 'N')
+          AND "STATUS" NOT IN ('Cancelled', 'Superseded')
           AND "IS_DELETED" = 'N'
         ORDER BY "PASSED_TO_CASHIER_DATE" DESC, "UPDATED_DATE" DESC
       `;
@@ -1124,10 +1207,8 @@ class QuotationService {
       const currentDateTime = this.getCurrentDateTime();
 
       // Ensure quotation is passed to cashier first
-      const quotation = await this.getQuotationById(quotationId);
-      if (!quotation) {
-        throw new Error('Quotation not found');
-      }
+      const quotation = await this.getQuotationOrThrow(quotationId);
+      this.ensureActionAllowed(quotation);
 
       if (quotation.PASSED_TO_CASHIER !== 'Y') {
         throw new Error('Quotation has not been passed to cashier yet');
@@ -1163,6 +1244,63 @@ class QuotationService {
     } catch (error: any) {
       logger.error('Error allocating deposit:', error);
       throw new Error('Failed to allocate deposit: ' + error.message);
+    }
+  }
+
+  /**
+   * Cancel quotation
+   */
+  async cancelQuotation(
+    quotationId: number,
+    data: CancelQuotationInput & { cancelledBy: string }
+  ): Promise<{ success: boolean }> {
+    try {
+      const quotation = await this.getQuotationOrThrow(quotationId);
+      this.ensureActionAllowed(quotation);
+      const currentDateTime = this.getCurrentDateTime();
+
+      const query = `
+        UPDATE "BI_NEGT_KSA"."DMS_QUOTATION"
+        SET "STATUS" = 'Cancelled',
+            "REQUIRES_APPROVAL" = 'N',
+            "DISCOUNT_APPROVAL_STATUS" = 'Cancelled',
+            "UPDATED_BY" = ?,
+            "UPDATED_DATE" = ?
+        WHERE "SLNO" = ?
+      `;
+
+      await db.execute(query, [data.cancelledBy, currentDateTime, quotationId]);
+
+      // Cancel any pending discount approval requests linked to this quotation.
+      const cancelPendingApprovalsQuery = `
+        UPDATE "BI_NEGT_KSA"."DMS_DISCOUNT_APPROVAL"
+        SET "STATUS" = 'Cancelled',
+            "UPDATED_BY" = ?,
+            "UPDATED_DATE" = ?
+        WHERE "QUOTATION_SLNO" = ?
+          AND "STATUS" = 'Pending'
+          AND "IS_DELETED" = 'N'
+      `;
+
+      await db.execute(cancelPendingApprovalsQuery, [
+        data.cancelledBy,
+        currentDateTime,
+        quotationId,
+      ]);
+
+      await this.logActivity({
+        quotationSlno: quotationId,
+        activityType: 'Cancelled',
+        activityDescription: 'Quotation cancelled',
+        activityNotes: data.cancellationReason,
+        createdBy: data.cancelledBy,
+      });
+
+      logger.info({ quotationId }, 'Quotation cancelled');
+      return { success: true };
+    } catch (error: any) {
+      logger.error('Error cancelling quotation:', error);
+      throw new Error('Failed to cancel quotation: ' + error.message);
     }
   }
 

@@ -10,9 +10,14 @@
  */
 export const QUOTATION_STATUS = {
   DRAFT: 'Draft',
+  PENDING: 'Pending',
+  APPROVED: 'Approved',
   SENT: 'Sent',
   ACCEPTED: 'Accepted',
   REJECTED: 'Rejected',
+  EXPIRED: 'Expired',
+  SUPERSEDED: 'Superseded',
+  CANCELLED: 'Cancelled',
 } as const;
 
 /**

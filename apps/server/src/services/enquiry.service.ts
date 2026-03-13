@@ -113,6 +113,35 @@ export interface UpdateEnquiryData {
   followUpNotes?: string;
 }
 
+function extractVinFromUnknown(input: unknown): string {
+  if (!input || typeof input !== 'object') return '';
+
+  const record = input as Record<string, unknown>;
+  const directKeys = [
+    'VINNUMBER',
+    'VIN',
+    'vinNumber',
+    'vin',
+    'U_Veh_StockID',
+    'u_veh_stockid',
+  ];
+
+  for (const key of directKeys) {
+    const value = record[key];
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      return String(value).trim();
+    }
+  }
+
+  const dynamicMatch = Object.entries(record).find(([key, value]) => {
+    if (value === undefined || value === null) return false;
+    if (String(value).trim() === '') return false;
+    return key.toLowerCase().includes('vin');
+  });
+
+  return dynamicMatch ? String(dynamicMatch[1]).trim() : '';
+}
+
 class EnquiryService {
   /**
    * Create a new sales enquiry
@@ -123,6 +152,10 @@ class EnquiryService {
         .toISOString()
         .replace('T', ' ')
         .substring(0, 19);
+      const resolvedVinNumber =
+        data.vinNumber ||
+        extractVinFromUnknown(data.vinDetails) ||
+        null;
 
       const query = `
         INSERT INTO "BI_NEGT_KSA"."DMS_SALESENQUIRY" (
@@ -159,7 +192,7 @@ class EnquiryService {
         data.suppCatNum || null,
         data.modelCode || null,
         data.quantity || 1,
-        data.vinNumber || null,
+        resolvedVinNumber,
         data.vinDetails ? JSON.stringify(data.vinDetails) : null,
         data.branch || null,
         data.branchName || null,
@@ -308,9 +341,17 @@ class EnquiryService {
         throw new Error('Sales enquiry not found');
       }
 
+      const normalizedData: UpdateEnquiryData = { ...data };
+      if (!normalizedData.vinNumber) {
+        const vinFromDetails = extractVinFromUnknown(normalizedData.vinDetails);
+        if (vinFromDetails) {
+          normalizedData.vinNumber = vinFromDetails;
+        }
+      }
+
       // Use generic update utility
       const { updates, parameters } = buildUpdateQuery(
-        data,
+        normalizedData,
         enquiryFieldMapping,
         enquiryValueTransformers
       );

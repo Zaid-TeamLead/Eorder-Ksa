@@ -3,6 +3,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { useQuotationMutations } from '../entities/useQuotationMutations';
 import { logger } from '@/lib/logger';
+import type { CancelQuotationData } from '@/types/quotation';
 
 interface UseQuotationActionsParams {
   quotationId?: number;
@@ -16,7 +17,7 @@ interface UseQuotationActionsParams {
 export function useQuotationActions(params: UseQuotationActionsParams = {}) {
   const { quotationId, onSuccess } = params;
   const router = useRouter();
-  const { deleteQuotation, isDeleting } = useQuotationMutations();
+  const { deleteQuotation, cancelQuotation, isDeleting, isCancelling } = useQuotationMutations();
 
   const handleView = useCallback(
     (id?: number) => {
@@ -75,6 +76,23 @@ export function useQuotationActions(params: UseQuotationActionsParams = {}) {
     router.push('/dashboard/quotations');
   }, [router]);
 
+  const handleCancel = useCallback(
+    async (data: CancelQuotationData, id?: number) => {
+      const targetId = id || quotationId;
+      if (!targetId) return;
+
+      try {
+        await cancelQuotation(targetId, data);
+        toast.success('Quotation cancelled successfully');
+        onSuccess?.();
+      } catch (error) {
+        logger.error('Error cancelling quotation:', error);
+        toast.error('Failed to cancel quotation');
+      }
+    },
+    [cancelQuotation, quotationId, onSuccess]
+  );
+
   const handlePassToCashier = useCallback(() => {
     toast.info('Pass to cashier functionality coming soon');
   }, []);
@@ -88,10 +106,12 @@ export function useQuotationActions(params: UseQuotationActionsParams = {}) {
     handleEdit,
     handlePrint,
     handleDelete,
+    handleCancel,
     handleSupersede,
     handleBack,
     handlePassToCashier,
     handleRequestApproval,
     isDeleting,
+    isCancelling,
   };
 }

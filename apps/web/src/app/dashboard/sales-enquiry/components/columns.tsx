@@ -7,6 +7,7 @@ import {
   IconEdit,
   IconTrash,
   IconCar,
+  IconCarGarage,
   IconCurrencyDollar,
   IconFileText,
 } from "@tabler/icons-react";
@@ -59,6 +60,7 @@ export interface SalesEnquiryColumnHandlers {
   onTradeInAppraisal?: (enquiry: SalesEnquiry) => void;
   onBankFunding?: (enquiry: SalesEnquiry) => void;
   onGenerateQuotation?: (enquiry: SalesEnquiry) => void;
+  onBookTestDriveNow?: (enquiry: SalesEnquiry) => void;
 }
 
 export function createSalesEnquiryColumns({
@@ -69,6 +71,7 @@ export function createSalesEnquiryColumns({
   onTradeInAppraisal,
   onBankFunding,
   onGenerateQuotation,
+  onBookTestDriveNow,
 }: SalesEnquiryColumnHandlers): ColumnDef<SalesEnquiry>[] {
   return [
     {
@@ -209,6 +212,10 @@ export function createSalesEnquiryColumns({
             <DropdownMenuItem onClick={() => onGenerateQuotation?.(row.original)}>
               <IconFileText className="mr-2 h-4 w-4" />
               Generate Quotation
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onBookTestDriveNow?.(row.original)}>
+              <IconCarGarage className="mr-2 h-4 w-4" />
+              Book Test Drive Now
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem

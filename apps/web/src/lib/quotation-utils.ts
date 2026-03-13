@@ -28,6 +28,7 @@ export const getQuotationStatusVariant = (
     case 'Accepted':
       return 'default';
     case 'Rejected':
+    case 'Cancelled':
       return 'destructive';
     default:
       return 'outline';
@@ -53,6 +54,7 @@ export const getQuotationStatusColor = (status: string): string => {
     case 'Accepted':
       return 'bg-green-500';
     case 'Rejected':
+    case 'Cancelled':
       return 'bg-red-500';
     default:
       return 'bg-gray-500';
