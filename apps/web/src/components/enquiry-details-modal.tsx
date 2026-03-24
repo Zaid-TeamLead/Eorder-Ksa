@@ -41,6 +41,7 @@ export function EnquiryDetailsModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+
         <DialogHeader>
           <div className="flex items-center justify-between">
             <DialogTitle>Enquiry #{enquiry.SLNO}</DialogTitle>
@@ -60,6 +61,7 @@ export function EnquiryDetailsModal({
             </div>
           </div>
         </DialogHeader>
+
 
         <div className="space-y-6">
           {/* Customer Information */}
@@ -277,6 +279,7 @@ export function EnquiryDetailsModal({
             </div>
           </div>
         </div>
+        
       </DialogContent>
     </Dialog>
   );

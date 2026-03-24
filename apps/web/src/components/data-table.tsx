@@ -134,6 +134,8 @@ function DragHandle({ id }: { id: number }) {
   )
 }
 
+
+
 const columns: ColumnDef<z.infer<typeof schema>>[] = [
   {
     id: "drag",
@@ -464,12 +466,14 @@ export function DataTable({
                   </SortableContext>
                 ) : (
                   <TableRow>
+
                     <TableCell
                       colSpan={columns.length}
                       className="h-24 text-center"
                     >
                       No results.
                     </TableCell>
+
                   </TableRow>
                 )}
               </TableBody>

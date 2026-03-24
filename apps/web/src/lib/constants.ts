@@ -51,6 +51,11 @@ export const SIDEBAR_MENU = {
       url: '/dashboard/test-drive',
       icon: IconCar,
     },
+    {
+      title: 'Dispatch & POD',
+      url: '/dashboard/dispatch-pod',
+      icon: IconFolder,
+    },
   ],
   navSecondary: [
     {

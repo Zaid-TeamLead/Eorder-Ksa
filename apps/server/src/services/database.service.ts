@@ -66,7 +66,7 @@ class DatabaseService {
 
     return new Promise((resolve, reject) => {
       const startTime = Date.now();
-      
+
       // Set up timeout
       const timeout = setTimeout(() => {
         const duration = Date.now() - startTime;
@@ -77,7 +77,7 @@ class DatabaseService {
         }
         this.connection = null;
         this.isConnected = false;
-        
+
         logger.error(
           {
             serverNode: config.serverNode,
@@ -94,7 +94,7 @@ class DatabaseService {
       connection.connect(config, (err: Error | null) => {
         const duration = Date.now() - startTime;
         clearTimeout(timeout);
-        
+
         if (err) {
           const errorDetails = {
             message: err.message || String(err),
@@ -203,7 +203,7 @@ class DatabaseService {
   }
 
 
-  
+
 
   /**
    * Close the connection
