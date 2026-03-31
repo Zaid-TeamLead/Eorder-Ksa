@@ -15,6 +15,15 @@ import {
   bookTestDriveValueTransformers,
 } from '../schemas/shared/field-mappings.js';
 
+const BOOK_TEST_DRIVE_DB_SCHEMA = (() => {
+  const raw = process.env.BOOK_TEST_DRIVE_DB_SCHEMA || 'BI_NEGT_KSAISUZU';
+  const normalized = raw.trim().toUpperCase();
+  if (!/^[A-Z0-9_]+$/.test(normalized)) {
+    throw new Error(`Invalid BOOK_TEST_DRIVE_DB_SCHEMA identifier: ${raw}`);
+  }
+  return normalized;
+})();
+
 export interface BookTestDriveData {
   // Customer Information
   customerId?: string;
@@ -104,6 +113,15 @@ export const createBookTestDrive = async (
   try {
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     const createdBy = data.createdBy.substring(0, 8); // Ensure CREATEDBY is max 8 chars
+    const nextSlnoRow = await db.queryOne<{ SLNO: number }>(
+      `SELECT COALESCE(MAX("SLNO"), 0) + 1 AS "SLNO"
+       FROM "${BOOK_TEST_DRIVE_DB_SCHEMA}"."DMS_BOOKTESTDRIVE"`
+    );
+    const nextSlno = nextSlnoRow?.SLNO;
+
+    if (!nextSlno) {
+      throw new Error('Failed to generate next test drive SLNO');
+    }
 
     // Convert date strings to SECONDDATE format (YYYY-MM-DD HH:MM:SS)
     // dateOut and dateIn are in YYYY-MM-DD format, timeOut and timeIn can be in HH:MM or HH:MM:SS format
@@ -120,9 +138,9 @@ export const createBookTestDrive = async (
         : null;
 
     await db.execute(
-      `INSERT INTO "BI_NEGT_KSA"."DMS_BOOKTESTDRIVE" 
+      `INSERT INTO "${BOOK_TEST_DRIVE_DB_SCHEMA}"."DMS_BOOKTESTDRIVE" 
        (
-         "CUSTOMERID", "CUSTOMERNAME", "POSTCODE", "ADDRESS", 
+         "SLNO", "CUSTOMERID", "CUSTOMERNAME", "POSTCODE", "ADDRESS", 
          "PHONENUMBER", "EMAIL", "REGISTRATIONNUM", "MANUFACTURER",
          "MODEL",  "VARIANT","DESCRIPTION", "BODYSTYLE",
          "DATEOUT", "TIMEOUT", "DATEIN", "TIMEIN",
@@ -130,8 +148,9 @@ export const createBookTestDrive = async (
           "SALESEXECUTIVE", "APPROVEDBY", "QUICKBOOKING", "NEWORUSED",
            "NEWORUSEDLABEL", "NOTES", "CREATEDDATE", "CREATEDBY", "STATUS",  "FUELOUT", "FUELIN", "MILEAGEOUT", "MILEAGEIN"
        )
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
+        nextSlno,
         data.customerId ?? null,
         data.customerName ?? null,
         data.postcode ?? null,
@@ -170,10 +189,9 @@ export const createBookTestDrive = async (
 
     // Get the inserted record
     const insertedId = await db.queryOne<{ SLNO: number }>(
-      `SELECT "SLNO" FROM "BI_NEGT_KSA"."DMS_BOOKTESTDRIVE" 
-       WHERE "CREATEDBY" = ? AND "CREATEDDATE" = ? 
-       ORDER BY "SLNO" DESC LIMIT 1`,
-      [createdBy, now]
+      `SELECT "SLNO" FROM "${BOOK_TEST_DRIVE_DB_SCHEMA}"."DMS_BOOKTESTDRIVE" 
+       WHERE "SLNO" = ?`,
+      [nextSlno]
     );
 
     if (insertedId && insertedId.SLNO) {
@@ -186,7 +204,8 @@ export const createBookTestDrive = async (
     throw new Error('Failed to retrieve created book test drive');
   } catch (error) {
     logger.error(error, 'Failed to create book test drive');
-    throw new Error('Failed to create book test drive');
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    throw new Error(`Failed to create book test drive: ${message}`);
   }
 };
 
@@ -196,7 +215,7 @@ export const getAllBookTestDrives = async (filters?: {
   includeDeleted?: boolean;
 }): Promise<BookTestDrive[]> => {
   try {
-    let query = `SELECT * FROM "BI_NEGT_KSA"."DMS_BOOKTESTDRIVE" WHERE 1=1`;
+    let query = `SELECT * FROM "${BOOK_TEST_DRIVE_DB_SCHEMA}"."DMS_BOOKTESTDRIVE" WHERE 1=1`;
     const parameters: any[] = [];
 
     // Exclude cancelled/deleted by default
@@ -309,7 +328,7 @@ export const updateBookTestDrive = async (
     // Add ID for WHERE clause
     parameters.push(id);
 
-    const sql = `UPDATE "BI_NEGT_KSA"."DMS_BOOKTESTDRIVE"
+    const sql = `UPDATE "${BOOK_TEST_DRIVE_DB_SCHEMA}"."DMS_BOOKTESTDRIVE"
                  SET ${updates.join(', ')}
                  WHERE "SLNO" = ?`;
 
@@ -327,7 +346,7 @@ export const getBookTestDriveById = async (
 ): Promise<BookTestDrive | null> => {
   try {
     const booking = await db.queryOne<BookTestDrive>(
-      `SELECT * FROM "BI_NEGT_KSA"."DMS_BOOKTESTDRIVE" WHERE "SLNO" = ?`,
+      `SELECT * FROM "${BOOK_TEST_DRIVE_DB_SCHEMA}"."DMS_BOOKTESTDRIVE" WHERE "SLNO" = ?`,
       [id]
     );
     return booking;
@@ -353,7 +372,7 @@ export const deleteBookTestDrive = async (
     const currentDateTime = getCurrentTimestamp();
 
     const query = `
-      UPDATE "BI_NEGT_KSA"."DMS_BOOKTESTDRIVE"
+      UPDATE "${BOOK_TEST_DRIVE_DB_SCHEMA}"."DMS_BOOKTESTDRIVE"
       SET "STATUS" = 'Cancelled', "UPDATEDDATE" = ?, "UPDATEDBY" = ?
       WHERE "SLNO" = ?
     `;
@@ -383,7 +402,7 @@ export const checkVehicleAvailability = async (
   try {
     const query = `
       SELECT COUNT(*) as "COUNT"
-      FROM "BI_NEGT_KSA"."DMS_BOOKTESTDRIVE"
+      FROM "${BOOK_TEST_DRIVE_DB_SCHEMA}"."DMS_BOOKTESTDRIVE"
       WHERE "REGISTRATIONNUM" = ?
         AND "STATUS" NOT IN ('Cancelled', 'Completed', 'Returned')
         AND (
@@ -420,7 +439,7 @@ export const getCurrentlyBookedVehicles = async (): Promise<string[]> => {
 
     const query = `
       SELECT DISTINCT "REGISTRATIONNUM"
-      FROM "BI_NEGT_KSA"."DMS_BOOKTESTDRIVE"
+      FROM "${BOOK_TEST_DRIVE_DB_SCHEMA}"."DMS_BOOKTESTDRIVE"
       WHERE "STATUS" NOT IN ('Cancelled', 'Completed', 'Returned')
         AND "DATEOUT" <= ?
         AND "DATEIN" >= ?

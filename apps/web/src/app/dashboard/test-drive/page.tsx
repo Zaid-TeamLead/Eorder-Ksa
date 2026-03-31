@@ -79,6 +79,13 @@ const extractEnquiryVin = (enquiry: any): string => {
   return "";
 };
 
+const sanitizeEmail = (value?: string | null): string => {
+  if (!value) return "";
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed) ? trimmed : "";
+};
+
 // Get immediate booking defaults from URL params (vehicleVin)
 const getImmediateBookingDefaults = (
   vehicleVin?: string,
@@ -255,7 +262,7 @@ export default function BookTestDrive({
           postcode: enquiry.POSTCODE || "",
           address: enquiry.ADDRESS || "",
           phoneNumber: enquiry.MOBILE || enquiry.HOMEPHONE || enquiry.WORKPHONE || "",
-          email: enquiry.HOMEEMAIL || "",
+          email: sanitizeEmail(enquiry.HOMEEMAIL),
           registrationNumber: vehicleVin || extractEnquiryVin(enquiry),
           manufacturer,
           model,
@@ -281,7 +288,13 @@ export default function BookTestDrive({
   const { bookings, isLoading, error } = useTestDrives();
 
   // CRUD mutations using custom hook
-  const { createBooking, updateBooking, deleteBooking } = useTestDriveMutations();
+  const {
+    createBooking,
+    updateBooking,
+    deleteBooking,
+    isCreating,
+    isUpdating,
+  } = useTestDriveMutations();
 
   const handleSubmit = async (data: BookTestDriveFormData) => {
     const payload = toBookingPayload(data);
@@ -540,7 +553,7 @@ export default function BookTestDrive({
           description={isImmediateBooking ? "Quick booking starting now - Vehicle and time pre-filled" : "Fill in the booking details below"}
           customTitle={isImmediateBooking ? "Immediate Test Drive Booking" : undefined}
           onSubmit={() => formRef.current?.submit()}
-          isSubmitting={false}
+          isSubmitting={isCreating || isUpdating}
         >
           <BookTestDriveForm
             ref={formRef}

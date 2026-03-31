@@ -12,11 +12,19 @@ import { useSession } from "@/lib/auth-client";
 import axios from "axios";
 import { getBookTestDriveDefaultValues, getResetCustomerFieldsValues } from "./utils/getDefaultValues";
 import { logger } from "@/lib/logger";
+import { toast } from "sonner";
 
 interface BookTestDriveFormProps {
   onSubmit?: (data: BookTestDriveFormData) => void | Promise<void>;
   onCustomerSearch?: (query: string) => Promise<{ success: boolean; data: any[] } | undefined>;
   defaultValues?: Partial<BookTestDriveFormData>;
+}
+
+function sanitizeEmail(value?: string | null): string {
+  if (!value) return "";
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed) ? trimmed : "";
 }
 
 const BookTestDriveForm = React.forwardRef<
@@ -57,11 +65,21 @@ const BookTestDriveForm = React.forwardRef<
   }, [defaultValues, resetFormWithDefaults]);
 
   const handleSubmit = useCallback(
-    form.handleSubmit(async (data) => {
-      if (onSubmit) {
-        await onSubmit(data);
+    form.handleSubmit(
+      async (data) => {
+        if (onSubmit) {
+          await onSubmit(data);
+        }
+      },
+      (errors) => {
+        const firstError = Object.values(errors)[0];
+        const message =
+          typeof firstError?.message === "string"
+            ? firstError.message
+            : "Please complete the required test drive fields";
+        toast.error(message);
       }
-    }),
+    ),
     [form, onSubmit]
   );
 
@@ -129,7 +147,10 @@ const BookTestDriveForm = React.forwardRef<
       form.setValue("postcode", customer.ZipCode || "");
       form.setValue("address", fullAddress || "");
       form.setValue("phoneNumber", customer.Cellular || customer.Phone1 || "");
-      form.setValue("email", customer.E_Mail || "");
+      form.setValue("email", sanitizeEmail(customer.E_Mail), {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
     },
     [form]
   );

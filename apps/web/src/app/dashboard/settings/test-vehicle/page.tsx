@@ -2,11 +2,14 @@
 
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Search } from "lucide-react";
 import {
     getAllTestVehicles,
     createTestVehicle,
     updateTestVehicle,
     updateTestVehicleStatus,
+    getAllVehicleInventory,
+    type VehicleInventory,
     type TestVehicle,
     type CreateTestVehicleData,
 } from "@/services/vehicles";
@@ -43,6 +46,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { IconLoader } from "@tabler/icons-react";
+import { VehicleSelectionModal } from "@/components/vehicle-selection-modal";
 
 const testVehicleSchema = z.object({
     REGISTRATIONNUM: z.string().optional(),
@@ -59,6 +63,7 @@ type TestVehicleFormData = z.infer<typeof testVehicleSchema>;
 export default function TestVehiclePage() {
     const queryClient = useQueryClient();
     const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [isVehicleModalOpen, setIsVehicleModalOpen] = useState(false);
     const [editingVehicle, setEditingVehicle] = useState<TestVehicle | null>(
         null
     );
@@ -66,6 +71,12 @@ export default function TestVehiclePage() {
     const { data, isLoading, error } = useQuery({
         queryKey: ["test-vehicles"],
         queryFn: getAllTestVehicles,
+    });
+
+    const { data: inventoryVehicles = [], isLoading: isLoadingInventory } = useQuery({
+        queryKey: ["settings-test-vehicle-inventory"],
+        queryFn: () => getAllVehicleInventory(""),
+        staleTime: 5 * 60 * 1000,
     });
 
     const form = useForm<TestVehicleFormData>({
@@ -183,6 +194,89 @@ export default function TestVehiclePage() {
         }
     };
 
+    const pickFirstValue = (vehicle: VehicleInventory, keys: string[]): string => {
+        const row = vehicle as unknown as Record<string, unknown>;
+        for (const key of keys) {
+            const value = row[key];
+            if (value !== undefined && value !== null && String(value).trim() !== "") {
+                return String(value).trim();
+            }
+        }
+        return "";
+    };
+
+    const resolveRegistrationNumber = (vehicle: VehicleInventory): string =>
+        pickFirstValue(vehicle, [
+            "VIN",
+            "VINNUMBER",
+            "vin",
+            "vinNumber",
+            "U_Veh_StockID",
+            "U_VEH_STOCKID",
+        ]);
+
+    const resolveManufacturer = (vehicle: VehicleInventory): string => {
+        const direct = pickFirstValue(vehicle, [
+            "U_Veh_Brand",
+            "U_VEH_BRAND",
+            "MAKENAME",
+            "MAKE",
+            "Make",
+        ]);
+
+        if (direct) return direct;
+
+        const itemGroup = pickFirstValue(vehicle, ["ItmsGrpNam", "ITMSGRPNAM"]);
+        return itemGroup ? itemGroup.split(" ")[0] || itemGroup : "";
+    };
+
+    const resolveModel = (vehicle: VehicleInventory): string =>
+        pickFirstValue(vehicle, [
+            "U_Veh_ModelDescr",
+            "U_Veh_ModelFull",
+            "U_Veh_Model",
+            "U_VEH_MODEL",
+            "Model Description",
+            "MODEL",
+            "Model",
+        ]);
+
+    const handleInventoryVehicleSelect = (vehicle: VehicleInventory) => {
+        const registrationNumber = resolveRegistrationNumber(vehicle);
+        const manufacturer = resolveManufacturer(vehicle);
+        const model = resolveModel(vehicle);
+        const variant = pickFirstValue(vehicle, [
+            "ItemCode",
+            "ITEMCODE",
+            "ProductCode",
+            "PRODUCTCODE",
+        ]);
+        const description =
+            pickFirstValue(vehicle, [
+                "U_Veh_ModelFull",
+                "U_Veh_ModelDescr",
+                "ItemName",
+                "ITEMNAME",
+                "FrgnName",
+                "FRGNNAME",
+            ]) || model;
+        const bodyStyle =
+            pickFirstValue(vehicle, [
+                "BODYSTYLE",
+                "BodyStyle",
+                "U_Veh_Model",
+                "U_VEH_MODEL",
+            ]) || "";
+
+        form.setValue("REGISTRATIONNUM", registrationNumber, { shouldDirty: true });
+        form.setValue("MANUFACTURER", manufacturer, { shouldDirty: true });
+        form.setValue("MODEL", model, { shouldDirty: true });
+        form.setValue("VARIANT", variant, { shouldDirty: true });
+        form.setValue("DESCRIPTION", description, { shouldDirty: true });
+        form.setValue("BODYSTYLE", bodyStyle, { shouldDirty: true });
+        setIsVehicleModalOpen(false);
+    };
+
     const columns = React.useMemo(
         () => createColumns(handleEdit, handleToggleStatus),
         []
@@ -240,9 +334,20 @@ export default function TestVehiclePage() {
                                     render={({ field }) => (
                                         <FormItem>
                                             <FormLabel>Registration Number</FormLabel>
-                                            <FormControl>
-                                                <Input {...field} placeholder="Enter registration number" />
-                                            </FormControl>
+                                            <div className="flex gap-2">
+                                                <FormControl>
+                                                    <Input {...field} placeholder="Enter registration number" />
+                                                </FormControl>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    onClick={() => setIsVehicleModalOpen(true)}
+                                                    disabled={isLoadingInventory}
+                                                >
+                                                    <Search className="mr-2 h-4 w-4" />
+                                                    Browse
+                                                </Button>
+                                            </div>
                                             <FormMessage />
                                         </FormItem>
                                     )}
@@ -373,6 +478,14 @@ export default function TestVehiclePage() {
                     </Form>
                 </DialogContent>
             </Dialog>
+
+            <VehicleSelectionModal
+                open={isVehicleModalOpen}
+                onOpenChange={setIsVehicleModalOpen}
+                onSelectVehicle={handleInventoryVehicleSelect}
+                vehicles={inventoryVehicles}
+                isLoading={isLoadingInventory}
+            />
         </div>
     );
 }

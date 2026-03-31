@@ -56,6 +56,99 @@ export interface SalesOrder {
   UPDATED_BY?: string | null;
   UPDATED_DATE?: string | null;
   IS_DELETED: 'Y' | 'N';
+  quotation?: SalesOrderQuotation | null;
+  lineItems?: SalesOrderLineItem[];
+  enquiry?: SalesOrderEnquiry | null;
+  financingSchemes?: SalesOrderFinancingScheme[];
+}
+
+export interface SalesOrderQuotation {
+  [key: string]: any;
+  CUSTOMER_ADDRESS?: string | null;
+  VEHICLE_YEAR?: string | null;
+  VEHICLE_COLOR?: string | null;
+  VEHICLE_BASE_PRICE?: number;
+  VEHICLE_DISCOUNT?: number;
+  VEHICLE_NET_PRICE?: number;
+  ACCESSORIES_TOTAL?: number;
+  ACCESSORIES_DISCOUNT?: number;
+  ACCESSORIES_NET_TOTAL?: number;
+  WARRANTY_TOTAL?: number;
+  INSURANCE_TOTAL?: number;
+  SUBTOTAL?: number;
+  TAX_RATE?: number;
+  TAX_AMOUNT?: number;
+  GRAND_TOTAL?: number;
+  TRADE_IN_VALUE?: number;
+  DOWNPAYMENT?: number;
+  NET_AMOUNT_DUE?: number;
+  TERMS_AND_CONDITIONS?: string | null;
+  INTERNAL_NOTES?: string | null;
+}
+
+export interface SalesOrderLineItem {
+  [key: string]: any;
+  SLNO: number;
+  LINE_NUMBER: number;
+  ITEM_TYPE: string;
+  ITEM_CODE?: string | null;
+  ITEM_DESCRIPTION?: string | null;
+  ITEM_CATEGORY?: string | null;
+  QUANTITY?: number | null;
+  UNIT_PRICE?: number | null;
+  DISCOUNT_AMOUNT?: number | null;
+  DISCOUNT_PERCENTAGE?: number | null;
+  NET_PRICE?: number | null;
+}
+
+export interface SalesOrderEnquiry {
+  [key: string]: any;
+  CUSTOMERID?: string | null;
+  ADDRESS?: string | null;
+  POSTCODE?: string | null;
+  BRANCH?: string | null;
+  BRANCHNAME?: string | null;
+  BUDGET?: string | null;
+  FINANCING?: string | null;
+  MAKE?: string | null;
+  MODEL?: string | null;
+  VARIANT?: string | null;
+  YEAR?: string | null;
+  COLOR?: string | null;
+  SUPPCATNUM?: string | null;
+  MODELCODE?: string | null;
+  QUANTITY?: number | null;
+  VINNUMBER?: string | null;
+  VINDETAILS?: Record<string, unknown> | null;
+  CHARGECODE?: string | null;
+  CHARGENAME?: string | null;
+  CHARGEPRICE?: string | null;
+  CHARGEDETAILS?: Record<string, unknown> | null;
+  SALESPERSON?: string | null;
+  NOTES?: string | null;
+}
+
+export interface SalesOrderFinancingScheme {
+  [key: string]: any;
+  SLNO: number;
+  LENDER_CODE?: string | null;
+  LENDER_NAME?: string | null;
+  SCHEME_NAME?: string | null;
+  CURRENCY?: string | null;
+  VEHICLE_PRICE?: number | null;
+  DOWNPAYMENT?: number | null;
+  DOWNPAYMENT_PERCENT?: number | null;
+  TRADE_IN_VALUE?: number | null;
+  FINANCE_AMOUNT?: number | null;
+  TERM_MONTHS?: number | null;
+  INTEREST_RATE?: number | null;
+  MONTHLY_PAYMENT?: number | null;
+  TOTAL_INTEREST?: number | null;
+  FDA?: number | null;
+  GPV_BALLOON?: number | null;
+  SALE_CODE?: string | null;
+  STATUS?: string | null;
+  IS_SELECTED?: string | null;
 }
 
 export interface CreateSalesOrderFromQuotationData {

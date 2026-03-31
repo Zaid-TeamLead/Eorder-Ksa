@@ -1,5 +1,9 @@
 "use client";
 
+import { useMemo } from "react";
+import { useFormContext } from "react-hook-form";
+import { useQuery } from "@tanstack/react-query";
+
 import {
     FormControl,
     FormField,
@@ -15,37 +19,79 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { getAllTestVehicles } from "@/services/vehicles";
-import { useQuery } from "@tanstack/react-query";
-import { useFormContext } from "react-hook-form";
+import { getAllTestVehicles, type TestVehicle } from "@/services/vehicles";
 import type { BookTestDriveFormData } from "../schema";
+
+function mapVehicleToBookingFields(vehicle: TestVehicle) {
+    return {
+        registrationNumber: vehicle.REGISTRATIONNUM || "",
+        manufacturer: vehicle.MANUFACTURER || "",
+        model: vehicle.MODEL || "",
+        variant: vehicle.VARIANT || "",
+        description: vehicle.DESCRIPTION || "",
+        bodyStyle: vehicle.BODYSTYLE || "",
+    };
+}
 
 export function VehicleBookingDetails() {
     const form = useFormContext<BookTestDriveFormData>();
+    const selectedRegistrationNumber = form.watch("registrationNumber");
 
-    const { data: vehicles = [], isLoading } = useQuery({
-        queryKey: ["test-vehicles"],
+    const { data: testVehicles = [], isLoading } = useQuery({
+        queryKey: ["book-test-drive-test-vehicles"],
         queryFn: getAllTestVehicles,
+        staleTime: 5 * 60 * 1000,
     });
 
-    // Filter only active vehicles
-    const activeVehicles = vehicles.filter(
-        (v) => v.VEHICLESTSATUS === "true"
+    const availableVehicles = useMemo(
+        () =>
+            testVehicles.filter(
+                (vehicle) =>
+                    vehicle.VEHICLESTSATUS === "true" ||
+                    vehicle.REGISTRATIONNUM === selectedRegistrationNumber
+            ),
+        [selectedRegistrationNumber, testVehicles]
     );
 
-    const handleVehicleSelect = (slno: string) => {
-        // Find vehicle by SLNO (serial number)
-        const vehicleId = parseInt(slno, 10);
-        const vehicle = activeVehicles.find((v) => v.SLNO === vehicleId);
+    const handleVehicleSelect = (registrationNumber: string) => {
+        const selectedVehicle = availableVehicles.find(
+            (vehicle) => vehicle.REGISTRATIONNUM === registrationNumber
+        );
 
-        if (vehicle) {
-            form.setValue("registrationNumber", vehicle.REGISTRATIONNUM || "", { shouldValidate: true, shouldDirty: true });
-            form.setValue("manufacturer", vehicle.MANUFACTURER || "", { shouldValidate: true, shouldDirty: true });
-            form.setValue("model", vehicle.MODEL || "", { shouldValidate: true, shouldDirty: true });
-            form.setValue("variant", vehicle.VARIANT || "", { shouldValidate: true, shouldDirty: true });
-            form.setValue("description", vehicle.DESCRIPTION || "", { shouldValidate: true, shouldDirty: true });
-            form.setValue("bodyStyle", vehicle.BODYSTYLE || "", { shouldValidate: true, shouldDirty: true });
+        if (!selectedVehicle) {
+            form.setValue("registrationNumber", registrationNumber, {
+                shouldValidate: true,
+                shouldDirty: true,
+            });
+            return;
         }
+
+        const mapped = mapVehicleToBookingFields(selectedVehicle);
+
+        form.setValue("registrationNumber", mapped.registrationNumber, {
+            shouldValidate: true,
+            shouldDirty: true,
+        });
+        form.setValue("manufacturer", mapped.manufacturer, {
+            shouldValidate: true,
+            shouldDirty: true,
+        });
+        form.setValue("model", mapped.model, {
+            shouldValidate: true,
+            shouldDirty: true,
+        });
+        form.setValue("variant", mapped.variant, {
+            shouldValidate: true,
+            shouldDirty: true,
+        });
+        form.setValue("description", mapped.description, {
+            shouldValidate: true,
+            shouldDirty: true,
+        });
+        form.setValue("bodyStyle", mapped.bodyStyle, {
+            shouldValidate: true,
+            shouldDirty: true,
+        });
     };
 
     return (
@@ -55,42 +101,29 @@ export function VehicleBookingDetails() {
                 name="registrationNumber"
                 render={({ field }) => (
                     <FormItem className="space-y-1.5">
-                        <FormLabel className="text-xs font-medium text-muted-foreground">Registration Number</FormLabel>
+                        <FormLabel className="text-xs font-medium text-muted-foreground">
+                            Registration Number
+                        </FormLabel>
                         <Select
-                            onValueChange={(value) => {
-                                if (value !== "no-vehicles") {
-                                    handleVehicleSelect(value);
-                                }
-                            }}
-                            value={
-                                field.value
-                                    ? activeVehicles.find(v => v.REGISTRATIONNUM === field.value)?.SLNO.toString() || undefined
-                                    : undefined
-                            }
+                            value={field.value || ""}
+                            onValueChange={handleVehicleSelect}
                             disabled={isLoading}
                         >
                             <FormControl>
                                 <SelectTrigger className="h-8 text-xs">
-                                    <SelectValue placeholder="Select vehicle" />
+                                    <SelectValue placeholder="Select registration number" />
                                 </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                                {activeVehicles.length === 0 && !isLoading && (
-                                    <SelectItem value="no-vehicles" disabled>
-                                        No vehicles available
+                                {availableVehicles.map((vehicle) => (
+                                    <SelectItem
+                                        key={vehicle.SLNO}
+                                        value={vehicle.REGISTRATIONNUM || `vehicle-${vehicle.SLNO}`}
+                                        className="text-xs"
+                                    >
+                                        {vehicle.REGISTRATIONNUM || `Vehicle ${vehicle.SLNO}`}
                                     </SelectItem>
-                                )}
-                                {activeVehicles.map((vehicle) => {
-                                    const regNum = vehicle.REGISTRATIONNUM || `Vehicle #${vehicle.SLNO}`;
-                                    return (
-                                        <SelectItem
-                                            key={vehicle.SLNO}
-                                            value={vehicle.SLNO.toString()}
-                                        >
-                                            {regNum}
-                                        </SelectItem>
-                                    );
-                                })}
+                                ))}
                             </SelectContent>
                         </Select>
                         <FormMessage className="text-[10px]" />
@@ -104,11 +137,11 @@ export function VehicleBookingDetails() {
                     name="manufacturer"
                     render={({ field }) => (
                         <FormItem className="space-y-1.5">
-                            <FormLabel className="text-xs font-medium text-muted-foreground">Manufacturer</FormLabel>
+                            <FormLabel className="text-xs font-medium text-muted-foreground">
+                                Manufacturer
+                            </FormLabel>
                             <FormControl>
-                                <div className="flex gap-1">
-                                    <Input className="h-8 text-xs flex-1" placeholder="Auto-filled" {...field} />
-                                </div>
+                                <Input className="h-8 text-xs" placeholder="Auto-filled" {...field} />
                             </FormControl>
                             <FormMessage className="text-[10px]" />
                         </FormItem>
@@ -120,11 +153,11 @@ export function VehicleBookingDetails() {
                     name="model"
                     render={({ field }) => (
                         <FormItem className="space-y-1.5">
-                            <FormLabel className="text-xs font-medium text-muted-foreground">Model</FormLabel>
+                            <FormLabel className="text-xs font-medium text-muted-foreground">
+                                Model
+                            </FormLabel>
                             <FormControl>
-                                <div className="flex gap-1">
-                                    <Input className="h-8 text-xs flex-1" placeholder="Auto-filled" {...field} />
-                                </div>
+                                <Input className="h-8 text-xs" placeholder="Auto-filled" {...field} />
                             </FormControl>
                             <FormMessage className="text-[10px]" />
                         </FormItem>
@@ -138,11 +171,11 @@ export function VehicleBookingDetails() {
                     name="variant"
                     render={({ field }) => (
                         <FormItem className="space-y-1.5">
-                            <FormLabel className="text-xs font-medium text-muted-foreground">Variant</FormLabel>
+                            <FormLabel className="text-xs font-medium text-muted-foreground">
+                                Variant
+                            </FormLabel>
                             <FormControl>
-                                <div className="flex gap-1">
-                                    <Input className="h-8 text-xs flex-1" placeholder="Auto-filled" {...field} />
-                                </div>
+                                <Input className="h-8 text-xs" placeholder="Auto-filled" {...field} />
                             </FormControl>
                             <FormMessage className="text-[10px]" />
                         </FormItem>
@@ -154,7 +187,9 @@ export function VehicleBookingDetails() {
                     name="bodyStyle"
                     render={({ field }) => (
                         <FormItem className="space-y-1.5">
-                            <FormLabel className="text-xs font-medium text-muted-foreground">Body Style</FormLabel>
+                            <FormLabel className="text-xs font-medium text-muted-foreground">
+                                Body Style
+                            </FormLabel>
                             <FormControl>
                                 <Input className="h-8 text-xs" placeholder="Auto-filled" {...field} />
                             </FormControl>
@@ -169,7 +204,9 @@ export function VehicleBookingDetails() {
                 name="description"
                 render={({ field }) => (
                     <FormItem className="space-y-1.5">
-                        <FormLabel className="text-xs font-medium text-muted-foreground">Description</FormLabel>
+                        <FormLabel className="text-xs font-medium text-muted-foreground">
+                            Description
+                        </FormLabel>
                         <FormControl>
                             <Input className="h-8 text-xs" placeholder="Auto-filled" {...field} />
                         </FormControl>
@@ -180,4 +217,3 @@ export function VehicleBookingDetails() {
         </div>
     );
 }
-

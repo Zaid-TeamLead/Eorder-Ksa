@@ -22,7 +22,6 @@ import { IconDots, IconCalendar } from "@tabler/icons-react";
 import type { BookTestDriveFormData } from "../schema";
 
 const branches = [
-    { code: "0001", name: "01 Dubai Branch" },
     { code: "0002", name: "02 Riyadh Branch" },
     { code: "0003", name: "03 Jeddah Branch" },
 ];

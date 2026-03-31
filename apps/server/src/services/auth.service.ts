@@ -203,7 +203,7 @@ export async function verifyOtp(
         data.result.message || "OTP verification failed"
       );
     }
-    
+
     const apiUser = data.result.user;
 
     if (!apiUser) {

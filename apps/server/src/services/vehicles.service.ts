@@ -410,7 +410,6 @@ export const createTestVehicle = async (data: CreateTestVehicleData) => {
        ORDER BY "SLNO" DESC LIMIT 1`,
       [validatedUserId, now]
     );
-
     if (insertedId) {
       return await getTestVehicleById(insertedId.SLNO);
     }

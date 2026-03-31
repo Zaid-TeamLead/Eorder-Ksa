@@ -71,9 +71,65 @@ export interface SalesOrder {
   IS_DELETED: 'Y' | 'N';
 }
 
+export interface SalesOrderQuotation {
+  [key: string]: any;
+}
+
+export interface SalesOrderQuotationLineItem {
+  [key: string]: any;
+}
+
+export interface SalesOrderEnquiry {
+  [key: string]: any;
+  VINDETAILS?: unknown;
+  CHARGEDETAILS?: unknown;
+}
+
+export interface SalesOrderFinancingScheme {
+  [key: string]: any;
+}
+
+export interface SalesOrderDetails extends SalesOrder {
+  quotation?: SalesOrderQuotation | null;
+  lineItems?: SalesOrderQuotationLineItem[];
+  enquiry?: SalesOrderEnquiry | null;
+  financingSchemes?: SalesOrderFinancingScheme[];
+}
+
 class SalesOrderService {
   private getCurrentDateTime(): string {
     return new Date().toISOString().replace('T', ' ').substring(0, 19);
+  }
+
+  private parseJsonField<T>(value: unknown): T | null {
+    if (value === undefined || value === null || value === '') return null;
+    if (typeof value === 'object') return value as T;
+    try {
+      return JSON.parse(String(value)) as T;
+    } catch {
+      return null;
+    }
+  }
+
+  private async getEnquiryCharge(enquiryId: number): Promise<Record<string, any> | null> {
+    try {
+      return await db.queryOne<Record<string, any>>(
+        `
+        SELECT "CHARGECODE", "CHARGENAME", "CHARGEPRICE", "CHARGEDETAILS"
+        FROM "${SALES_ORDER_DB_SCHEMA}"."DMS_SALESENQUIRY_CHARGES"
+        WHERE "ENQUIRY_SLNO" = ? AND COALESCE("IS_DELETED", 'N') = 'N'
+        ORDER BY "SLNO" DESC
+        LIMIT 1
+      `,
+        [enquiryId]
+      );
+    } catch (error) {
+      logger.warn(
+        { enquiryId, error },
+        'Unable to load sales enquiry charge details for sales order'
+      );
+      return null;
+    }
   }
 
   private async generateSalesOrderNumber(): Promise<string> {
@@ -278,14 +334,87 @@ class SalesOrderService {
     }
   }
 
-  async getSalesOrderById(id: number): Promise<SalesOrder | null> {
+  async getSalesOrderById(id: number): Promise<SalesOrderDetails | null> {
     try {
       const query = `
         SELECT *
         FROM "${SALES_ORDER_DB_SCHEMA}"."DMS_SALES_ORDER"
         WHERE "SLNO" = ? AND "IS_DELETED" = 'N'
       `;
-      return await db.queryOne<SalesOrder>(query, [id]);
+      const order = await db.queryOne<SalesOrder>(query, [id]);
+      if (!order) return null;
+
+      const [quotation, lineItems, enquiry, financingSchemes] = await Promise.all([
+        order.QUOTATION_SLNO
+          ? db.queryOne<SalesOrderQuotation>(
+              `
+              SELECT *
+              FROM "${SALES_ORDER_DB_SCHEMA}"."DMS_QUOTATION"
+              WHERE "SLNO" = ? AND "IS_DELETED" = 'N'
+            `,
+              [order.QUOTATION_SLNO]
+            )
+          : Promise.resolve(null),
+        order.QUOTATION_SLNO
+          ? db.query<SalesOrderQuotationLineItem>(
+              `
+              SELECT *
+              FROM "${SALES_ORDER_DB_SCHEMA}"."DMS_QUOTATION_LINE_ITEMS"
+              WHERE "QUOTATION_SLNO" = ? AND "IS_DELETED" = 'N'
+              ORDER BY "LINE_NUMBER"
+            `,
+              [order.QUOTATION_SLNO]
+            )
+          : Promise.resolve([]),
+        order.ENQUIRY_SLNO
+          ? db.queryOne<SalesOrderEnquiry>(
+              `
+              SELECT *
+              FROM "${SALES_ORDER_DB_SCHEMA}"."DMS_SALESENQUIRY"
+              WHERE "SLNO" = ?
+            `,
+              [order.ENQUIRY_SLNO]
+            )
+          : Promise.resolve(null),
+        order.ENQUIRY_SLNO
+          ? db.query<SalesOrderFinancingScheme>(
+              `
+              SELECT *
+              FROM "${SALES_ORDER_DB_SCHEMA}"."DMS_ENQUIRY_FINANCING"
+              WHERE "ENQUIRY_SLNO" = ? AND COALESCE("IS_DELETED", 'N') = 'N'
+              ORDER BY "CREATED_DATE" DESC, "SLNO" DESC
+            `,
+              [order.ENQUIRY_SLNO]
+            )
+          : Promise.resolve([]),
+      ]);
+
+      let hydratedEnquiry = enquiry;
+      if (hydratedEnquiry) {
+        hydratedEnquiry = {
+          ...hydratedEnquiry,
+          VINDETAILS: this.parseJsonField(hydratedEnquiry.VINDETAILS),
+        };
+
+        const charge = order.ENQUIRY_SLNO
+          ? await this.getEnquiryCharge(order.ENQUIRY_SLNO)
+          : null;
+
+        if (charge) {
+          hydratedEnquiry.CHARGECODE = charge.CHARGECODE ?? null;
+          hydratedEnquiry.CHARGENAME = charge.CHARGENAME ?? null;
+          hydratedEnquiry.CHARGEPRICE = charge.CHARGEPRICE ?? null;
+          hydratedEnquiry.CHARGEDETAILS = this.parseJsonField(charge.CHARGEDETAILS);
+        }
+      }
+
+      return {
+        ...order,
+        quotation,
+        lineItems,
+        enquiry: hydratedEnquiry,
+        financingSchemes,
+      };
     } catch (error: any) {
       logger.error('Error fetching sales order by ID:', error);
       throw new Error('Failed to fetch sales order: ' + error.message);
