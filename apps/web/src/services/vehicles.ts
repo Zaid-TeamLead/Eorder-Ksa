@@ -40,6 +40,31 @@ export interface VehicleInventory {
   AgeinDays: number;
 }
 
+export interface VehicleChargeItem {
+  ITMSGRPNAM?: string | null;
+  ITEMCODE?: string | null;
+  FRGNANME?: string | null;
+  RESTRICTED?: string | null;
+  ITEMNAME?: string | null;
+  SUPPCATNUM?: string | null;
+  ORIGIN?: string | null;
+  PROPERTYNAME?: string | null;
+  ITEMCAT?: string | null;
+  VALIDFOR?: string | null;
+  SALESRESTRICTION?: string | null;
+  ITMDISCCON?: string | null;
+  NUMINSALE?: number | null;
+  PRICE?: string | number | null;
+  Price?: string | number | null;
+  UNITPRICE?: string | number | null;
+  UnitPrice?: string | number | null;
+  DISCPRICE?: string | number | null;
+  Discprice?: string | number | null;
+  AMOUNT?: string | number | null;
+  Amount?: string | number | null;
+  [key: string]: unknown;
+}
+
 export interface CreateTestVehicleData {
   REGISTRATIONNUM?: string;
   MANUFACTURER?: string;
@@ -84,6 +109,24 @@ export const updateTestVehicleStatus = async (
   return apiClient.patch<TestVehicle>(API_ENDPOINTS.TEST_VEHICLE_STATUS(id), { status });
 };
 
-export const getAllVehicleInventory = async (): Promise<VehicleInventory[]> => {
-  return apiClient.get<VehicleInventory[]>(API_ENDPOINTS.VEHICLE_INVENTORY);
+export const getAllVehicleInventory = async (customerCode?: string): Promise<VehicleInventory[]> => {
+  return apiClient.get<VehicleInventory[]>(API_ENDPOINTS.VEHICLE_INVENTORY, {
+    params: {
+      customerCode: customerCode || '',
+    },
+  });
+};
+
+export const getVehicleChargeItems = async (params?: {
+  search?: string;
+  customerCode?: string;
+  itemGroup?: string;
+}): Promise<VehicleChargeItem[]> => {
+  return apiClient.get<VehicleChargeItem[]>(API_ENDPOINTS.VEHICLE_CHARGES, {
+    params: {
+      search: params?.search || '',
+      customerCode: params?.customerCode || '',
+      itemGroup: params?.itemGroup || 'CHARGE',
+    },
+  });
 };

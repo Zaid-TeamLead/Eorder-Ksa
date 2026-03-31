@@ -3,8 +3,9 @@
 import { VinDetailsCard } from "../vin-details-card";
 
 interface SelectedVinsDisplayProps {
-  selectedVinsWithQuantity: Map<string, { vin: any; quantity: number }>;
-  onRemove: (vinValue: string) => void;
+  selectedVinsWithQuantity: Map<string, { vin: any; quantity: number; vinValue: string }>;
+  onRemove: (selectionKey: string) => void;
+  onQuantityChange: (selectionKey: string, quantity: number) => void;
 }
 
 /**
@@ -16,6 +17,7 @@ interface SelectedVinsDisplayProps {
 export function SelectedVinsDisplay({
   selectedVinsWithQuantity,
   onRemove,
+  onQuantityChange,
 }: SelectedVinsDisplayProps) {
   if (selectedVinsWithQuantity.size === 0) {
     return null;
@@ -23,12 +25,14 @@ export function SelectedVinsDisplay({
 
   return (
     <div className="space-y-2">
-      {Array.from(selectedVinsWithQuantity.entries()).map(([vinValue, { vin, quantity }]) => (
+      {Array.from(selectedVinsWithQuantity.entries()).map(([selectionKey, { vin, vinValue, quantity }]) => (
         <VinDetailsCard
-          key={vinValue}
+          key={selectionKey}
           vin={vin}
-          vinValue={vinValue}
-          onRemove={onRemove}
+          vinValue={(vin as any)?.VIN || (vin as any)?.VINNUMBER || (vin as any)?.U_Veh_StockID || vinValue}
+          quantity={quantity}
+          onQuantityChange={(nextQuantity) => onQuantityChange(selectionKey, nextQuantity)}
+          onRemove={() => onRemove(selectionKey)}
         />
       ))}
     </div>

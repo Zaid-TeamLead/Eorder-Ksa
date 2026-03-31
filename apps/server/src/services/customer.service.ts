@@ -9,7 +9,7 @@ export const searchCustomers = async (search: string, slpCode?: string) => {
     // Try stored procedure first with parameterized queries
     try {
       // Use parameterized queries to prevent SQL injection
-      const spQuery = `CALL "BI_NEGT_KSA".DMS_KSA_100002(?, ?)`;
+      const spQuery = `CALL "BI_NEGT_KSAISUZU".DMS_KSA_100002(?, ?)`;
       const params = [search, normalizedSlpCode];
 
       const customers = await db.query(spQuery, params);
@@ -126,7 +126,7 @@ export const getCustomerAddress = async (cardCode: string) => {
   try {
     // Use parameterized query to prevent SQL injection
     const address = await db.query(
-      `CALL "BI_NEGT_KSA".DMS_KSA_100003(?)`,
+      `CALL "BI_NEGT_KSAISUZU".DMS_KSA_100003(?)`,
       [cardCode]
     );
     return address;
@@ -140,7 +140,7 @@ export const getCustomerfinancialInformation = async (cardCode: string) => {
   try {
     // Use parameterized query to prevent SQL injection
     const financialInformation = await db.query(
-      `CALL "BI_NEGT_KSA".DMS_KSA_100004(?)`,
+      `CALL "BI_NEGT_KSAISUZU".DMS_KSA_100004(?)`,
       [cardCode]
     );
     return financialInformation;
@@ -154,7 +154,7 @@ export const getVehicleHistory = async (cardCode: string) => {
   try {
     // Use parameterized query to prevent SQL injection
     const vehicleHistory = await db.query(
-      `CALL "BI_NEGT_KSA".DMS_KSA_100005(?)`,
+      `CALL "BI_NEGT_KSAISUZU".DMS_KSA_100005(?)`,
       [cardCode]
     );
     return vehicleHistory;

@@ -8,6 +8,7 @@ export const API_ENDPOINTS = {
   ENQUIRIES: '/api/enquiries',
   ENQUIRY_BY_ID: (id: string | number) => `/api/enquiries/${id}`,
   ENQUIRY_STATS: '/api/enquiries/stats',
+  ENQUIRY_DASHBOARD: '/api/enquiries/dashboard',
   ENQUIRY_STATUS: (id: string | number) => `/api/enquiries/${id}/status`,
 
   // Quotation endpoints
@@ -37,6 +38,7 @@ export const API_ENDPOINTS = {
   // Vehicle endpoints
   VEHICLES: '/api/vehicles',
   VEHICLE_SEARCH: '/api/vehicles/search',
+  VEHICLE_CHARGES: '/api/vehicles/charges',
   VEHICLE_INVENTORY: '/api/vehicles/inventory',
   VEHICLE_VIN: '/api/vehicles/vin',
   TEST_VEHICLES: '/api/vehicles/test-vehicles',
@@ -54,6 +56,7 @@ export const API_ENDPOINTS = {
   FINANCING_BY_ENQUIRY: (enquiryId: string | number) => `/api/financing/enquiry/${enquiryId}`,
   FINANCING_PREFERRED: (id: string | number) => `/api/financing/${id}/preferred`,
   LENDERS: '/api/financing/lenders',
+  FINANCING_CURRENCIES: '/api/financing/currencies',
 
   // Trade-in Appraisal endpoints
   TRADE_IN_APPRAISAL: '/api/trade-in-appraisal',

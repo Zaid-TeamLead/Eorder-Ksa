@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback, useEffect } from "react";
 import { useFormContext } from "react-hook-form";
 import { Input } from "@/components/ui/input";
 import {
@@ -17,12 +18,169 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import type { SalesEnquiryFormData } from "../schema";
+import type { VehicleChargeItem } from "@/services/vehicles";
+import { Button } from "@/components/ui/button";
+import { useChargeSelection } from "@/hooks/forms/useChargeSelection";
+import { IconListSearch } from "@tabler/icons-react";
+
+const safeValue = (value: unknown): string => {
+  if (value === undefined || value === null) return "";
+  const normalized = String(value).trim();
+  if (!normalized || normalized === "?") return "";
+  return normalized;
+};
+
+const getChargePrice = (item: VehicleChargeItem): string => {
+  const candidates = [
+    item.PRICE,
+    item.Price,
+    item.UNITPRICE,
+    item.UnitPrice,
+    item.DISCPRICE,
+    item.Discprice,
+    item.AMOUNT,
+    item.Amount,
+  ];
+  for (const candidate of candidates) {
+    const value = safeValue(candidate);
+    if (value) return value;
+  }
+  return "";
+};
 
 export function EnquiryDetails() {
   const form = useFormContext<SalesEnquiryFormData>();
+  const { listenForSelection } = useChargeSelection();
+
+  const customerCode = String(form.watch("customerId") || "").trim();
+  const selectedChargeCode = String(form.watch("chargeCode") || "").trim();
+  const selectedChargeName = String(form.watch("chargeName") || "").trim();
+
+  const applyChargeSelection = useCallback(
+    (item: VehicleChargeItem) => {
+      const chargeCode = safeValue(item.ITEMCODE);
+      const chargeName = safeValue(item.FRGNANME || item.ITEMNAME);
+      const chargePrice = getChargePrice(item);
+
+      form.setValue("chargeCode", chargeCode, { shouldDirty: true });
+      form.setValue("chargeName", chargeName, { shouldDirty: true });
+      form.setValue("chargePrice", chargePrice, { shouldDirty: true });
+      form.setValue("chargeDetails", item as Record<string, unknown>, { shouldDirty: true });
+    },
+    [form]
+  );
+
+  const clearChargeSelection = useCallback(() => {
+    form.setValue("chargeCode", "", { shouldDirty: true });
+    form.setValue("chargeName", "", { shouldDirty: true });
+    form.setValue("chargePrice", "", { shouldDirty: true });
+    form.setValue("chargeDetails", undefined, { shouldDirty: true });
+  }, [form]);
+
+  const handleBrowseCharges = useCallback(() => {
+    window.dispatchEvent(
+      new CustomEvent("openChargeSelectionModal", {
+        detail: { customerCode },
+      })
+    );
+  }, [customerCode]);
+
+  useEffect(() => {
+    return listenForSelection((charge) => {
+      applyChargeSelection(charge);
+    });
+  }, [listenForSelection, applyChargeSelection]);
+
+  useEffect(() => {
+    const chargeDetails = form.getValues("chargeDetails");
+    const hasChargeFields = Boolean(selectedChargeCode || selectedChargeName);
+    if (hasChargeFields || !chargeDetails || typeof chargeDetails !== "object") return;
+    applyChargeSelection(chargeDetails as VehicleChargeItem);
+  }, [applyChargeSelection, form, selectedChargeCode, selectedChargeName]);
 
   return (
     <div className="space-y-4">
+      <div className="rounded-md border p-3 space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-semibold tracking-wide">Sales Charge</h3>
+          {selectedChargeCode && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={clearChargeSelection}
+            >
+              Clear
+            </Button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 text-sm"
+            onClick={handleBrowseCharges}
+          >
+            <IconListSearch className="w-4 h-4 mr-2" />
+            Browse Charges
+          </Button>
+          <Input
+            readOnly
+            className="h-8 text-sm bg-muted/40"
+            value={
+              selectedChargeCode
+                ? `${selectedChargeCode}${selectedChargeName ? ` - ${selectedChargeName}` : ""}`
+                : "No charge selected"
+            }
+          />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          <FormField
+            control={form.control}
+            name="chargeCode"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-xs font-medium">Charge Code</FormLabel>
+                <FormControl>
+                  <Input className="h-7 text-sm w-full bg-muted/40" readOnly {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="chargeName"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-xs font-medium">Charge Name</FormLabel>
+                <FormControl>
+                  <Input className="h-7 text-sm w-full bg-muted/40" readOnly {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="chargePrice"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-xs font-medium">Charge Price</FormLabel>
+                <FormControl>
+                  <Input className="h-7 text-sm w-full bg-muted/40" readOnly {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
         <FormField
           control={form.control}
@@ -95,8 +253,9 @@ export function EnquiryDetails() {
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="cash">Cash</SelectItem>
-                  <SelectItem value="bank">Bank</SelectItem>
+                  <SelectItem value="yes">Yes</SelectItem>
+                  <SelectItem value="no">No</SelectItem>
+                  <SelectItem value="maybe">Maybe</SelectItem>
                 </SelectContent>
               </Select>
               <FormMessage />

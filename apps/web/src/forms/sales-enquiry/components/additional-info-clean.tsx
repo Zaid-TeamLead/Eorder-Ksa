@@ -13,21 +13,19 @@ import { cn } from "@/lib/utils";
 import type { SalesEnquiryFormData } from "../schema";
 import { useSession } from "@/lib/auth-client";
 
-export function AdditionalInfo() {
+export function AdditionalInfoClean() {
   const form = useFormContext<SalesEnquiryFormData>();
   const session = useSession();
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <FormField
           control={form.control}
           name="salesperson"
           render={({ field }) => (
             <FormItem>
-              <FormLabel className="text-xs font-medium">
-                Assigned Salesperson
-              </FormLabel>
+              <FormLabel className="text-xs font-medium">Assigned Salesperson</FormLabel>
               <FormControl>
                 <Input
                   placeholder="Salesperson name"
@@ -49,9 +47,7 @@ export function AdditionalInfo() {
         name="notes"
         render={({ field }) => (
           <FormItem>
-            <FormLabel className="text-xs font-medium">
-              Notes / Comments
-            </FormLabel>
+            <FormLabel className="text-xs font-medium">Notes / Comments</FormLabel>
             <FormControl>
               <textarea
                 rows={4}

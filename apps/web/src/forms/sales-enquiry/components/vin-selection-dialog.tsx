@@ -112,12 +112,20 @@ export function VinSelectionDialog({
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {vinNumbers.map((vin: any) => {
+                                {vinNumbers.map((vin: any, index: number) => {
                                     const vinValue = getVinValue(vin);
                                     const isSelected = selectedVins.has(vinValue);
+                                    const rowKey = [
+                                        vinValue || "no-vin",
+                                        String(vin.ItemCode || vin.ITEMCODE || "no-item"),
+                                        String(vin.InDate || vin.INDATE || "no-date"),
+                                        String(vin.U_Veh_StockID || vin.u_veh_stockid || "no-stock"),
+                                        String(vin.WhsCode || vin.WHSCODE || "no-whs"),
+                                        index,
+                                    ].join("-");
                                     return (
                                         <TableRow
-                                            key={vinValue}
+                                            key={rowKey}
                                             className={isSelected ? "bg-muted/50" : ""}
                                             onClick={() => handleVinToggle(vinValue)}
                                         >

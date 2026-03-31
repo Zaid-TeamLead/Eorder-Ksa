@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2 } from 'lucide-react';
@@ -24,10 +24,19 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   passToCashierFormSchema,
   type PassToCashierFormData,
 } from '@/forms/quotation/schema';
 import { useQuotationMutations } from '@/hooks/entities/useQuotationMutations';
+import { useLenders } from '@/hooks/entities/useLenders';
+import { useSalesEmployees } from '@/hooks/entities/useSalesEmployees';
 import { logger } from '@/lib/logger';
 
 interface PassToCashierDialogProps {
@@ -46,6 +55,11 @@ export function PassToCashierDialog({
   onSuccess,
 }: PassToCashierDialogProps) {
   const { passToCashier } = useQuotationMutations();
+  const { lenders, isLoading: isLoadingLenders } = useLenders('BANK');
+  const { salesEmployees, isLoading: isLoadingSalesEmployees } = useSalesEmployees();
+  const [selectedBankName, setSelectedBankName] = useState('');
+  const [selectedSalesEmployeeCode, setSelectedSalesEmployeeCode] = useState('');
+  const [selectionError, setSelectionError] = useState('');
 
   const form = useForm<PassToCashierFormData>({
     resolver: zodResolver(passToCashierFormSchema),
@@ -58,6 +72,9 @@ export function PassToCashierDialog({
 
   useEffect(() => {
     if (open) {
+      setSelectedBankName('');
+      setSelectedSalesEmployeeCode('');
+      setSelectionError('');
       form.reset({
         assignedTo: '',
         depositAmount: initialDepositAmount || 0,
@@ -66,9 +83,40 @@ export function PassToCashierDialog({
     }
   }, [open, initialDepositAmount, form]);
 
+  const selectedSalesEmployee = useMemo(
+    () =>
+      salesEmployees.find(
+        (employee) => employee.SALES_EMPLOYEE_CODE === selectedSalesEmployeeCode
+      ),
+    [salesEmployees, selectedSalesEmployeeCode]
+  );
+
+  useEffect(() => {
+    if (!selectedBankName || !selectedSalesEmployee) {
+      form.setValue('assignedTo', '');
+      return;
+    }
+
+    form.setValue(
+      'assignedTo',
+      `${selectedBankName} | ${selectedSalesEmployee.SALES_EMPLOYEE_CODE} - ${selectedSalesEmployee.SALES_EMPLOYEE_NAME}`,
+      { shouldValidate: true }
+    );
+  }, [form, selectedBankName, selectedSalesEmployee]);
+
   const onSubmit = async (data: PassToCashierFormData) => {
     try {
-      await passToCashier(quotationId, data);
+      if (!selectedBankName || !selectedSalesEmployee) {
+        setSelectionError('Select bank and sales employee');
+        return;
+      }
+
+      const assignedTo = `${selectedBankName} | ${selectedSalesEmployee.SALES_EMPLOYEE_CODE} - ${selectedSalesEmployee.SALES_EMPLOYEE_NAME}`;
+
+      await passToCashier(quotationId, {
+        ...data,
+        assignedTo,
+      });
       onOpenChange(false);
       onSuccess?.();
     } catch (error) {
@@ -90,19 +138,73 @@ export function PassToCashierDialog({
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="assignedTo"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>User Who Will Action The Request *</FormLabel>
-                  <FormControl>
-                    <Input {...field} placeholder="Enter cashier/superior name or ID" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <FormItem>
+              <FormLabel>Bank *</FormLabel>
+              <FormControl>
+                <Select
+                  onValueChange={(value) => {
+                    setSelectedBankName(value);
+                    setSelectionError('');
+                  }}
+                  value={selectedBankName}
+                >
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={isLoadingLenders ? 'Loading banks...' : 'Select bank'}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {lenders.map((lender) => {
+                      const value = lender.LENDER_NAME || lender.LENDER_CODE;
+                      const label =
+                        lender.LENDER_CODE && lender.LENDER_NAME
+                          ? `${lender.LENDER_CODE} - ${lender.LENDER_NAME}`
+                          : value;
+                      return (
+                        <SelectItem key={`${lender.LENDER_CODE}-${lender.LENDER_NAME}`} value={value}>
+                          {label}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </FormControl>
+            </FormItem>
+
+            <FormItem>
+              <FormLabel>Sales Employee *</FormLabel>
+              <FormControl>
+                <Select
+                  onValueChange={(value) => {
+                    setSelectedSalesEmployeeCode(value);
+                    setSelectionError('');
+                  }}
+                  value={selectedSalesEmployeeCode}
+                >
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={
+                        isLoadingSalesEmployees
+                          ? 'Loading sales employees...'
+                          : 'Select sales employee'
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {salesEmployees.map((employee) => (
+                      <SelectItem
+                        key={`${employee.SALES_EMPLOYEE_CODE}-${employee.SALES_EMPLOYEE_NAME}`}
+                        value={employee.SALES_EMPLOYEE_CODE}
+                      >
+                        {employee.SALES_EMPLOYEE_CODE} - {employee.SALES_EMPLOYEE_NAME}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormControl>
+            </FormItem>
+
+            {selectionError ? <p className="text-sm text-destructive">{selectionError}</p> : null}
 
             <FormField
               control={form.control}

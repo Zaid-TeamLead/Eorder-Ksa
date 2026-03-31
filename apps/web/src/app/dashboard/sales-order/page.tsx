@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Plus, Eye } from 'lucide-react';
 import { useForm } from 'react-hook-form';
@@ -53,6 +53,7 @@ export default function SalesOrderPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const quotationIdParam = searchParams.get('quotationId');
+  const hasConsumedQuotationParam = useRef(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
   const { salesOrders, isLoading, error, refetch } = useSalesOrders();
@@ -67,13 +68,15 @@ export default function SalesOrderPage() {
   });
 
   useEffect(() => {
-    if (!quotationIdParam) return;
+    if (!quotationIdParam || hasConsumedQuotationParam.current) return;
     const quotationId = Number.parseInt(quotationIdParam, 10);
     if (!Number.isNaN(quotationId) && quotationId > 0) {
       form.setValue('quotationSlno', quotationId);
       setCreateDialogOpen(true);
+      hasConsumedQuotationParam.current = true;
+      router.replace('/dashboard/sales-order');
     }
-  }, [quotationIdParam, form]);
+  }, [quotationIdParam, form, router]);
 
   const onSubmit = async (data: CreateSalesOrderFormData) => {
     await createFromQuotation(data);

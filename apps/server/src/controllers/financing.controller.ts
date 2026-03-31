@@ -94,9 +94,25 @@ export const deleteFinancing = async (req: Request, res: Response) => {
  * Get all active lenders
  */
 export const getLenders = async (_req: Request, res: Response) => {
-  const lenders = await financingService.getLenders();
+  const qryType =
+    typeof _req.query.qryType === 'string' && _req.query.qryType.trim()
+      ? _req.query.qryType.trim()
+      : undefined;
+  const lenders = await financingService.getLenders(qryType);
 
   return sendSuccess(res, lenders);
+};
+
+export const getSalesEmployees = async (_req: Request, res: Response) => {
+  const salesEmployees = await financingService.getSalesEmployees();
+
+  return sendSuccess(res, salesEmployees);
+};
+
+export const getCurrencies = async (_req: Request, res: Response) => {
+  const currencies = await financingService.getCurrencies();
+
+  return sendSuccess(res, currencies);
 };
 
 /**

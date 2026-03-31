@@ -1,9 +1,13 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback } from 'react';
 import type { VehicleInventory } from '@/services/vehicles';
 
 interface UseVehicleSelectionReturn {
   handleVehicleSelect: (vehicle: VehicleInventory) => void;
+  handleVehiclesSelect: (vehicles: VehicleInventory[]) => void;
   listenForSelection: (callback: (vehicle: VehicleInventory) => void) => () => void;
+  listenForMultipleSelection: (
+    callback: (vehicles: VehicleInventory[]) => void
+  ) => () => void;
 }
 
 /**
@@ -42,6 +46,9 @@ interface UseVehicleSelectionReturn {
 
 // Module-level callback registry for cross-component communication
 const vehicleSelectionCallbacks = new Set<(vehicle: VehicleInventory) => void>();
+const vehicleSelectionMultipleCallbacks = new Set<
+  (vehicles: VehicleInventory[]) => void
+>();
 
 export function useVehicleSelection(): UseVehicleSelectionReturn {
   /**
@@ -52,6 +59,18 @@ export function useVehicleSelection(): UseVehicleSelectionReturn {
   const handleVehicleSelect = useCallback((vehicle: VehicleInventory) => {
     vehicleSelectionCallbacks.forEach((callback) => {
       callback(vehicle);
+    });
+  }, []);
+
+  /**
+   * Handle multiple vehicle selection from modal
+   * Notifies all registered batch listeners about selected vehicles
+   * @param vehicles - Selected vehicle inventory items
+   */
+  const handleVehiclesSelect = useCallback((vehicles: VehicleInventory[]) => {
+    if (!Array.isArray(vehicles) || vehicles.length === 0) return;
+    vehicleSelectionMultipleCallbacks.forEach((callback) => {
+      callback(vehicles);
     });
   }, []);
 
@@ -73,8 +92,28 @@ export function useVehicleSelection(): UseVehicleSelectionReturn {
     []
   );
 
+  /**
+   * Listen for multiple vehicle selection events
+   * Registers a callback to be called when vehicles are selected in batch
+   * @param callback - Function to call when vehicles are selected
+   * @returns Cleanup function to unregister the callback
+   */
+  const listenForMultipleSelection = useCallback(
+    (callback: (vehicles: VehicleInventory[]) => void) => {
+      vehicleSelectionMultipleCallbacks.add(callback);
+
+      // Return cleanup function
+      return () => {
+        vehicleSelectionMultipleCallbacks.delete(callback);
+      };
+    },
+    []
+  );
+
   return {
     handleVehicleSelect,
+    handleVehiclesSelect,
     listenForSelection,
+    listenForMultipleSelection,
   };
 }

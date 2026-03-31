@@ -5,10 +5,8 @@ import type { SalesEnquiryFormData } from "../../schema";
 import { VinSelectionDialog } from "../vin-selection-dialog";
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
-import { useCart } from "@/lib/cart-context";
 import { toast } from "sonner";
 import type { VehicleInventory } from "@/services/vehicles";
-import { getVehicleFormResetValues } from "../utils/getVehicleFormResetValues";
 import { logger } from "@/lib/logger";
 import { useVehicleSelection } from "@/hooks/forms/useVehicleSelection";
 import { useVinFetcher } from "./hooks/useVinFetcher";
@@ -31,7 +29,6 @@ import { VehicleFormFields } from "./vehicle-form-fields";
  */
 export function VehicleDetails() {
   const form = useFormContext<SalesEnquiryFormData>();
-  const { addItem } = useCart();
 
   // Local state
   const [vehicleSearch, setVehicleSearch] = useState("");
@@ -39,7 +36,7 @@ export function VehicleDetails() {
   const [vinDialogOpen, setVinDialogOpen] = useState(false);
   const [selectedVins, setSelectedVins] = useState<Set<string>>(new Set());
   const [selectedVinsWithQuantity, setSelectedVinsWithQuantity] = useState<
-    Map<string, { vin: any; quantity: number }>
+    Map<string, { vin: any; quantity: number; vinValue: string }>
   >(new Map());
 
   // Watch form fields
@@ -51,7 +48,7 @@ export function VehicleDetails() {
     useVinFetcher(customerId, variant);
 
   // Vehicle selection hook for cross-component communication
-  const { listenForSelection } = useVehicleSelection();
+  const { listenForSelection, listenForMultipleSelection } = useVehicleSelection();
 
   const getVehicleVin = useCallback((vehicle: any): string => {
     if (!vehicle || typeof vehicle !== "object") return "";
@@ -60,14 +57,28 @@ export function VehicleDetails() {
       vehicle.VINNUMBER ||
       vehicle.vin ||
       vehicle.vinNumber ||
-      vehicle.U_Veh_StockID;
+      vehicle.U_Veh_StockID ||
+      vehicle.U_VEH_STOCKID ||
+      vehicle.u_veh_stockid;
     if (direct) return String(direct).trim();
 
     const entry = Object.entries(vehicle).find(([key, value]) => {
       if (!value) return false;
-      return key.toLowerCase().includes("vin");
+      const lower = key.toLowerCase();
+      return lower.includes("vin") || lower.includes("stockid");
     });
     return entry ? String(entry[1]).trim() : "";
+  }, []);
+
+  const pickFirstValue = useCallback((vehicle: any, keys: string[]): string => {
+    if (!vehicle || typeof vehicle !== "object") return "";
+    for (const key of keys) {
+      const value = vehicle[key];
+      if (value !== undefined && value !== null && String(value).trim() !== "") {
+        return String(value).trim();
+      }
+    }
+    return "";
   }, []);
 
   // Resolve "make" from multiple possible API payload shapes.
@@ -107,12 +118,64 @@ export function VehicleDetails() {
     return "";
   }, []);
 
-  // Auto-open dialog when VINs are loaded
-  useEffect(() => {
-    if (!loadingVinNumbers && vinNumbers.length > 0) {
-      setVinDialogOpen(true);
-    }
-  }, [vinNumbers, loadingVinNumbers]);
+  const populateVehicleFieldsFromSelection = useCallback(
+    (vehicle: any) => {
+      const resolvedVin = getVehicleVin(vehicle);
+      const resolvedModel =
+        pickFirstValue(vehicle, [
+          "U_Veh_ModelDescr",
+          "U_Veh_ModelFull",
+          "U_Veh_Model",
+          "U_VEH_MODEL",
+          "Model Description",
+          "MODEL",
+          "Model",
+        ]) || String(form.getValues("model") || "");
+      const resolvedVariant =
+        pickFirstValue(vehicle, ["ItemCode", "ITEMCODE", "ProductCode", "PRODUCTCODE"]) ||
+        String(form.getValues("variant") || "");
+      const resolvedYear = pickFirstValue(vehicle, [
+        "U_Veh_MY",
+        "U_VEH_MY",
+        "Model Year",
+        "MODELYEAR",
+        "YEAR",
+        "Year",
+      ]);
+      const resolvedColor = pickFirstValue(vehicle, [
+        "U_Veh_Color",
+        "U_VEH_COLOR",
+        "COLOR",
+        "Color",
+      ]);
+      const resolvedModelCode = pickFirstValue(vehicle, [
+        "U_Vehicle_MC",
+        "U_VEHICLE_MC",
+        "Model Code",
+        "MODELCODE",
+      ]);
+      const resolvedSuppCatNum = pickFirstValue(vehicle, ["SuppCatNum", "SUPPCATNUM"]);
+
+      const options = { shouldDirty: false };
+      const make = resolveMake(vehicle) || String(form.getValues("make") || "");
+      form.setValue("make", make, options);
+      form.setValue("model", resolvedModel, options);
+      form.setValue("variant", resolvedVariant, options);
+      form.setValue("year", resolvedYear, options);
+      form.setValue("color", resolvedColor, options);
+      form.setValue("modelCode", resolvedModelCode, options);
+      form.setValue("suppCatNum", resolvedSuppCatNum || resolvedModelCode, options);
+      form.setValue("vinNumber", resolvedVin, options);
+      form.setValue("vinDetails", vehicle as any, options);
+      form.setValue("quantity", 1, options);
+      setSelectedVehicle(vehicle as any);
+
+      return resolvedVin;
+    },
+    [form, getVehicleVin, pickFirstValue, resolveMake]
+  );
+
+  // Keep VIN dialog manual (open from button only) to avoid unexpected popup in edit mode.
 
   // Clear VIN selections when variant is cleared.
   // Do NOT clear on empty customerId because browse-inventory flow can work without it.
@@ -124,36 +187,80 @@ export function VehicleDetails() {
       // Only clear values if they were previously set
       const currentVinNumber = form.getValues("vinNumber");
       const currentVinDetails = form.getValues("vinDetails");
+      const currentVehicleLines = form.getValues("selectedVehicleLines");
       if (currentVinNumber) {
         form.setValue("vinNumber", "", { shouldDirty: false });
       }
       if (currentVinDetails) {
         form.setValue("vinDetails", undefined, { shouldDirty: false });
       }
+      if (currentVehicleLines?.length) {
+        form.setValue("selectedVehicleLines", [], { shouldDirty: false });
+      }
     }
   }, [variant, form]);
+
+  useEffect(() => {
+    const lines = Array.from(selectedVinsWithQuantity.entries()).map(
+      ([selectionKey, { vin, quantity, vinValue }]) => ({
+        selectionKey,
+        vinValue,
+        quantity,
+        vin,
+      })
+    );
+    form.setValue("selectedVehicleLines", lines, { shouldDirty: false });
+  }, [form, selectedVinsWithQuantity]);
 
   // Listen for vehicle selection from inventory modal
   useEffect(() => {
     return listenForSelection((vehicle: VehicleInventory) => {
-      const resolvedVin = getVehicleVin(vehicle);
+      const resolvedVin = populateVehicleFieldsFromSelection(vehicle);
 
-      // Populate form fields with inventory vehicle data
-      const options = { shouldDirty: false };
-      const make = resolveMake(vehicle) || String(form.getValues("make") || "");
-      form.setValue("make", make, options);
-      form.setValue("model", vehicle.U_Veh_Model || "", options);
-      form.setValue("variant", vehicle.ItemCode || "", options);
-      form.setValue("year", vehicle.U_Veh_MY || "", options);
-      form.setValue("color", vehicle.U_Veh_Color || "", options);
-      form.setValue("modelCode", vehicle.U_Vehicle_MC || "", options);
-      form.setValue("vinNumber", resolvedVin, options);
-      form.setValue("vinDetails", vehicle as any, options);
-      form.setValue("quantity", 1, options);
+      if (resolvedVin) {
+        setSelectedVins(new Set([resolvedVin]));
+        setSelectedVinsWithQuantity(
+          new Map([[resolvedVin, { vin: vehicle, quantity: 1, vinValue: resolvedVin }]])
+        );
+      } else {
+        setSelectedVins(new Set());
+        setSelectedVinsWithQuantity(new Map());
+      }
 
       toast.success("Vehicle selected from inventory");
     });
-  }, [form, listenForSelection, resolveMake, getVehicleVin]);
+  }, [listenForSelection, populateVehicleFieldsFromSelection]);
+
+  useEffect(() => {
+    return listenForMultipleSelection((vehicles: VehicleInventory[]) => {
+      if (!Array.isArray(vehicles) || vehicles.length === 0) return;
+
+      const firstVehicle = vehicles[0];
+      if (!firstVehicle) return;
+      populateVehicleFieldsFromSelection(firstVehicle);
+
+      const nextVins = new Set<string>();
+      const nextMap = new Map<string, { vin: any; quantity: number; vinValue: string }>();
+
+      vehicles.forEach((vehicle, index) => {
+        const resolvedVin =
+          getVehicleVin(vehicle) ||
+          `NO-VIN-${index + 1}-${String((vehicle as any).ItemCode || "UNKNOWN")}`;
+        const selectionKey = [
+          resolvedVin,
+          String((vehicle as any).ItemCode || "NO-ITEM"),
+          String((vehicle as any).WhsCode || (vehicle as any).WhsName || "NO-WHS"),
+        ].join("-");
+        nextVins.add(resolvedVin);
+        nextMap.set(selectionKey, { vin: vehicle, quantity: 1, vinValue: resolvedVin });
+      });
+
+      setSelectedVins(nextVins);
+      setSelectedVinsWithQuantity(nextMap);
+      form.setValue("quantity", vehicles.length, { shouldDirty: false });
+      toast.success(`${vehicles.length} vehicles selected from inventory`);
+    });
+  }, [form, listenForMultipleSelection, populateVehicleFieldsFromSelection, getVehicleVin]);
 
   // Search vehicles handler
   const handleSearchVehicles = useCallback(async (query: string) => {
@@ -200,21 +307,75 @@ export function VehicleDetails() {
 
   // Browse inventory handler
   const handleSelectFromInventory = useCallback(() => {
-    // Trigger event to open the vehicle selection modal
-    window.dispatchEvent(new CustomEvent("openVehicleInventoryModal"));
-  }, []);
+    const customerCode = String(form.getValues("customerId") || "").trim();
+    if (!customerCode) {
+      toast.error("Select customer first to load customer pricing");
+      return;
+    }
+
+    // Trigger event to open the vehicle selection modal with current customer code
+    window.dispatchEvent(
+      new CustomEvent("openVehicleInventoryModal", {
+        detail: { customerCode },
+      })
+    );
+  }, [form]);
 
   // VIN removal handler
   const handleRemoveVin = useCallback(
-    (vinValue: string) => {
+    (selectionKey: string) => {
       const newMap = new Map(selectedVinsWithQuantity);
-      newMap.delete(vinValue);
+      const removedEntry = newMap.get(selectionKey);
+      newMap.delete(selectionKey);
       setSelectedVinsWithQuantity(newMap);
+      if (newMap.size > 0) {
+        const totalQty = Array.from(newMap.values()).reduce(
+          (sum, item) => sum + (Number(item.quantity) || 0),
+          0
+        );
+        form.setValue("quantity", totalQty || 1, { shouldDirty: false });
+      } else {
+        form.setValue("quantity", undefined, { shouldDirty: false });
+      }
       const newSelected = new Set(selectedVins);
-      newSelected.delete(vinValue);
+      if (removedEntry?.vinValue) {
+        const vinStillExists = Array.from(newMap.values()).some(
+          (item) => item.vinValue === removedEntry.vinValue
+        );
+        if (!vinStillExists) {
+          newSelected.delete(removedEntry.vinValue);
+        }
+      }
       setSelectedVins(newSelected);
     },
-    [selectedVins, selectedVinsWithQuantity]
+    [form, selectedVins, selectedVinsWithQuantity]
+  );
+
+  const handleVinQuantityChange = useCallback(
+    (selectionKey: string, quantity: number) => {
+      const normalizedQuantity = Number.isFinite(Number(quantity)) && Number(quantity) > 0
+        ? Number(quantity)
+        : 1;
+
+      setSelectedVinsWithQuantity((current) => {
+        const next = new Map(current);
+        const entry = next.get(selectionKey);
+        if (!entry) return current;
+
+        next.set(selectionKey, {
+          ...entry,
+          quantity: normalizedQuantity,
+        });
+
+        const totalQty = Array.from(next.values()).reduce(
+          (sum, item) => sum + (Number(item.quantity) || 0),
+          0
+        );
+        form.setValue("quantity", totalQty || 1, { shouldDirty: false });
+        return next;
+      });
+    },
+    [form]
   );
 
   // VIN selection confirmation handler
@@ -222,17 +383,18 @@ export function VehicleDetails() {
     (vins: Set<string>) => {
       if (vins.size > 0) {
         // Store selected VINs with default quantity of 1
-        const newMap = new Map<string, { vin: any; quantity: number }>();
+        const newMap = new Map<string, { vin: any; quantity: number; vinValue: string }>();
         vins.forEach((vinValue) => {
           const vin = vinNumbers.find((v: any) => {
             const vValue = getVehicleVin(v);
             return vValue === vinValue;
           });
           if (vin) {
-            newMap.set(vinValue, { vin, quantity: 1 });
+            newMap.set(vinValue, { vin, quantity: 1, vinValue });
           }
         });
         setSelectedVinsWithQuantity(newMap);
+        form.setValue("quantity", newMap.size || 1, { shouldDirty: false });
 
         // Get the first selected VIN for form field (for backward compatibility)
         const firstSelectedVin = vinNumbers.find((vin: any) => {
@@ -277,92 +439,6 @@ export function VehicleDetails() {
     [form, vinNumbers, resolveMake, getVehicleVin]
   );
 
-  // Add to cart handler
-  const handleAddToCart = useCallback(() => {
-    const formData = form.getValues();
-
-    // Validate required fields
-    if (!formData.make || !formData.model) {
-      toast.error("Please fill in Make and Model");
-      return;
-    }
-
-    // Check if we have selected VINs with quantities
-    if (selectedVinsWithQuantity.size === 0) {
-      toast.error("Please select at least one VIN number");
-      return;
-    }
-
-    const available = selectedVehicle?.Available || 0;
-    let addedCount = 0;
-
-    // Add each selected VIN as a separate cart item
-    selectedVinsWithQuantity.forEach(({ vin, quantity }, vinValue) => {
-      // Validate quantity
-      const qty = Number(quantity) || 1;
-      if (qty < 1) {
-        toast.error(`Quantity must be at least 1 for VIN ${vinValue}`);
-        return;
-      }
-
-      if (qty > available) {
-        toast.error(
-          `Quantity cannot exceed available stock (${available}) for VIN ${vinValue}`
-        );
-        return;
-      }
-
-      // Get price and currency from VIN details
-      const price = vin?.Price || undefined;
-      const currency = vin?.Currency || "SAR";
-      const discPrice = vin?.Discprice || undefined;
-
-      // Create cart item for this VIN with the correct quantity
-      const cartItem = {
-        id: `${vinValue}-${Date.now()}-${Math.random()}`,
-        itemCode: selectedVehicle?.ItemCode || formData.variant || "",
-        itemName:
-          selectedVehicle?.ItemName || `${formData.make} ${formData.model}`,
-        make: formData.make,
-        model: formData.model,
-        variant: formData.variant,
-        year: vin?.U_Veh_MY || formData.year,
-        color: vin?.U_Veh_Color || formData.color,
-        suppCatNum: formData.suppCatNum,
-        modelCode: vin?.U_Vehicle_MC || formData.modelCode,
-        quantity: qty,
-        available,
-        price: price,
-        currency: currency,
-        discPrice: discPrice,
-        vinNumber: vinValue,
-        customerName: formData.customerName,
-        mobile: formData.mobile,
-        email: formData.homeEmail,
-      };
-
-      addItem(cartItem);
-      addedCount++;
-    });
-
-    if (addedCount > 0) {
-      toast.success(
-        `${addedCount} item${addedCount > 1 ? "s" : ""} added to cart`
-      );
-
-      // Reset only vehicle-related fields using utility function
-      const currentData = form.getValues();
-      const resetValues = getVehicleFormResetValues(currentData);
-      form.reset(resetValues);
-
-      // Reset vehicle-related state
-      setVehicleSearch("");
-      setSelectedVehicle(null);
-      setSelectedVins(new Set());
-      setSelectedVinsWithQuantity(new Map());
-    }
-  }, [form, selectedVehicle, selectedVinsWithQuantity, addItem]);
-
   return (
     <div className="space-y-4">
       {/* Vehicle Search Section */}
@@ -385,6 +461,7 @@ export function VehicleDetails() {
       <SelectedVinsDisplay
         selectedVinsWithQuantity={selectedVinsWithQuantity}
         onRemove={handleRemoveVin}
+        onQuantityChange={handleVinQuantityChange}
       />
 
       {/* VIN Selection Dialog */}
@@ -399,11 +476,17 @@ export function VehicleDetails() {
       />
 
       {/* Vehicle Form Fields */}
-      <VehicleFormFields
-        form={form}
-        selectedVehicle={selectedVehicle}
-        onAddToCart={handleAddToCart}
-      />
+      {selectedVinsWithQuantity.size === 0 ? (
+        <VehicleFormFields
+          form={form}
+          selectedVehicle={selectedVehicle}
+          showQuantityField={true}
+        />
+      ) : (
+        <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
+          Vehicle details are managed in the selected VIN card{selectedVinsWithQuantity.size > 1 ? "s" : ""} above.
+        </div>
+      )}
     </div>
   );
 }

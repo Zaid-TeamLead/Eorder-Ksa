@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, forwardRef, useImperativeHandle } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, type FieldErrors, type FieldValues } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form } from "@/components/ui/form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -9,7 +9,7 @@ import { CustomerSearch } from "./components/customer-search";
 import { CustomerInformation } from "./components/customer-information";
 import { VehicleDetails } from "./components/vehicle-details";
 import { EnquiryDetails } from "./components/enquiry-details";
-import { AdditionalInfo } from "./components/additional-info";
+import { AdditionalInfoClean } from "./components/additional-info-clean";
 import { salesEnquirySchema, type SalesEnquiryFormData } from "./schema";
 import { useSession } from "@/lib/auth-client";
 import { useCart, type CartItem } from "@/lib/cart-context";
@@ -33,6 +33,44 @@ const TAB_CONTENT_CLASSES = "flex flex-col gap-4 mt-0";
 
 type TabId = (typeof TABS)[number]["id"];
 
+const sanitizeEmail = (value?: string | null) => {
+  const email = String(value || "").trim();
+  if (!email) return "";
+  const isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  return isValid ? email : "";
+};
+
+const getErrorMessages = (
+  errors: FieldErrors<FieldValues>,
+  parentPath = ""
+): Array<{ path: string; message: string }> => {
+  const result: Array<{ path: string; message: string }> = [];
+
+  for (const [key, value] of Object.entries(errors || {})) {
+    if (!value) continue;
+    const currentPath = parentPath ? `${parentPath}.${key}` : key;
+
+    if (typeof value === "object" && "message" in value && typeof value.message === "string") {
+      result.push({ path: currentPath, message: value.message });
+      continue;
+    }
+
+    if (Array.isArray(value)) {
+      value.forEach((item, index) => {
+        if (!item || typeof item !== "object") return;
+        result.push(...getErrorMessages(item as FieldErrors<FieldValues>, `${currentPath}.${index}`));
+      });
+      continue;
+    }
+
+    if (typeof value === "object") {
+      result.push(...getErrorMessages(value as FieldErrors<FieldValues>, currentPath));
+    }
+  }
+
+  return result;
+};
+
 const getInitialFormValues = () => ({
   // Customer Information
   customerId: "",
@@ -54,10 +92,15 @@ const getInitialFormValues = () => ({
   quantity: 1,
   vinNumber: "",
   vinDetails: undefined,
+  selectedVehicleLines: [],
   // Enquiry Details
   branch: "",
   budget: "",
   financing: undefined,
+  chargeCode: "",
+  chargeName: "",
+  chargePrice: "",
+  chargeDetails: undefined,
   preferredContact: undefined,
   preferredTime: undefined,
   preferredDelivery: "",
@@ -138,16 +181,17 @@ export const SalesEnquiryForm = forwardRef<
 
           if (!isValid) {
             const errors = form.formState.errors;
-            const errorCount = Object.keys(errors).length;
-
-            // Get first error message from schema validation
-            const firstError = Object.values(errors)[0];
+            const allMessages = getErrorMessages(errors as unknown as FieldErrors<FieldValues>);
+            const errorCount = allMessages.length || Object.keys(errors).length;
+            const firstError = allMessages[0];
             const errorMessage = firstError?.message || "Please fill in all required fields";
 
             toast.error(errorMessage, {
               description: errorCount > 1
                 ? `${errorCount - 1} more field(s) require attention`
-                : undefined,
+                : firstError?.path
+                  ? `Field: ${firstError.path}`
+                  : undefined,
             });
 
             return;
@@ -190,7 +234,7 @@ export const SalesEnquiryForm = forwardRef<
       form.setValue("homePhone", customer.Phone1 || "", { shouldDirty: true });
       form.setValue("workPhone", customer.Phone2 || "", { shouldDirty: true });
       form.setValue("mobile", customer.Cellular || "", { shouldDirty: true });
-      form.setValue("homeEmail", customer.E_Mail || "", { shouldDirty: true });
+      form.setValue("homeEmail", sanitizeEmail(customer.E_Mail), { shouldDirty: true });
     }, [form]);
 
     const handleNewCustomer = useCallback(() => {
@@ -247,7 +291,7 @@ export const SalesEnquiryForm = forwardRef<
               </TabsContent>
 
               <TabsContent value="additional" className={TAB_CONTENT_CLASSES}>
-                <AdditionalInfo />
+                <AdditionalInfoClean />
               </TabsContent>
             </div>
           </Tabs>

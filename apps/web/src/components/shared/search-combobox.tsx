@@ -84,6 +84,9 @@ export interface SearchComboboxProps<T> {
 
   /** Whether to show check icon on selected item */
   showCheckIcon?: boolean;
+
+  /** Allow searching/opening with empty query */
+  allowEmptySearch?: boolean;
 }
 
 export function SearchCombobox<T>({
@@ -99,6 +102,7 @@ export function SearchCombobox<T>({
   className,
   emptyMessage = "No results found.",
   showCheckIcon = true,
+  allowEmptySearch = false,
 }: SearchComboboxProps<T>) {
   const [open, setOpen] = useState(false);
   const [results, setResults] = useState<T[]>([]);
@@ -106,11 +110,12 @@ export function SearchCombobox<T>({
   const [selectedItem, setSelectedItem] = useState<T | null>(null);
 
   const handleSearch = async () => {
-    if (!value.trim()) return;
+    const query = value.trim();
+    if (!query && !allowEmptySearch) return;
 
     setIsSearching(true);
     try {
-      const result = await onSearch(value);
+      const result = await onSearch(query);
       if (result?.success && result.data) {
         setResults(result.data);
         setOpen(true);
@@ -149,6 +154,10 @@ export function SearchCombobox<T>({
             <Input
               value={value}
               onChange={(e) => handleInputChange(e.target.value)}
+              onFocus={() => {
+                if (!allowEmptySearch || isSearching || results.length > 0) return;
+                void handleSearch();
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
@@ -167,13 +176,13 @@ export function SearchCombobox<T>({
               </span>
             )}
           </div>
-          <Button
-            type="button"
-            size="sm"
-            onClick={handleSearch}
-            disabled={isSearching || !value.trim()}
-            className="h-7 shrink-0 text-xs px-2"
-          >
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleSearch}
+              disabled={isSearching || (!allowEmptySearch && !value.trim())}
+              className="h-7 shrink-0 text-xs px-2"
+            >
             {isSearching ? (
               <ButtonLoading text="Searching..." size="sm" />
             ) : (

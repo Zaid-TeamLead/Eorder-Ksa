@@ -12,6 +12,7 @@ import {
   updateEnquiryStatus,
   deleteEnquiry,
   getEnquiryStats,
+  getSalespersonDashboard,
 } from '../controllers/enquiry.controller.js';
 import { validate } from '../middleware/validator.js';
 import { asyncHandler } from '../utils/async-handler.js';
@@ -54,6 +55,12 @@ router.get(
  * Get enquiry statistics
  */
 router.get('/stats', asyncHandler(getEnquiryStats));
+
+/**
+ * GET /api/enquiry/dashboard
+ * Get dashboard data for salesperson
+ */
+router.get('/dashboard', asyncHandler(getSalespersonDashboard));
 
 /**
  * GET /api/enquiry/:id

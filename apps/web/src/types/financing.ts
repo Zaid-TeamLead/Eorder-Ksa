@@ -4,6 +4,7 @@
 
 import { z } from "zod";
 import type {
+  Currency as ServiceCurrency,
   CreateFinancingData as ServiceCreateFinancingData,
   Financing as ServiceFinancing,
   Lender as ServiceLender,
@@ -16,6 +17,7 @@ import type {
 
 export const financeSchemeFormSchema = z.object({
   lenderCode: z.string().min(1, "Lender is required"),
+  currency: z.string().min(1, "Currency is required"),
   vehiclePrice: z.string().optional(),
   term: z.string().min(1, "Term is required"),
   downpayment: z.string().optional(),
@@ -41,6 +43,7 @@ export type UpdateFinancingData = ServiceUpdateFinancingData;
 
 export type Financing = ServiceFinancing;
 export type Lender = ServiceLender;
+export type Currency = ServiceCurrency;
 
 // ============================================================================
 // Hook Return Types
@@ -65,6 +68,12 @@ export interface UseFinancingMutationsReturn {
 
 export interface UseLendersReturn {
   lenders: Lender[];
+  isLoading: boolean;
+  error: Error | null;
+}
+
+export interface UseCurrenciesReturn {
+  currencies: Currency[];
   isLoading: boolean;
   error: Error | null;
 }

@@ -12,6 +12,7 @@ import {
   updateTestVehicleStatus,
   getVinNumber,
   searchVehicles,
+  searchSalesCharges,
   getAllVehicleInventory,
 } from '@/services/vehicles.service.js';
 
@@ -29,6 +30,35 @@ router.get(
     const search = req.query.search as string | undefined;
     const vehicles = await searchVehicles(search);
     return sendSuccess(res, vehicles);
+  })
+);
+
+router.get(
+  '/charges',
+  validate(
+    z.object({
+      search: z.string().optional(),
+      customerCode: z.string().optional(),
+      customerId: z.string().optional(),
+      ccode: z.string().optional(),
+      itemGroup: z.string().optional(),
+    }),
+    'query'
+  ),
+  asyncHandler(async (req, res) => {
+    const search = req.query.search as string | undefined;
+    const customerCode =
+      (req.query.customerCode as string | undefined) ||
+      (req.query.customerId as string | undefined) ||
+      (req.query.ccode as string | undefined);
+    const itemGroup = req.query.itemGroup as string | undefined;
+
+    const charges = await searchSalesCharges({
+      search,
+      customerCode,
+      itemGroup,
+    });
+    return sendSuccess(res, charges);
   })
 );
 
@@ -59,8 +89,20 @@ router.get(
 
 router.get(
   '/inventory',
-  asyncHandler(async (_req, res) => {
-    const vehicles = await getAllVehicleInventory();
+  validate(
+    z.object({
+      customerCode: z.string().optional(),
+      customerId: z.string().optional(),
+      ccode: z.string().optional(),
+    }),
+    'query'
+  ),
+  asyncHandler(async (req, res) => {
+    const customerCode =
+      (req.query.customerCode as string | undefined) ||
+      (req.query.customerId as string | undefined) ||
+      (req.query.ccode as string | undefined);
+    const vehicles = await getAllVehicleInventory(customerCode);
     return sendSuccess(res, vehicles);
   })
 );

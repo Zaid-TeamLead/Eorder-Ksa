@@ -13,14 +13,17 @@ import { EnquiryDetailsModal } from "@/components/enquiry-details-modal";
 import { Button } from "@/components/ui/button";
 import { SalesEnquiryForm, type SalesEnquiryFormSubmission } from "@/forms/sales-enquiry";
 import { VehicleSelectionModal } from "@/components/vehicle-selection-modal";
+import { ChargeSelectionModal } from "@/components/charge-selection-modal";
 
 import { useSession } from "@/lib/auth-client";
 import { useEnquiries } from "@/hooks/entities/useEnquiries";
 import { useEnquiryMutations } from "@/hooks/entities/useEnquiryMutations";
 import { useEntityModal } from "@/hooks/crud/useEntityModal";
 import { useVehicles } from "@/hooks/entities/useVehicles";
+import { useChargeItems } from "@/hooks/entities/useChargeItems";
 import { useTabNavigation } from "@/hooks/forms/useTabNavigation";
 import { useVehicleSelection } from "@/hooks/forms/useVehicleSelection";
+import { useChargeSelection } from "@/hooks/forms/useChargeSelection";
 import { useEnquiryFormSubmit } from "@/hooks/enquiry/useEnquiryFormSubmit";
 import { useEnquiryActions } from "@/hooks/enquiry/useEnquiryActions";
 import type { SalesEnquiry } from "@/services/enquiry";
@@ -35,6 +38,59 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]["id"];
 
+const sanitizeEmail = (value?: string | null) => {
+  const email = String(value || "").trim();
+  if (!email) return "";
+  const isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  return isValid ? email : "";
+};
+
+const toSafeString = (value: unknown): string => {
+  if (value === undefined || value === null) return "";
+  const normalized = String(value).trim();
+  if (!normalized || normalized === "?") return "";
+  return normalized;
+};
+
+const getChargeFromEnquiry = (enquiry?: SalesEnquiry | null) => {
+  const fromColumns = {
+    chargeCode: toSafeString(enquiry?.CHARGECODE),
+    chargeName: toSafeString(enquiry?.CHARGENAME),
+    chargePrice: toSafeString(enquiry?.CHARGEPRICE),
+    chargeDetails:
+      enquiry?.CHARGEDETAILS && typeof enquiry.CHARGEDETAILS === "object"
+        ? (enquiry.CHARGEDETAILS as Record<string, unknown>)
+        : undefined,
+  };
+
+  if (fromColumns.chargeCode || fromColumns.chargeName || fromColumns.chargePrice) {
+    return fromColumns;
+  }
+
+  const vinDetails = enquiry?.VINDETAILS;
+  if (!vinDetails || typeof vinDetails !== "object") {
+    return {
+      chargeCode: "",
+      chargeName: "",
+      chargePrice: "",
+      chargeDetails: undefined as Record<string, unknown> | undefined,
+    };
+  }
+
+  const source = vinDetails as Record<string, unknown>;
+  const chargeObject =
+    source.CHARGE && typeof source.CHARGE === "object"
+      ? (source.CHARGE as Record<string, unknown>)
+      : undefined;
+
+  return {
+    chargeCode: toSafeString(chargeObject?.code),
+    chargeName: toSafeString(chargeObject?.name),
+    chargePrice: toSafeString(chargeObject?.price),
+    chargeDetails: chargeObject?.details as Record<string, unknown> | undefined,
+  };
+};
+
 export default function SalesEnquiry() {
   const searchParams = useSearchParams();
   const action = searchParams.get("action");
@@ -45,12 +101,19 @@ export default function SalesEnquiry() {
   // Modal state management using custom hook
   const modal = useEntityModal<SalesEnquiry>();
   const [vehicleModalOpen, setVehicleModalOpen] = useState(false);
+  const [inventoryCustomerCode, setInventoryCustomerCode] = useState("");
+  const [chargeModalOpen, setChargeModalOpen] = useState(false);
+  const [chargeCustomerCode, setChargeCustomerCode] = useState("");
 
   // Fetch enquiries using custom hook
   const { enquiries, isLoading } = useEnquiries();
 
   // Fetch vehicle inventory using custom hook
-  const { vehicles, isLoading: isLoadingVehicles } = useVehicles();
+  const { vehicles, isLoading: isLoadingVehicles } = useVehicles(inventoryCustomerCode);
+  const { chargeItems, isLoading: isLoadingCharges, error: chargeItemsError } = useChargeItems(
+    chargeCustomerCode,
+    chargeModalOpen
+  );
 
   // CRUD mutations using custom hook
   const { deleteEnquiry: deleteEnquiryMutation, updateStatus } = useEnquiryMutations();
@@ -64,7 +127,8 @@ export default function SalesEnquiry() {
   } = useTabNavigation({ tabs: TABS, initialTab: "customer-information" });
 
   // Vehicle selection using custom hook
-  const { handleVehicleSelect } = useVehicleSelection();
+  const { handleVehicleSelect, handleVehiclesSelect } = useVehicleSelection();
+  const { handleChargeSelect } = useChargeSelection();
 
   // Form submission using custom hook
   const { handleSubmit, isSubmitting } = useEnquiryFormSubmit({
@@ -94,12 +158,27 @@ export default function SalesEnquiry() {
 
   // Listen for vehicle inventory modal trigger
   useEffect(() => {
-    const handleOpenModal = () => {
+    const handleOpenModal = (event: Event) => {
+      const customEvent = event as CustomEvent<{ customerCode?: string }>;
+      const customerCode = String(customEvent.detail?.customerCode || "").trim();
+      setInventoryCustomerCode(customerCode);
       setVehicleModalOpen(true);
     };
 
     window.addEventListener('openVehicleInventoryModal', handleOpenModal);
     return () => window.removeEventListener('openVehicleInventoryModal', handleOpenModal);
+  }, []);
+
+  useEffect(() => {
+    const handleOpenModal = (event: Event) => {
+      const customEvent = event as CustomEvent<{ customerCode?: string }>;
+      const customerCode = String(customEvent.detail?.customerCode || "").trim();
+      setChargeCustomerCode(customerCode);
+      setChargeModalOpen(true);
+    };
+
+    window.addEventListener("openChargeSelectionModal", handleOpenModal);
+    return () => window.removeEventListener("openChargeSelectionModal", handleOpenModal);
   }, []);
 
   const handleEditEnquiry = (enquiry: SalesEnquiry) => {
@@ -144,6 +223,38 @@ export default function SalesEnquiry() {
   const handleVehicleSelectWithClose = (vehicle: any) => {
     handleVehicleSelect(vehicle);
     setVehicleModalOpen(false);
+  };
+
+  const handleVehiclesSelectWithClose = (selectedVehicles: any[]) => {
+    const uniqueVehicles = Array.from(
+      new Map(
+        (selectedVehicles || []).map((vehicle, index) => {
+          const row = vehicle as Record<string, unknown>;
+          const key = [
+            String(
+              row.VIN ||
+              row.VINNUMBER ||
+              row.U_Veh_StockID ||
+              row.ItemCode ||
+              row.ProductCode ||
+              "NO-VIN"
+            ).trim(),
+            String(row.ItemCode || row.ProductCode || "NO-ITEM").trim(),
+            String(row.WhsCode || row.WhsName || "NO-WHS").trim(),
+            String(row.InDate || index).trim(),
+          ].join("|");
+          return [key, vehicle] as const;
+        })
+      ).values()
+    );
+
+    handleVehiclesSelect(uniqueVehicles);
+    setVehicleModalOpen(false);
+  };
+
+  const handleChargeSelectWithClose = (charge: any) => {
+    handleChargeSelect(charge);
+    setChargeModalOpen(false);
   };
 
   // Create columns with handlers
@@ -232,6 +343,7 @@ export default function SalesEnquiry() {
           defaultValues={
             modal.isEditMode && modal.selectedEntity
               ? {
+                  ...getChargeFromEnquiry(modal.selectedEntity),
                   customerId: modal.selectedEntity.CUSTOMERID || "",
                   customerName: modal.selectedEntity.CUSTOMERNAME || "",
                   address: modal.selectedEntity.ADDRESS || "",
@@ -239,7 +351,7 @@ export default function SalesEnquiry() {
                   homePhone: modal.selectedEntity.HOMEPHONE || "",
                   workPhone: modal.selectedEntity.WORKPHONE || "",
                   mobile: modal.selectedEntity.MOBILE || "",
-                  homeEmail: modal.selectedEntity.HOMEEMAIL || "",
+                  homeEmail: sanitizeEmail(modal.selectedEntity.HOMEEMAIL || ""),
                   make: modal.selectedEntity.MAKE || "",
                   model: modal.selectedEntity.MODEL || "",
                   variant: modal.selectedEntity.VARIANT || "",
@@ -309,8 +421,18 @@ export default function SalesEnquiry() {
         open={vehicleModalOpen}
         onOpenChange={setVehicleModalOpen}
         onSelectVehicle={handleVehicleSelectWithClose}
+        onSelectVehicles={handleVehiclesSelectWithClose}
         vehicles={vehicles}
         isLoading={isLoadingVehicles}
+      />
+
+      <ChargeSelectionModal
+        open={chargeModalOpen}
+        onOpenChange={setChargeModalOpen}
+        onSelectCharge={handleChargeSelectWithClose}
+        charges={chargeItems}
+        isLoading={isLoadingCharges}
+        hasError={Boolean(chargeItemsError)}
       />
     </div>
   );

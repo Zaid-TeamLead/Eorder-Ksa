@@ -14,10 +14,10 @@ import { getLenders } from "@/services/financing";
 import type { UseLendersReturn } from "@/types/financing";
 import { useEntityQuery } from "@/hooks/shared/useEntityQuery";
 
-export function useLenders(): UseLendersReturn {
+export function useLenders(qryType = 'BANK'): UseLendersReturn {
   const { data: lenders, isLoading, error } = useEntityQuery({
-    queryKey: queryKeys.lenders.all,
-    queryFn: getLenders,
+    queryKey: queryKeys.lenders.byType(qryType),
+    queryFn: () => getLenders(qryType),
     defaultValue: [],
     staleTime: 10 * 60 * 1000, // Cache for 10 minutes (lenders don't change often)
   });

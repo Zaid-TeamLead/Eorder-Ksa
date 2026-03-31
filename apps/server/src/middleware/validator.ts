@@ -20,7 +20,13 @@ export function validate(schema: ZodSchema, target: ValidationTarget = 'body') {
       next();
     } catch (error) {
       if (error instanceof z.ZodError) {
-        throw new ValidationError('Validation failed', error.issues);
+        const firstIssue = error.issues[0];
+        const issuePath = firstIssue?.path?.length ? firstIssue.path.join('.') : 'request';
+        const issueMessage = firstIssue?.message || 'Invalid input';
+        throw new ValidationError(
+          `Validation failed: ${issuePath} - ${issueMessage}`,
+          error.issues
+        );
       }
       next(error);
     }

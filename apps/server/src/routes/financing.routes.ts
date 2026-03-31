@@ -17,6 +17,12 @@ const router: ExpressRouter = Router();
 // Get all lenders
 router.get('/lenders', financingController.getLenders);
 
+// Get all sales employees
+router.get('/sales-employees', financingController.getSalesEmployees);
+
+// Get all currencies
+router.get('/currencies', financingController.getCurrencies);
+
 // Get all financing schemes for an enquiry
 router.get(
   '/enquiry/:enquiryId',

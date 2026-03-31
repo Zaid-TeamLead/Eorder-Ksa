@@ -79,36 +79,43 @@ export function VehicleSearchSection({
         <FormField
           control={form.control}
           name="vinNumber"
-          render={() => (
-            <FormItem>
-              <FormLabel className="text-xs font-medium">
-                VIN Number
-                {loadingVinNumbers && (
-                  <LoadingState message="Loading..." />
-                )}
-              </FormLabel>
-              <FormControl>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-8 text-sm w-full justify-start"
-                  onClick={onOpenVinDialog}
-                  disabled={loadingVinNumbers || vinNumbersCount === 0 || !customerId || !variant}
-                >
-                  {selectedVinsCount > 0
-                    ? `${selectedVinsCount} VIN${selectedVinsCount > 1 ? "s" : ""} selected`
-                    : !customerId || !variant
-                      ? "Select customer & vehicle first"
-                      : loadingVinNumbers
-                        ? "Loading VIN numbers..."
-                        : vinNumbersCount === 0
-                          ? "No VIN numbers available"
-                          : "Select VIN numbers"}
-                </Button>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
+          render={({ field }) => {
+            const selectedVinFromForm =
+              typeof field.value === "string" ? field.value.trim() : "";
+
+            return (
+              <FormItem>
+                <FormLabel className="text-xs font-medium">
+                  VIN Number
+                  {loadingVinNumbers && (
+                    <LoadingState message="Loading..." />
+                  )}
+                </FormLabel>
+                <FormControl>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-8 text-sm w-full justify-start"
+                    onClick={onOpenVinDialog}
+                    disabled={loadingVinNumbers || vinNumbersCount === 0 || !customerId || !variant}
+                  >
+                    {selectedVinsCount > 0
+                      ? `${selectedVinsCount} VIN${selectedVinsCount > 1 ? "s" : ""} selected`
+                      : selectedVinFromForm
+                        ? `VIN: ${selectedVinFromForm}`
+                        : !customerId || !variant
+                          ? "Select customer & vehicle first"
+                          : loadingVinNumbers
+                            ? "Loading VIN numbers..."
+                            : vinNumbersCount === 0
+                              ? "No VIN numbers available"
+                              : "Select VIN numbers"}
+                  </Button>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            );
+          }}
         />
       </div>
     </div>

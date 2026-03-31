@@ -68,6 +68,10 @@ const tradeInSchema = z.object({
 const enquiryDetailsSchema = z.object({
   budget: optionalStringValidator,
   financing: financingEnum.optional(),
+  chargeCode: optionalStringValidator,
+  chargeName: optionalStringValidator,
+  chargePrice: optionalStringValidator,
+  chargeDetails: z.record(z.string(), z.any()).optional(),
   preferredContact: preferredContactEnum.optional(),
   preferredTime: preferredTimeEnum.optional(),
   preferredDelivery: optionalStringValidator,

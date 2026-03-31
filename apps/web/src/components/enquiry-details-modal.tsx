@@ -23,6 +23,42 @@ export function EnquiryDetailsModal({
 }: EnquiryDetailsModalProps) {
   if (!enquiry) return null;
 
+  const normalizeValue = (value: unknown): string => {
+    if (value === undefined || value === null) return "";
+    const normalized = String(value).trim();
+    if (!normalized || normalized === "?") return "";
+    return normalized;
+  };
+
+  const getChargeDetails = () => {
+    const fromColumns = {
+      code: normalizeValue(enquiry.CHARGECODE),
+      name: normalizeValue(enquiry.CHARGENAME),
+      price: normalizeValue(enquiry.CHARGEPRICE),
+    };
+
+    if (fromColumns.code || fromColumns.name || fromColumns.price) {
+      return fromColumns;
+    }
+
+    const vinDetails =
+      enquiry.VINDETAILS && typeof enquiry.VINDETAILS === "object"
+        ? (enquiry.VINDETAILS as Record<string, unknown>)
+        : null;
+    const charge =
+      vinDetails?.CHARGE && typeof vinDetails.CHARGE === "object"
+        ? (vinDetails.CHARGE as Record<string, unknown>)
+        : null;
+
+    return {
+      code: normalizeValue(charge?.code),
+      name: normalizeValue(charge?.name),
+      price: normalizeValue(charge?.price),
+    };
+  };
+
+  const charge = getChargeDetails();
+
   const statusColors: Record<string, string> = {
     Active: "bg-blue-500/10 text-blue-600 border-blue-500/20",
     Contacted: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20",
@@ -173,6 +209,18 @@ export function EnquiryDetailsModal({
               <div>
                 <span className="text-muted-foreground">Sales Type:</span>
                 <p className="font-medium">{enquiry.SALESTYPE || "N/A"}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Charge Code:</span>
+                <p className="font-medium">{charge.code || "N/A"}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Charge Name:</span>
+                <p className="font-medium">{charge.name || "N/A"}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Charge Price:</span>
+                <p className="font-medium">{charge.price || "N/A"}</p>
               </div>
             </div>
           </div>

@@ -7,6 +7,7 @@ export interface Financing {
   LENDER_CODE: string;
   LENDER_NAME: string;
   SCHEME_NAME?: string;
+  CURRENCY?: string;
   VEHICLE_PRICE?: number;
   DOWNPAYMENT?: number;
   DOWNPAYMENT_PERCENT?: number;
@@ -34,11 +35,22 @@ export interface Lender {
   IS_ACTIVE?: string;
 }
 
+export interface SalesEmployee {
+  SALES_EMPLOYEE_CODE: string;
+  SALES_EMPLOYEE_NAME: string;
+}
+
+export interface Currency {
+  CURRENCY_CODE: string;
+  CURRENCY_NAME: string;
+}
+
 export interface CreateFinancingData {
   enquirySlno: number;
   lenderCode: string;
   lenderName: string;
   schemeName?: string;
+  currency?: string;
   vehiclePrice?: number;
   downpayment?: number;
   downpaymentPercent?: number;
@@ -59,6 +71,7 @@ export interface UpdateFinancingData {
   lenderCode?: string;
   lenderName?: string;
   schemeName?: string;
+  currency?: string;
   vehiclePrice?: number;
   downpayment?: number;
   downpaymentPercent?: number;
@@ -118,8 +131,17 @@ export const deleteFinancing = async (id: number): Promise<{ success: boolean }>
 /**
  * Get all active lenders
  */
-export const getLenders = async (): Promise<Lender[]> => {
-  return apiClient.get<Lender[]>(API_ENDPOINTS.LENDERS);
+export const getLenders = async (qryType = 'BANK'): Promise<Lender[]> => {
+  const query = qryType ? `?qryType=${encodeURIComponent(qryType)}` : '';
+  return apiClient.get<Lender[]>(`${API_ENDPOINTS.LENDERS}${query}`);
+};
+
+export const getSalesEmployees = async (): Promise<SalesEmployee[]> => {
+  return apiClient.get<SalesEmployee[]>(`${API_ENDPOINTS.FINANCING}/sales-employees`);
+};
+
+export const getCurrencies = async (): Promise<Currency[]> => {
+  return apiClient.get<Currency[]>(API_ENDPOINTS.FINANCING_CURRENCIES);
 };
 
 /**

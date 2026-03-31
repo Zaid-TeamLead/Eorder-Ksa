@@ -81,3 +81,17 @@ export const getEnquiryStats = async (req: Request, res: Response) => {
   const stats = await EnquiryService.getEnquiryStats(slpCode);
   sendSuccess(res, stats);
 };
+
+export const getSalespersonDashboard = async (_req: Request, res: Response) => {
+  const slpCode = '14';
+
+  if (!slpCode) {
+    return res.status(400).json({
+      success: false,
+      message: 'SLPCODE is required',
+    });
+  }
+
+  const dashboardData = await EnquiryService.getSalespersonDashboard(slpCode);
+  sendSuccess(res, dashboardData);
+};

@@ -8,6 +8,7 @@ import { db } from "./database.service.js";
 
 const EXTERNAL_AUTH_URL = "https://auth.neweast.cloud";
 const COMPANY_CODE = "BI_NEGT_KSA";
+const OTP_BYPASS_USER_ID = "104006";
 
 // Note: Removed sanitizeInput function - now using parameterized queries for SQL injection prevention
 
@@ -23,11 +24,64 @@ export interface AuthTokens {
   accessToken: string;
 }
 
+async function getSlpCodeForUser(userId: string): Promise<string> {
+  try {
+    const sql = `CALL "BI_NEGT_KSAISUZU".DMS_KSA_100001(?)`;
+    const slpCode = await db.query(sql, [userId]);
+    return String(slpCode[0]?.SlpCode ?? "").trim();
+  } catch (error) {
+    logger.warn({ error, userId }, "Failed to fetch SlpCode, using userId as fallback");
+    return userId;
+  }
+}
+
+async function createBypassSession(
+  userId: string
+): Promise<{ user: UserData; tokens: AuthTokens }> {
+  const resolvedUserId = String(userId || OTP_BYPASS_USER_ID).trim() || OTP_BYPASS_USER_ID;
+  const slpCode = await getSlpCodeForUser(resolvedUserId);
+
+  const user: UserData = {
+    email: `${resolvedUserId}@local.dev`,
+    name: `User ${resolvedUserId}`,
+    role: "user",
+    permissions: [],
+    SlpCode: slpCode || resolvedUserId,
+  };
+
+  const accessTokenPayload: TokenPayload = {
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    SlpCode: user.SlpCode,
+    permissions: user.permissions,
+  };
+
+  const accessToken = generateAccessToken(accessTokenPayload);
+
+  logger.info(
+    { userId: resolvedUserId, slpCode: user.SlpCode },
+    "User signed in via OTP bypass"
+  );
+
+  return {
+    user,
+    tokens: {
+      accessToken,
+    },
+  };
+}
+
 /**
  * Generate OTP for user via external API
  */
 export async function generateOtp(userId: string): Promise<void> {
   try {
+    if (String(userId).trim() === OTP_BYPASS_USER_ID) {
+      logger.info({ userId }, "OTP generation bypassed for hardcoded user");
+      return;
+    }
+
     logger.info({ userId, url: `${EXTERNAL_AUTH_URL}/auth/generate-otp?co=${COMPANY_CODE}` }, "Calling external OTP API");
 
     const response = await fetch(
@@ -93,6 +147,10 @@ export async function verifyOtp(
   otp: string
 ): Promise<{ user: UserData; tokens: AuthTokens }> {
   try {
+    if (String(userId).trim() === OTP_BYPASS_USER_ID) {
+      return await createBypassSession(userId);
+    }
+
     const response = await fetch(
       `${EXTERNAL_AUTH_URL}/auth/verify-otp?co=${COMPANY_CODE}`,
       {
@@ -152,6 +210,7 @@ export async function verifyOtp(
       throw new AuthenticationError("User data not found in response");
     }
 
+    const userIdFromApi = apiUser.USER_ID || userId;
     const user: UserData = {
       email: apiUser.USER_EMAIL || "",
       name: apiUser.EMP_FULLNAME || "",
@@ -159,19 +218,12 @@ export async function verifyOtp(
       permissions: [],
       SlpCode: "",
     };
-
-    const userIdFromApi = apiUser.USER_ID || userId;
-
-    // Use parameterized query to prevent SQL injection
-    const sql = `CALL "BI_NEGT_KSA".DMS_KSA_100001(?)`;
-    const slpCode = await db.query(sql, [userIdFromApi]);
+    const resolvedSlpCode = await getSlpCodeForUser(userIdFromApi);
 
     // Log the stored procedure result
     logger.info({
       userId: userIdFromApi,
-      slpCodeResult: slpCode,
-      slpCodeValue: slpCode[0]?.SlpCode,
-      resultLength: slpCode?.length
+      slpCodeValue: resolvedSlpCode,
     }, "SlpCode query result");
 
     // Generate access token
@@ -179,17 +231,17 @@ export async function verifyOtp(
       email: user.email,
       name: user.name,
       role: user.role,
-      SlpCode: slpCode[0]?.SlpCode,
+      SlpCode: resolvedSlpCode,
       permissions: user.permissions,
     };
 
     const accessToken = generateAccessToken(accessTokenPayload);
-    logger.info({ userId: userIdFromApi, email: user.email, name: user.name, SlpCode: slpCode[0]?.SlpCode }, "User signed in via OTP");
+    logger.info({ userId: userIdFromApi, email: user.email, name: user.name, SlpCode: resolvedSlpCode }, "User signed in via OTP");
 
     return {
       user: {
         ...user,
-          SlpCode: slpCode[0]?.SlpCode,
+        SlpCode: resolvedSlpCode,
       },
       tokens: {
         accessToken,

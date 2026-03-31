@@ -13,6 +13,8 @@ import {
 } from "@/components/ui/table";
 import { FinanceSchemeDialog } from "./finance-scheme-dialog";
 import { useLenders } from "@/hooks/entities/useLenders";
+import { useCurrencies } from "@/hooks/entities/useCurrencies";
+import { useSalesEmployees } from "@/hooks/entities/useSalesEmployees";
 import type { Financing } from "@/services/financing";
 import { toast } from "sonner";
 
@@ -36,6 +38,8 @@ export function Funding({
 
   // Use custom hook to load lenders
   const { lenders } = useLenders();
+  const { currencies } = useCurrencies();
+  const { salesEmployees } = useSalesEmployees();
 
   const handleAdd = () => {
     setEditingScheme(null);
@@ -85,6 +89,7 @@ export function Funding({
           <TableHeader>
             <TableRow>
               <TableHead>Lender</TableHead>
+              <TableHead>Currency</TableHead>
               <TableHead>Description</TableHead>
               <TableHead className="text-right">FDA</TableHead>
               <TableHead className="text-right">Payment</TableHead>
@@ -97,6 +102,7 @@ export function Funding({
             {financingSchemes.map((scheme) => (
               <TableRow key={scheme.SLNO}>
                 <TableCell className="font-medium">{scheme.LENDER_NAME}</TableCell>
+                <TableCell>{scheme.CURRENCY || "N/A"}</TableCell>
                 <TableCell>{scheme.LENDER_NAME}</TableCell>
                 <TableCell className="text-right">
                   {scheme.FDA != null ? Number(scheme.FDA).toFixed(2) : "0.00"}
@@ -138,6 +144,8 @@ export function Funding({
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         lenders={lenders}
+        currencies={currencies}
+        salesEmployees={salesEmployees}
         onSubmit={handleSubmit}
         initialData={editingScheme}
       />

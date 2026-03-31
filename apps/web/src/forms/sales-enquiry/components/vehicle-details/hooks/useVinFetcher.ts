@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
-import axios from "axios";
 import { toast } from "sonner";
 import { logger } from "@/lib/logger";
+import { apiClient } from "@/lib/api-client";
 
 /**
  * Custom hook for fetching VIN numbers for a vehicle
@@ -27,25 +27,17 @@ export function useVinFetcher(customerId: string, variant: string) {
         customerId: customerId,
         ProductCode: ProductCode,
       };
-      const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_SERVER_URL}/api/vehicles/get-vin-number`,
-        payload,
-        {
-          headers: {
-            "Content-Type": "application/json",
-          },
-          withCredentials: true,
-        }
+      const response = await apiClient.post<any[] | { data?: any[] }>(
+        "/api/vehicles/get-vin-number",
+        payload
       );
 
-      // Handle API response format: { success: true, data: [...] }
+      // Handle both wrapped and unwrapped response formats.
       let vinList: any[] = [];
-      if (response.data?.success && response.data?.data) {
-        vinList = Array.isArray(response.data.data) ? response.data.data : [];
-      } else if (Array.isArray(response.data)) {
+      if (Array.isArray(response)) {
+        vinList = response;
+      } else if (Array.isArray(response?.data)) {
         vinList = response.data;
-      } else if (Array.isArray(response.data?.data)) {
-        vinList = response.data.data;
       }
 
       // Keep the full VIN objects instead of extracting just the VIN string

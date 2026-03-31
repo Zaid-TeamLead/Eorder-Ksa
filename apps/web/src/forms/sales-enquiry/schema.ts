@@ -42,8 +42,8 @@ const vinDetailsSchema = z
 
 // Vehicle details
 const vehicleSchema = z.object({
-  make: z.string().trim().min(1, 'Make is required'),
-  model: z.string().trim().min(1, 'Model is required'),
+  make: optionalString,
+  model: optionalString,
   variant: optionalString,
   year: optionalString,
   color: optionalString,
@@ -52,6 +52,16 @@ const vehicleSchema = z.object({
   quantity: positiveNumber('Quantity').optional(),
   vinNumber: optionalString,
   vinDetails: vinDetailsSchema,
+  selectedVehicleLines: z
+    .array(
+      z.object({
+        selectionKey: z.string(),
+        vinValue: optionalString,
+        quantity: positiveNumber('Quantity').optional(),
+        vin: z.any().optional(),
+      })
+    )
+    .optional(),
 });
 
 // Trade-in information - Basic fields kept for backward compatibility
@@ -69,6 +79,10 @@ const enquiryDetailsSchema = z.object({
   branch: optionalString,
   budget: optionalString,
   financing: createEnumValidator(financingOptions, 'financing option').optional(),
+  chargeCode: optionalString,
+  chargeName: optionalString,
+  chargePrice: optionalString,
+  chargeDetails: z.record(z.string(), z.any()).optional(),
   preferredContact: createEnumValidator(
     preferredContactOptions,
     'contact method'
@@ -98,6 +112,29 @@ export const salesEnquirySchema = customerBaseSchema
   .merge(vehicleSchema)
   .merge(tradeInSchema)
   .merge(enquiryDetailsSchema)
-  .merge(salespersonSchema);
+  .merge(salespersonSchema)
+  .superRefine((data, ctx) => {
+    const hasSelectedVehicleLines =
+      Array.isArray(data.selectedVehicleLines) &&
+      data.selectedVehicleLines.some((line) => Boolean(line?.vin));
+
+    if (!hasSelectedVehicleLines) {
+      if (!String(data.make || '').trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['make'],
+          message: 'Make is required',
+        });
+      }
+
+      if (!String(data.model || '').trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['model'],
+          message: 'Model is required',
+        });
+      }
+    }
+  });
 
 export type SalesEnquiryFormData = z.infer<typeof salesEnquirySchema>;

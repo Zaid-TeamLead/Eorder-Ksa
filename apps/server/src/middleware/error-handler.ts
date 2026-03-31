@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import { AppError } from "../types/errors.js";
+import { AppError, ValidationError } from "../types/errors.js";
 import { logger } from "../utils/logger.js";
 import { env } from "../config/env.js";
 
@@ -26,10 +26,16 @@ export function errorHandler(
 
   // Send error response
   if (err instanceof AppError) {
+    const validationDetails =
+      err instanceof ValidationError && env.NODE_ENV === "development"
+        ? err.details
+        : undefined;
+
     return res.status(err.statusCode).json({
       error: {
         message: err.message,
         code: err.code,
+        ...(validationDetails !== undefined ? { details: validationDetails } : {}),
         ...(env.NODE_ENV === "development" && { stack: err.stack }),
       },
     });

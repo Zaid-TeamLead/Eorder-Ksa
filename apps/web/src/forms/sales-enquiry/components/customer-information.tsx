@@ -23,6 +23,21 @@ export function CustomerInformation() {
         <div className="space-y-3">
           <FormField
             control={form.control}
+            name="customerId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-xs font-medium">
+                  Customer Code <span className="text-destructive">*</span>
+                </FormLabel>
+                <FormControl>
+                  <Input className="h-8 text-sm" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
             name="customerName"
             render={({ field }) => (
               <FormItem>

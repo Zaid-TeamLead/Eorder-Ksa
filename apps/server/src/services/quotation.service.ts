@@ -13,6 +13,33 @@ import type {
   DiscountApprovalFilters,
 } from '../schemas/quotation.schema.js';
 
+const QUOTATION_DB_SCHEMA = (() => {
+  const raw = process.env.QUOTATION_DB_SCHEMA || 'BI_NEGT_KSAISUZU';
+  const normalized = raw.trim().toUpperCase();
+  if (!/^[A-Z0-9_]+$/.test(normalized)) {
+    throw new Error(`Invalid QUOTATION_DB_SCHEMA identifier: ${raw}`);
+  }
+  return normalized;
+})();
+
+const CREATE_QUOTATION_SP_NAME = (() => {
+  const raw = process.env.CREATE_QUOTATION_SP_NAME || 'DMS_KSA_100017_EORDER';
+  const normalized = raw.trim().toUpperCase();
+  if (!/^[A-Z0-9_]+$/.test(normalized)) {
+    throw new Error(`Invalid CREATE_QUOTATION_SP_NAME identifier: ${raw}`);
+  }
+  return normalized;
+})();
+
+const CREATE_QUOTATION_LINE_SP_NAME = (() => {
+  const raw = process.env.CREATE_QUOTATION_LINE_SP_NAME || 'DMS_KSA_100018_EORDER';
+  const normalized = raw.trim().toUpperCase();
+  if (!/^[A-Z0-9_]+$/.test(normalized)) {
+    throw new Error(`Invalid CREATE_QUOTATION_LINE_SP_NAME identifier: ${raw}`);
+  }
+  return normalized;
+})();
+
 // =====================================================
 // Interfaces
 // =====================================================
@@ -176,6 +203,47 @@ function extractVinFromUnknown(input: unknown): string {
 // =====================================================
 
 class QuotationService {
+  private getCreateQuotationLineSpSql(): string {
+    return `CALL "${QUOTATION_DB_SCHEMA}"."${CREATE_QUOTATION_LINE_SP_NAME}"(${Array(18)
+      .fill('?')
+      .join(', ')})`;
+  }
+
+  private async insertQuotationLineItemViaSp(
+    quotationId: number,
+    item: any,
+    actor: string,
+    currentDateTime: string
+  ): Promise<void> {
+    const lineNumber = Number(item?.lineNumber ?? item?.LINE_NUMBER ?? 1);
+    const quantity = Number(item?.quantity ?? item?.QUANTITY ?? 1);
+    const unitPrice = Number(item?.unitPrice ?? item?.UNIT_PRICE ?? 0);
+    const discountAmount = Number(item?.discountAmount ?? item?.DISCOUNT_AMOUNT ?? 0);
+    const discountPercentage = Number(item?.discountPercentage ?? item?.DISCOUNT_PERCENTAGE ?? 0);
+    const netPrice = Number(item?.netPrice ?? item?.NET_PRICE ?? 0);
+
+    await db.query(this.getCreateQuotationLineSpSql(), [
+      quotationId,
+      Number.isFinite(lineNumber) && lineNumber > 0 ? lineNumber : 1,
+      item?.itemType ?? item?.ITEM_TYPE ?? 'Vehicle',
+      item?.itemCode ?? item?.ITEM_CODE ?? null,
+      item?.itemDescription ?? item?.ITEM_DESCRIPTION ?? '',
+      item?.itemCategory ?? item?.ITEM_CATEGORY ?? null,
+      Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
+      Number.isFinite(unitPrice) ? unitPrice : 0,
+      Number.isFinite(discountAmount) ? discountAmount : 0,
+      Number.isFinite(discountPercentage) ? discountPercentage : 0,
+      Number.isFinite(netPrice) ? netPrice : 0,
+      item?.taxIncluded ?? item?.TAX_INCLUDED ?? 'N',
+      item?.manufacturer ?? item?.MANUFACTURER ?? null,
+      item?.partNumber ?? item?.PART_NUMBER ?? null,
+      item?.warrantyPeriod ?? item?.WARRANTY_PERIOD ?? null,
+      item?.notes ?? item?.NOTES ?? null,
+      actor,
+      currentDateTime,
+    ]);
+  }
+
   /**
    * Generate unique quotation number
    * Format: QT-YYYY-NNNNN
@@ -188,7 +256,7 @@ class QuotationService {
       // Get last quotation number for this year
       const query = `
         SELECT "QUOTATION_NUMBER"
-        FROM "BI_NEGT_KSA"."DMS_QUOTATION"
+        FROM "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION"
         WHERE "QUOTATION_NUMBER" LIKE ?
         ORDER BY "QUOTATION_NUMBER" DESC
         LIMIT 1
@@ -224,7 +292,7 @@ class QuotationService {
       // Note: Adjust table/column names based on your actual user settings table
       const query = `
         SELECT "DISCOUNT_LIMIT_AMOUNT"
-        FROM "BI_NEGT_KSA"."DMS_USER_SETTINGS"
+        FROM "${QUOTATION_DB_SCHEMA}"."DMS_USER_SETTINGS"
         WHERE "USER_ID" = ?
       `;
 
@@ -305,7 +373,7 @@ class QuotationService {
         }>(
           `
           SELECT "VINNUMBER", "VINDETAILS"
-          FROM "BI_NEGT_KSA"."DMS_SALESENQUIRY"
+          FROM "${QUOTATION_DB_SCHEMA}"."DMS_SALESENQUIRY"
           WHERE "SLNO" = ?
         `,
           [data.enquirySlno]
@@ -328,44 +396,7 @@ class QuotationService {
       // Check if discount requires approval
       const discountCheck = await this.checkDiscountLimit(data.totalDiscountAmount, data.createdBy);
 
-      // Insert quotation master record
-      const quotationQuery = `
-        INSERT INTO "BI_NEGT_KSA"."DMS_QUOTATION" (
-          "ENQUIRY_SLNO", "QUOTATION_NUMBER", "VERSION", "IS_LATEST_VERSION",
-          "CUSTOMER_NAME", "CUSTOMER_MOBILE", "CUSTOMER_EMAIL", "CUSTOMER_ADDRESS",
-          "VEHICLE_MAKE", "VEHICLE_MODEL", "VEHICLE_VARIANT", "VEHICLE_YEAR",
-          "VEHICLE_COLOR", "VIN_NUMBER",
-          "VEHICLE_BASE_PRICE", "VEHICLE_DISCOUNT", "VEHICLE_NET_PRICE",
-          "ACCESSORIES_TOTAL", "ACCESSORIES_DISCOUNT", "ACCESSORIES_NET_TOTAL",
-          "WARRANTY_TOTAL", "INSURANCE_TOTAL",
-          "SUBTOTAL", "TAX_RATE", "TAX_AMOUNT", "GRAND_TOTAL",
-          "TRADE_IN_VALUE", "TRADE_IN_APPRAISAL_SLNO", "FINANCING_SCHEME_SLNO",
-          "DOWNPAYMENT", "NET_AMOUNT_DUE",
-          "TOTAL_DISCOUNT_AMOUNT", "DISCOUNT_PERCENTAGE",
-          "REQUIRES_APPROVAL", "DISCOUNT_APPROVAL_STATUS",
-          "STATUS", "VALID_UNTIL", "NOTES", "TERMS_AND_CONDITIONS", "INTERNAL_NOTES",
-          "SALESPERSON", "SLPCODE", "BRANCH",
-          "CREATED_BY", "CREATED_DATE", "IS_DELETED"
-        ) VALUES (
-          ?, ?, 1, 'Y',
-          ?, ?, ?, ?,
-          ?, ?, ?, ?,
-          ?, ?,
-          ?, ?, ?,
-          ?, ?, ?,
-          ?, ?,
-          ?, ?, ?, ?,
-          ?, ?, ?,
-          ?, ?,
-          ?, ?,
-          ?, ?,
-          ?, ?, ?, ?, ?,
-          ?, ?, ?,
-          ?, ?, 'N'
-        )
-      `;
-
-      await db.execute(quotationQuery, [
+      const createMasterParameters = [
         data.enquirySlno,
         quotationNumber,
         data.customerName || null,
@@ -409,57 +440,35 @@ class QuotationService {
         null, // Branch - can be added later
         data.createdBy,
         currentDateTime,
-      ]);
+      ];
+
+      const createQuotationSp = `CALL "${QUOTATION_DB_SCHEMA}"."${CREATE_QUOTATION_SP_NAME}"(${createMasterParameters
+        .map(() => '?')
+        .join(', ')})`;
+      await db.query(createQuotationSp, createMasterParameters);
 
       // Get inserted quotation ID
       const idQuery = `
-        SELECT "SLNO" FROM "BI_NEGT_KSA"."DMS_QUOTATION"
+        SELECT "SLNO" FROM "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION"
         WHERE "QUOTATION_NUMBER" = ?
       `;
       const idResult = await db.query(idQuery, [quotationNumber]);
-      const quotationId = idResult[0].SLNO;
+      const quotationId = idResult[0]?.SLNO;
 
-      // Insert line items
-      for (const item of data.lineItems) {
-        const lineItemQuery = `
-          INSERT INTO "BI_NEGT_KSA"."DMS_QUOTATION_LINE_ITEMS" (
-            "QUOTATION_SLNO", "LINE_NUMBER", "ITEM_TYPE", "ITEM_CODE",
-            "ITEM_DESCRIPTION", "ITEM_CATEGORY", "QUANTITY", "UNIT_PRICE",
-            "DISCOUNT_AMOUNT", "DISCOUNT_PERCENTAGE", "NET_PRICE", "TAX_INCLUDED",
-            "MANUFACTURER", "PART_NUMBER", "WARRANTY_PERIOD", "NOTES",
-            "CREATED_BY", "CREATED_DATE", "IS_DELETED"
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'N')
-        `;
-
-        await db.execute(lineItemQuery, [
-          quotationId,
-          item.lineNumber,
-          item.itemType,
-          item.itemCode || null,
-          item.itemDescription,
-          item.itemCategory || null,
-          item.quantity,
-          item.unitPrice,
-          item.discountAmount,
-          item.discountPercentage,
-          item.netPrice,
-          item.taxIncluded,
-          item.manufacturer || null,
-          item.partNumber || null,
-          item.warrantyPeriod || null,
-          item.notes || null,
-          data.createdBy,
-          currentDateTime,
-        ]);
+      if (!quotationId) {
+        throw new Error(
+          `Stored procedure created quotation but no SLNO found for quotation number: ${quotationNumber}`
+        );
       }
 
-      // Log activity
-      await this.logActivity({
-        quotationSlno: quotationId,
-        activityType: 'Created',
-        activityDescription: `Quotation ${quotationNumber} created`,
-        createdBy: data.createdBy,
-      });
+      for (const item of data.lineItems) {
+        await this.insertQuotationLineItemViaSp(
+          quotationId,
+          item,
+          data.createdBy,
+          currentDateTime
+        );
+      }
 
       logger.info({ quotationId, quotationNumber }, 'Quotation created successfully');
 
@@ -476,12 +485,12 @@ class QuotationService {
   async getQuotationById(id: number): Promise<(Quotation & { lineItems: QuotationLineItem[] }) | null> {
     try {
       const quotationQuery = `
-        SELECT * FROM "BI_NEGT_KSA"."DMS_QUOTATION"
+        SELECT * FROM "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION"
         WHERE "SLNO" = ? AND "IS_DELETED" = 'N'
       `;
 
       const lineItemsQuery = `
-        SELECT * FROM "BI_NEGT_KSA"."DMS_QUOTATION_LINE_ITEMS"
+        SELECT * FROM "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION_LINE_ITEMS"
         WHERE "QUOTATION_SLNO" = ? AND "IS_DELETED" = 'N'
         ORDER BY "LINE_NUMBER"
       `;
@@ -504,7 +513,7 @@ class QuotationService {
   async getQuotationsByEnquiryId(enquiryId: number): Promise<Quotation[]> {
     try {
       const query = `
-        SELECT * FROM "BI_NEGT_KSA"."DMS_QUOTATION"
+        SELECT * FROM "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION"
         WHERE "ENQUIRY_SLNO" = ? AND "IS_DELETED" = 'N'
         ORDER BY "VERSION" DESC, "CREATED_DATE" DESC
       `;
@@ -527,7 +536,7 @@ class QuotationService {
   }): Promise<Quotation[]> {
     try {
       let query = `
-        SELECT * FROM "BI_NEGT_KSA"."DMS_QUOTATION"
+        SELECT * FROM "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION"
         WHERE "IS_DELETED" = 'N'
       `;
       const params: any[] = [];
@@ -725,7 +734,7 @@ class QuotationService {
       params.push(id);
 
       const query = `
-        UPDATE "BI_NEGT_KSA"."DMS_QUOTATION"
+        UPDATE "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION"
         SET ${updates.join(', ')}
         WHERE "SLNO" = ?
       `;
@@ -736,43 +745,14 @@ class QuotationService {
       if (data.lineItems && Array.isArray(data.lineItems)) {
         // Delete existing line items
         const deleteLineItemsQuery = `
-          DELETE FROM "BI_NEGT_KSA"."DMS_QUOTATION_LINE_ITEMS"
+          DELETE FROM "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION_LINE_ITEMS"
           WHERE "QUOTATION_SLNO" = ?
         `;
         await db.execute(deleteLineItemsQuery, [id]);
 
-        // Insert new line items
+        // Insert new line items via stored procedure
         for (const item of data.lineItems) {
-          const lineItemQuery = `
-            INSERT INTO "BI_NEGT_KSA"."DMS_QUOTATION_LINE_ITEMS" (
-              "QUOTATION_SLNO", "LINE_NUMBER", "ITEM_TYPE", "ITEM_CODE",
-              "ITEM_DESCRIPTION", "ITEM_CATEGORY", "QUANTITY", "UNIT_PRICE",
-              "DISCOUNT_AMOUNT", "DISCOUNT_PERCENTAGE", "NET_PRICE", "TAX_INCLUDED",
-              "MANUFACTURER", "PART_NUMBER", "WARRANTY_PERIOD", "NOTES",
-              "CREATED_BY", "CREATED_DATE", "IS_DELETED"
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'N')
-          `;
-
-          await db.execute(lineItemQuery, [
-            id,
-            item.lineNumber,
-            item.itemType,
-            item.itemCode || null,
-            item.itemDescription,
-            item.itemCategory || null,
-            item.quantity,
-            item.unitPrice,
-            item.discountAmount || 0,
-            item.discountPercentage || 0,
-            item.netPrice,
-            item.taxIncluded || 'N',
-            item.manufacturer || null,
-            item.partNumber || null,
-            item.warrantyPeriod || null,
-            item.notes || null,
-            data.updatedBy,
-            currentDateTime,
-          ]);
+          await this.insertQuotationLineItemViaSp(id, item, data.updatedBy, currentDateTime);
         }
 
         logger.info({ quotationId: id, lineItemsCount: data.lineItems.length }, 'Line items updated');
@@ -796,7 +776,7 @@ class QuotationService {
     try {
       // 1. Mark parent quotation as not latest and superseded
       const updateParentQuery = `
-        UPDATE "BI_NEGT_KSA"."DMS_QUOTATION"
+        UPDATE "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION"
         SET "IS_LATEST_VERSION" = 'N', "STATUS" = 'Superseded'
         WHERE "SLNO" = ?
       `;
@@ -817,7 +797,7 @@ class QuotationService {
       const discountCheck = await this.checkDiscountLimit(data.totalDiscountAmount, data.createdBy);
 
       const quotationQuery = `
-        INSERT INTO "BI_NEGT_KSA"."DMS_QUOTATION" (
+        INSERT INTO "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION" (
           "ENQUIRY_SLNO", "QUOTATION_NUMBER", "VERSION", "PARENT_QUOTATION_SLNO", "IS_LATEST_VERSION",
           "CUSTOMER_NAME", "CUSTOMER_MOBILE", "CUSTOMER_EMAIL", "CUSTOMER_ADDRESS",
           "VEHICLE_MAKE", "VEHICLE_MODEL", "VEHICLE_VARIANT", "VEHICLE_YEAR",
@@ -900,44 +880,19 @@ class QuotationService {
       ]);
 
       // Get new quotation ID
-      const idQuery = `SELECT "SLNO" FROM "BI_NEGT_KSA"."DMS_QUOTATION" WHERE "QUOTATION_NUMBER" = ?`;
+      const idQuery = `SELECT "SLNO" FROM "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION" WHERE "QUOTATION_NUMBER" = ?`;
       const idResult = await db.query(idQuery, [quotationNumber]);
       const quotationId = idResult[0].SLNO;
 
-      // Copy line items from parent or use new ones
+      // Copy line items from parent or use new ones via stored procedure
       const lineItemsToInsert = data.lineItems || parent.lineItems || [];
       for (const item of lineItemsToInsert) {
-        const normalizedItem = item as any;
-        const lineItemQuery = `
-          INSERT INTO "BI_NEGT_KSA"."DMS_QUOTATION_LINE_ITEMS" (
-            "QUOTATION_SLNO", "LINE_NUMBER", "ITEM_TYPE", "ITEM_CODE",
-            "ITEM_DESCRIPTION", "ITEM_CATEGORY", "QUANTITY", "UNIT_PRICE",
-            "DISCOUNT_AMOUNT", "DISCOUNT_PERCENTAGE", "NET_PRICE", "TAX_INCLUDED",
-            "MANUFACTURER", "PART_NUMBER", "WARRANTY_PERIOD", "NOTES",
-            "CREATED_BY", "CREATED_DATE", "IS_DELETED"
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'N')
-        `;
-
-        await db.execute(lineItemQuery, [
+        await this.insertQuotationLineItemViaSp(
           quotationId,
-          normalizedItem.lineNumber || normalizedItem.LINE_NUMBER,
-          normalizedItem.itemType || normalizedItem.ITEM_TYPE,
-          normalizedItem.itemCode || normalizedItem.ITEM_CODE || null,
-          normalizedItem.itemDescription || normalizedItem.ITEM_DESCRIPTION,
-          normalizedItem.itemCategory || normalizedItem.ITEM_CATEGORY || null,
-          normalizedItem.quantity || normalizedItem.QUANTITY || 1,
-          normalizedItem.unitPrice || normalizedItem.UNIT_PRICE,
-          normalizedItem.discountAmount || normalizedItem.DISCOUNT_AMOUNT || 0,
-          normalizedItem.discountPercentage || normalizedItem.DISCOUNT_PERCENTAGE || 0,
-          normalizedItem.netPrice || normalizedItem.NET_PRICE,
-          normalizedItem.taxIncluded || normalizedItem.TAX_INCLUDED || 'N',
-          normalizedItem.manufacturer || normalizedItem.MANUFACTURER || null,
-          normalizedItem.partNumber || normalizedItem.PART_NUMBER || null,
-          normalizedItem.warrantyPeriod || normalizedItem.WARRANTY_PERIOD || null,
-          normalizedItem.notes || normalizedItem.NOTES || null,
+          item,
           data.createdBy,
-          currentDateTime,
-        ]);
+          currentDateTime
+        );
       }
 
       // Log activity on parent quotation
@@ -981,7 +936,7 @@ class QuotationService {
       const limitCheck = await this.checkDiscountLimit(data.discountAmount, data.requestedBy);
 
       const query = `
-        INSERT INTO "BI_NEGT_KSA"."DMS_DISCOUNT_APPROVAL" (
+        INSERT INTO "${QUOTATION_DB_SCHEMA}"."DMS_DISCOUNT_APPROVAL" (
           "QUOTATION_SLNO", "REQUEST_TYPE", "DISCOUNT_AMOUNT", "DISCOUNT_PERCENTAGE",
           "JUSTIFICATION", "REQUESTED_BY", "REQUESTED_BY_SLPCODE",
           "USER_DISCOUNT_LIMIT", "AMOUNT_OVER_LIMIT",
@@ -1007,7 +962,7 @@ class QuotationService {
 
       // Get inserted ID
       const idQuery = `
-        SELECT "SLNO" FROM "BI_NEGT_KSA"."DMS_DISCOUNT_APPROVAL"
+        SELECT "SLNO" FROM "${QUOTATION_DB_SCHEMA}"."DMS_DISCOUNT_APPROVAL"
         WHERE "QUOTATION_SLNO" = ?
         ORDER BY "SLNO" DESC LIMIT 1
       `;
@@ -1015,7 +970,7 @@ class QuotationService {
 
       // Update quotation to reflect pending approval
       const updateQuery = `
-        UPDATE "BI_NEGT_KSA"."DMS_QUOTATION"
+        UPDATE "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION"
         SET "REQUIRES_APPROVAL" = 'Y', "DISCOUNT_APPROVAL_STATUS" = 'Pending'
         WHERE "SLNO" = ?
       `;
@@ -1050,7 +1005,7 @@ class QuotationService {
 
       // Update approval record
       const approvalQuery = `
-        UPDATE "BI_NEGT_KSA"."DMS_DISCOUNT_APPROVAL"
+        UPDATE "${QUOTATION_DB_SCHEMA}"."DMS_DISCOUNT_APPROVAL"
         SET "STATUS" = ?, "APPROVED_BY" = ?, "APPROVED_BY_SLPCODE" = ?,
             "APPROVED_DATE" = ?, "APPROVAL_NOTES" = ?, "REJECTION_REASON" = ?,
             "UPDATED_BY" = ?, "UPDATED_DATE" = ?
@@ -1071,7 +1026,7 @@ class QuotationService {
 
       // Get quotation ID for this approval
       const getQuotationQuery = `
-        SELECT "QUOTATION_SLNO" FROM "BI_NEGT_KSA"."DMS_DISCOUNT_APPROVAL"
+        SELECT "QUOTATION_SLNO" FROM "${QUOTATION_DB_SCHEMA}"."DMS_DISCOUNT_APPROVAL"
         WHERE "SLNO" = ?
       `;
       const quotationResult = await db.query(getQuotationQuery, [approvalId]);
@@ -1080,7 +1035,7 @@ class QuotationService {
       // Update quotation status
       if (data.approvalStatus === 'Approved') {
         const quotationQuery = `
-          UPDATE "BI_NEGT_KSA"."DMS_QUOTATION"
+          UPDATE "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION"
           SET "DISCOUNT_APPROVAL_STATUS" = 'Approved',
               "DISCOUNT_APPROVED_BY" = ?,
               "DISCOUNT_APPROVED_DATE" = ?
@@ -1097,7 +1052,7 @@ class QuotationService {
         });
       } else {
         const quotationQuery = `
-          UPDATE "BI_NEGT_KSA"."DMS_QUOTATION"
+          UPDATE "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION"
           SET "DISCOUNT_APPROVAL_STATUS" = 'Rejected'
           WHERE "SLNO" = ?
         `;
@@ -1134,7 +1089,7 @@ class QuotationService {
       const currentDateTime = this.getCurrentDateTime();
 
       const query = `
-        UPDATE "BI_NEGT_KSA"."DMS_QUOTATION"
+        UPDATE "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION"
         SET "PASSED_TO_CASHIER" = 'Y',
             "PASSED_TO_CASHIER_DATE" = ?,
             "PASSED_TO_CASHIER_BY" = ?,
@@ -1181,7 +1136,7 @@ class QuotationService {
     try {
       const query = `
         SELECT *
-        FROM "BI_NEGT_KSA"."DMS_QUOTATION"
+        FROM "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION"
         WHERE "PASSED_TO_CASHIER" = 'Y'
           AND ("DEPOSIT_COLLECTED" IS NULL OR "DEPOSIT_COLLECTED" = 'N')
           AND "STATUS" NOT IN ('Cancelled', 'Superseded')
@@ -1215,7 +1170,7 @@ class QuotationService {
       }
 
       const query = `
-        UPDATE "BI_NEGT_KSA"."DMS_QUOTATION"
+        UPDATE "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION"
         SET "DEPOSIT_AMOUNT" = ?,
             "DEPOSIT_COLLECTED" = 'Y',
             "UPDATED_BY" = ?,
@@ -1260,7 +1215,7 @@ class QuotationService {
       const currentDateTime = this.getCurrentDateTime();
 
       const query = `
-        UPDATE "BI_NEGT_KSA"."DMS_QUOTATION"
+        UPDATE "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION"
         SET "STATUS" = 'Cancelled',
             "REQUIRES_APPROVAL" = 'N',
             "DISCOUNT_APPROVAL_STATUS" = 'Cancelled',
@@ -1273,7 +1228,7 @@ class QuotationService {
 
       // Cancel any pending discount approval requests linked to this quotation.
       const cancelPendingApprovalsQuery = `
-        UPDATE "BI_NEGT_KSA"."DMS_DISCOUNT_APPROVAL"
+        UPDATE "${QUOTATION_DB_SCHEMA}"."DMS_DISCOUNT_APPROVAL"
         SET "STATUS" = 'Cancelled',
             "UPDATED_BY" = ?,
             "UPDATED_DATE" = ?
@@ -1317,7 +1272,7 @@ class QuotationService {
       const currentDateTime = this.getCurrentDateTime();
 
       const query = `
-        INSERT INTO "BI_NEGT_KSA"."DMS_QUOTATION_ACTIVITY" (
+        INSERT INTO "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION_ACTIVITY" (
           "QUOTATION_SLNO", "ACTIVITY_TYPE", "ACTIVITY_DESCRIPTION", "ACTIVITY_NOTES",
           "IS_FOLLOW_UP", "FOLLOW_UP_DATE", "FOLLOW_UP_ASSIGNED_TO", "FOLLOW_UP_STATUS",
           "CREATED_BY", "CREATED_DATE", "IS_DELETED"
@@ -1349,7 +1304,7 @@ class QuotationService {
       const currentDateTime = this.getCurrentDateTime();
 
       const query = `
-        UPDATE "BI_NEGT_KSA"."DMS_QUOTATION"
+        UPDATE "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION"
         SET "IS_DELETED" = 'Y', "UPDATED_BY" = ?, "UPDATED_DATE" = ?
         WHERE "SLNO" = ?
       `;
@@ -1371,7 +1326,7 @@ class QuotationService {
   async getPendingApprovals(assignedTo?: string): Promise<DiscountApproval[]> {
     try {
       let query = `
-        SELECT * FROM "BI_NEGT_KSA"."DMS_DISCOUNT_APPROVAL"
+        SELECT * FROM "${QUOTATION_DB_SCHEMA}"."DMS_DISCOUNT_APPROVAL"
         WHERE "STATUS" = 'Pending' AND "IS_DELETED" = 'N'
       `;
       const params: any[] = [];
@@ -1402,8 +1357,8 @@ class QuotationService {
           q."CUSTOMER_NAME",
           q."VEHICLE_MAKE",
           q."VEHICLE_MODEL"
-        FROM "BI_NEGT_KSA"."DMS_DISCOUNT_APPROVAL" da
-        LEFT JOIN "BI_NEGT_KSA"."DMS_QUOTATION" q ON da."QUOTATION_SLNO" = q."SLNO"
+        FROM "${QUOTATION_DB_SCHEMA}"."DMS_DISCOUNT_APPROVAL" da
+        LEFT JOIN "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION" q ON da."QUOTATION_SLNO" = q."SLNO"
         WHERE da."IS_DELETED" = 'N'
       `;
 
@@ -1456,8 +1411,8 @@ class QuotationService {
           q."CUSTOMER_NAME",
           q."VEHICLE_MAKE",
           q."VEHICLE_MODEL"
-        FROM "BI_NEGT_KSA"."DMS_DISCOUNT_APPROVAL" da
-        LEFT JOIN "BI_NEGT_KSA"."DMS_QUOTATION" q ON da."QUOTATION_SLNO" = q."SLNO"
+        FROM "${QUOTATION_DB_SCHEMA}"."DMS_DISCOUNT_APPROVAL" da
+        LEFT JOIN "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION" q ON da."QUOTATION_SLNO" = q."SLNO"
         WHERE da."IS_DELETED" = 'N'
           AND da."STATUS" = 'Pending'
           AND da."ASSIGNED_TO" = ?
@@ -1479,7 +1434,7 @@ class QuotationService {
     try {
       const query = `
         SELECT *
-        FROM "BI_NEGT_KSA"."DMS_QUOTATION_ACTIVITY"
+        FROM "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION_ACTIVITY"
         WHERE "QUOTATION_SLNO" = ? AND "IS_DELETED" = 'N'
         ORDER BY "CREATED_DATE" DESC
       `;

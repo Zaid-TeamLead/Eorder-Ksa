@@ -10,6 +10,27 @@ import {
   enquiryValueTransformers,
 } from '../schemas/shared/field-mappings.js';
 
+const ENQUIRY_SCHEMA = 'BI_NEGT_KSAISUZU';
+const ENQUIRY_TABLE = 'DMS_SALESENQUIRY';
+const ENQUIRY_CHARGE_TABLE = 'DMS_SALESENQUIRY_CHARGES';
+let hasChargeTableCache: boolean | null = null;
+
+interface ChargePayload {
+  code: string | null;
+  name: string | null;
+  price: string | null;
+  details: Record<string, unknown> | null;
+}
+
+interface EnquiryChargeRow {
+  SLNO: number;
+  ENQUIRY_SLNO: number;
+  CHARGECODE?: string | null;
+  CHARGENAME?: string | null;
+  CHARGEPRICE?: string | null;
+  CHARGEDETAILS?: string | null;
+}
+
 export interface CreateEnquiryData {
   // Customer Information
   customerId?: string;
@@ -41,6 +62,10 @@ export interface CreateEnquiryData {
   branchName?: string;
   budget?: string;
   financing?: string;
+  chargeCode?: string;
+  chargeName?: string;
+  chargePrice?: string;
+  chargeDetails?: Record<string, unknown>;
   preferredContact?: string;
   preferredTime?: string;
   preferredDelivery?: string;
@@ -94,6 +119,10 @@ export interface UpdateEnquiryData {
   branchName?: string;
   budget?: string;
   financing?: string;
+  chargeCode?: string;
+  chargeName?: string;
+  chargePrice?: string;
+  chargeDetails?: Record<string, unknown>;
   preferredContact?: string;
   preferredTime?: string;
   preferredDelivery?: string;
@@ -142,6 +171,218 @@ function extractVinFromUnknown(input: unknown): string {
   return dynamicMatch ? String(dynamicMatch[1]).trim() : '';
 }
 
+function toTrimmedOrNull(value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  const normalized = String(value).trim();
+  return normalized || null;
+}
+
+function extractChargeFromVinDetails(vinDetails: unknown): {
+  code: string | null;
+  name: string | null;
+  price: string | null;
+} {
+  if (!vinDetails || typeof vinDetails !== 'object') {
+    return { code: null, name: null, price: null };
+  }
+
+  const details = vinDetails as Record<string, unknown>;
+  const charge =
+    details.CHARGE && typeof details.CHARGE === 'object'
+      ? (details.CHARGE as Record<string, unknown>)
+      : null;
+
+  if (!charge) {
+    return { code: null, name: null, price: null };
+  }
+
+  return {
+    code: toTrimmedOrNull(charge.code),
+    name: toTrimmedOrNull(charge.name),
+    price: toTrimmedOrNull(charge.price),
+  };
+}
+
+function getChargePayload(data: {
+  chargeCode?: string;
+  chargeName?: string;
+  chargePrice?: string;
+  chargeDetails?: Record<string, unknown>;
+}) {
+  const details =
+    data.chargeDetails && typeof data.chargeDetails === 'object'
+      ? data.chargeDetails
+      : null;
+
+  return {
+    code: toTrimmedOrNull(data.chargeCode),
+    name: toTrimmedOrNull(data.chargeName),
+    price: toTrimmedOrNull(data.chargePrice),
+    details,
+  };
+}
+
+function hasChargePayload(payload: ChargePayload): boolean {
+  return Boolean(
+    payload.code ||
+      payload.name ||
+      payload.price ||
+      (payload.details && Object.keys(payload.details).length > 0)
+  );
+}
+
+function parseChargeDetails(input: string | null | undefined): Record<string, unknown> | null {
+  if (!input) return null;
+
+  try {
+    const parsed = JSON.parse(input);
+    return parsed && typeof parsed === 'object'
+      ? (parsed as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function mapChargeRowToPayload(row: EnquiryChargeRow | null): ChargePayload {
+  if (!row) {
+    return { code: null, name: null, price: null, details: null };
+  }
+
+  return {
+    code: toTrimmedOrNull(row.CHARGECODE),
+    name: toTrimmedOrNull(row.CHARGENAME),
+    price: toTrimmedOrNull(row.CHARGEPRICE),
+    details: parseChargeDetails(row.CHARGEDETAILS),
+  };
+}
+
+async function hasChargeTable(): Promise<boolean> {
+  if (hasChargeTableCache !== null) {
+    return hasChargeTableCache;
+  }
+
+  const row = await db.queryOne<{ TABLE_NAME: string }>(
+    `SELECT "TABLE_NAME"
+     FROM "SYS"."TABLES"
+     WHERE "SCHEMA_NAME" = ?
+       AND "TABLE_NAME" = ?`,
+    [ENQUIRY_SCHEMA, ENQUIRY_CHARGE_TABLE]
+  );
+
+  hasChargeTableCache = Boolean(row?.TABLE_NAME);
+  return hasChargeTableCache;
+}
+
+async function getNextEnquiryChargeId(): Promise<number> {
+  const row = await db.queryOne<{ NEXT_SLNO: number }>(
+    `SELECT COALESCE(MAX("SLNO"), 0) + 1 AS "NEXT_SLNO"
+     FROM "${ENQUIRY_SCHEMA}"."${ENQUIRY_CHARGE_TABLE}"`
+  );
+
+  return row?.NEXT_SLNO ?? 1;
+}
+
+async function replaceEnquiryCharge(
+  enquiryId: number,
+  charge: ChargePayload,
+  username: string
+): Promise<void> {
+  if (!(await hasChargeTable())) {
+    logger.warn(
+      { enquiryId, table: `${ENQUIRY_SCHEMA}.${ENQUIRY_CHARGE_TABLE}` },
+      'Charge table not found; skipping enquiry charge persistence'
+    );
+    return;
+  }
+
+  const currentDateTime = new Date()
+    .toISOString()
+    .replace('T', ' ')
+    .substring(0, 19);
+
+  await db.execute(
+    `UPDATE "${ENQUIRY_SCHEMA}"."${ENQUIRY_CHARGE_TABLE}"
+     SET "IS_DELETED" = 'Y',
+         "UPDATEDDATE" = TO_TIMESTAMP(?, 'YYYY-MM-DD HH24:MI:SS'),
+         "UPDATEDBY" = ?
+     WHERE "ENQUIRY_SLNO" = ?
+       AND COALESCE("IS_DELETED", 'N') = 'N'`,
+    [currentDateTime, username, enquiryId]
+  );
+
+  if (!hasChargePayload(charge)) {
+    return;
+  }
+
+  const nextId = await getNextEnquiryChargeId();
+
+  await db.execute(
+    `INSERT INTO "${ENQUIRY_SCHEMA}"."${ENQUIRY_CHARGE_TABLE}" (
+       "SLNO", "ENQUIRY_SLNO", "CHARGECODE", "CHARGENAME", "CHARGEPRICE", "CHARGEDETAILS",
+       "CREATEDDATE", "CREATEDBY", "IS_DELETED"
+     ) VALUES (
+       ?, ?, ?, ?, ?, ?,
+       TO_TIMESTAMP(?, 'YYYY-MM-DD HH24:MI:SS'), ?, 'N'
+     )`,
+    [
+      nextId,
+      enquiryId,
+      charge.code,
+      charge.name,
+      charge.price,
+      charge.details ? JSON.stringify(charge.details) : null,
+      currentDateTime,
+      username,
+    ]
+  );
+}
+
+async function getEnquiryChargeMap(
+  enquiryIds: number[]
+): Promise<Map<number, ChargePayload>> {
+  const chargeMap = new Map<number, ChargePayload>();
+
+  if (enquiryIds.length === 0 || !(await hasChargeTable())) {
+    return chargeMap;
+  }
+
+  const placeholders = enquiryIds.map(() => '?').join(', ');
+  const rows = await db.query<EnquiryChargeRow>(
+    `SELECT charge.*
+     FROM "${ENQUIRY_SCHEMA}"."${ENQUIRY_CHARGE_TABLE}" charge
+     INNER JOIN (
+       SELECT "ENQUIRY_SLNO", MAX("SLNO") AS "SLNO"
+       FROM "${ENQUIRY_SCHEMA}"."${ENQUIRY_CHARGE_TABLE}"
+       WHERE COALESCE("IS_DELETED", 'N') = 'N'
+         AND "ENQUIRY_SLNO" IN (${placeholders})
+       GROUP BY "ENQUIRY_SLNO"
+     ) latest
+       ON latest."ENQUIRY_SLNO" = charge."ENQUIRY_SLNO"
+      AND latest."SLNO" = charge."SLNO"`,
+    enquiryIds
+  );
+
+  for (const row of rows) {
+    chargeMap.set(row.ENQUIRY_SLNO, mapChargeRowToPayload(row));
+  }
+
+  return chargeMap;
+}
+
+async function getLatestCreatedEnquiryId(createdBy: string): Promise<number | null> {
+  const latest = await db.queryOne<{ SLNO: number }>(
+    `SELECT "SLNO"
+     FROM "${ENQUIRY_SCHEMA}"."${ENQUIRY_TABLE}"
+     WHERE "CREATEDBY" = ?
+     ORDER BY "SLNO" DESC
+     LIMIT 1`,
+    [createdBy]
+  );
+
+  return latest?.SLNO ?? null;
+}
+
 class EnquiryService {
   /**
    * Create a new sales enquiry
@@ -156,21 +397,7 @@ class EnquiryService {
         data.vinNumber ||
         extractVinFromUnknown(data.vinDetails) ||
         null;
-
-      const query = `
-        INSERT INTO "BI_NEGT_KSA"."DMS_SALESENQUIRY" (
-          "CUSTOMERID", "CUSTOMERNAME", "ADDRESS", "POSTCODE",
-          "HOMEPHONE", "WORKPHONE", "MOBILE", "HOMEEMAIL",
-          "MAKE", "MAKENAME", "MODEL", "MODELNAME", "VARIANT", "VARIANTNAME",
-          "YEAR", "COLOR", "SUPPCATNUM", "MODELCODE", "QUANTITY", "VINNUMBER", "VINDETAILS",
-          "BRANCH", "BRANCHNAME", "BUDGET", "FINANCING",
-          "PREFERREDCONTACT", "PREFERREDTIME", "PREFERREDDELIVERY", "SOURCE", "SALESTYPE",
-          "TRADEINMAKE", "TRADEINMODEL", "TRADEINYEAR", "TRADEINKMS", "TRADEINEXPECTEDPRICE",
-          "SALESPERSON", "SLPCODE", "NOTES",
-          "STATUS", "PRIORITY", "FOLLOWUPDATE", "FOLLOWUPNOTES",
-          "CREATEDDATE", "CREATEDBY"
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `;
+      const chargePayload = getChargePayload(data);
 
       const parameters = [
         data.customerId || null,
@@ -219,7 +446,69 @@ class EnquiryService {
         data.createdBy,
       ];
 
-      await db.execute(query, parameters);
+      // Preferred path: create via dedicated SAP procedure in BI_NEGT_KSAISUZU.
+      // Use a unique procedure name to avoid conflicts with existing deployments.
+      const createEnquirySp = `CALL "BI_NEGT_KSAISUZU".DMS_KSA_100006_EORDER(${parameters.map(() => '?').join(', ')})`;
+
+      try {
+        await db.query(createEnquirySp, parameters);
+        if (data.vinDetails || hasChargePayload(chargePayload)) {
+          try {
+            const latestId = await getLatestCreatedEnquiryId(data.createdBy);
+            if (latestId) {
+              if (data.vinDetails) {
+                await db.execute(
+                  `UPDATE "${ENQUIRY_SCHEMA}"."${ENQUIRY_TABLE}"
+                   SET "VINDETAILS" = ?
+                   WHERE "SLNO" = ?`,
+                  [JSON.stringify(data.vinDetails), latestId]
+                );
+              }
+              await replaceEnquiryCharge(latestId, chargePayload, data.createdBy);
+            }
+          } catch (syncError) {
+            logger.warn(
+              { error: syncError },
+              'Created enquiry via SP but failed to sync linked enquiry charge row'
+            );
+          }
+        }
+        logger.info('Sales enquiry created successfully via stored procedure BI_NEGT_KSAISUZU.DMS_KSA_100006_EORDER');
+        return { success: true, message: 'Sales enquiry created successfully' };
+      } catch (spError) {
+        logger.warn(
+          { error: spError },
+          'Create enquiry SP failed, falling back to direct table insert'
+        );
+      }
+
+      const insertQuery = `
+        INSERT INTO "BI_NEGT_KSAISUZU"."DMS_SALESENQUIRY" (
+          "CUSTOMERID", "CUSTOMERNAME", "ADDRESS", "POSTCODE",
+          "HOMEPHONE", "WORKPHONE", "MOBILE", "HOMEEMAIL",
+          "MAKE", "MAKENAME", "MODEL", "MODELNAME", "VARIANT", "VARIANTNAME",
+          "YEAR", "COLOR", "SUPPCATNUM", "MODELCODE", "QUANTITY", "VINNUMBER", "VINDETAILS",
+          "BRANCH", "BRANCHNAME", "BUDGET", "FINANCING",
+          "PREFERREDCONTACT", "PREFERREDTIME", "PREFERREDDELIVERY", "SOURCE", "SALESTYPE",
+          "TRADEINMAKE", "TRADEINMODEL", "TRADEINYEAR", "TRADEINKMS", "TRADEINEXPECTEDPRICE",
+          "SALESPERSON", "SLPCODE", "NOTES",
+          "STATUS", "PRIORITY", "FOLLOWUPDATE", "FOLLOWUPNOTES",
+          "CREATEDDATE", "CREATEDBY"
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `;
+      await db.execute(insertQuery, parameters);
+
+      try {
+        const latestId = await getLatestCreatedEnquiryId(data.createdBy);
+        if (latestId) {
+          await replaceEnquiryCharge(latestId, chargePayload, data.createdBy);
+        }
+      } catch (syncError) {
+        logger.warn(
+          { error: syncError },
+          'Created enquiry via insert but failed to sync linked enquiry charge row'
+        );
+      }
 
       logger.info('Sales enquiry created successfully');
       return { success: true, message: 'Sales enquiry created successfully' };
@@ -242,7 +531,7 @@ class EnquiryService {
   }) {
     try {
       let query = `
-        SELECT * FROM "BI_NEGT_KSA"."DMS_SALESENQUIRY"
+        SELECT * FROM "BI_NEGT_KSAISUZU"."DMS_SALESENQUIRY"
         WHERE 1=1
       `;
 
@@ -281,14 +570,33 @@ class EnquiryService {
       query += ` ORDER BY "CREATEDDATE" DESC`;
 
       const result = await db.query(query, parameters);
+      const chargeMap = await getEnquiryChargeMap(
+        result
+          .map((enquiry: any) => Number(enquiry.SLNO))
+          .filter((id: number) => Number.isFinite(id))
+      );
 
       // Parse VINDETAILS JSON string back to object for each record
-      const enquiries = result.map((enquiry: any) => ({
-        ...enquiry,
-        VINDETAILS: enquiry.VINDETAILS
+      const enquiries = result.map((enquiry: any) => {
+        const parsedVinDetails = enquiry.VINDETAILS
           ? JSON.parse(enquiry.VINDETAILS)
-          : null,
-      }));
+          : null;
+        const charge =
+          chargeMap.get(Number(enquiry.SLNO)) ??
+          {
+            ...extractChargeFromVinDetails(parsedVinDetails),
+            details: null,
+          };
+
+        return {
+          ...enquiry,
+          VINDETAILS: parsedVinDetails,
+          CHARGECODE: charge.code,
+          CHARGENAME: charge.name,
+          CHARGEPRICE: charge.price,
+          CHARGEDETAILS: charge.details,
+        };
+      });
 
       logger.info(`Retrieved ${enquiries.length} sales enquiries`);
       return enquiries;
@@ -304,7 +612,7 @@ class EnquiryService {
   async getEnquiryById(id: number) {
     try {
       const query = `
-        SELECT * FROM "BI_NEGT_KSA"."DMS_SALESENQUIRY"
+        SELECT * FROM "BI_NEGT_KSAISUZU"."DMS_SALESENQUIRY"
         WHERE "SLNO" = ?
       `;
 
@@ -321,6 +629,17 @@ class EnquiryService {
           ? JSON.parse(result[0].VINDETAILS)
           : null,
       };
+      const chargeMap = await getEnquiryChargeMap([id]);
+      const charge =
+        chargeMap.get(id) ??
+        {
+          ...extractChargeFromVinDetails(enquiry.VINDETAILS),
+          details: null,
+        };
+      (enquiry as any).CHARGECODE = charge.code;
+      (enquiry as any).CHARGENAME = charge.name;
+      (enquiry as any).CHARGEPRICE = charge.price;
+      (enquiry as any).CHARGEDETAILS = charge.details;
 
       logger.info(`Retrieved sales enquiry with ID: ${id}`);
       return enquiry;
@@ -356,7 +675,19 @@ class EnquiryService {
         enquiryValueTransformers
       );
 
+      const shouldSyncCharge =
+        Object.prototype.hasOwnProperty.call(normalizedData, 'chargeCode') ||
+        Object.prototype.hasOwnProperty.call(normalizedData, 'chargeName') ||
+        Object.prototype.hasOwnProperty.call(normalizedData, 'chargePrice') ||
+        Object.prototype.hasOwnProperty.call(normalizedData, 'chargeDetails');
+
       if (!validateUpdateQuery(updates)) {
+        if (shouldSyncCharge) {
+          await replaceEnquiryCharge(id, getChargePayload(normalizedData), updatedBy);
+          logger.info(`Sales enquiry charge updated successfully: ${id}`);
+          return { success: true, message: 'Sales enquiry updated successfully' };
+        }
+
         return { success: true, message: 'No fields to update' };
       }
 
@@ -367,12 +698,16 @@ class EnquiryService {
       parameters.push(id);
 
       const query = `
-        UPDATE "BI_NEGT_KSA"."DMS_SALESENQUIRY"
+        UPDATE "BI_NEGT_KSAISUZU"."DMS_SALESENQUIRY"
         SET ${updates.join(', ')}
         WHERE "SLNO" = ?
       `;
 
       await db.execute(query, parameters);
+
+      if (shouldSyncCharge) {
+        await replaceEnquiryCharge(id, getChargePayload(normalizedData), updatedBy);
+      }
 
       logger.info(`Sales enquiry updated successfully: ${id}`);
       return { success: true, message: 'Sales enquiry updated successfully' };
@@ -398,7 +733,7 @@ class EnquiryService {
         .substring(0, 19);
 
       let query = `
-        UPDATE "BI_NEGT_KSA"."DMS_SALESENQUIRY"
+        UPDATE "BI_NEGT_KSAISUZU"."DMS_SALESENQUIRY"
         SET "STATUS" = ?, "UPDATEDDATE" = ?, "UPDATEDBY" = ?
       `;
 
@@ -433,7 +768,7 @@ class EnquiryService {
         .substring(0, 19);
 
       const query = `
-        UPDATE "BI_NEGT_KSA"."DMS_SALESENQUIRY"
+        UPDATE "BI_NEGT_KSAISUZU"."DMS_SALESENQUIRY"
         SET "STATUS" = 'Deleted', "UPDATEDDATE" = ?, "UPDATEDBY" = ?
         WHERE "SLNO" = ?
       `;
@@ -453,6 +788,53 @@ class EnquiryService {
   }
 
   /**
+   * Get dashboard data for salesperson from SAP procedure
+   */
+  async getSalespersonDashboard(slpCode: string | number) {
+    try {
+      const code = String(slpCode ?? '').trim();
+
+      if (!code) {
+        throw new Error('SLPCODE is required');
+      }
+
+      const query = `CALL "BI_NEGT_KSAISUZU"."DMS_KSA_100024"(?)`;
+      const candidates: Array<string | number> = [code];
+      if (/^\d+$/.test(code) && !/^0\d+/.test(code)) {
+        candidates.push(Number(code));
+      }
+
+      let result: any[] = [];
+      let usedCandidate: string | number = code;
+      for (const candidate of candidates) {
+        const rows = await db.query(query, [candidate]);
+        if (rows.length > 0) {
+          result = rows;
+          usedCandidate = candidate;
+          break;
+        }
+        result = rows;
+        usedCandidate = candidate;
+      }
+
+      logger.info(
+        { slpCode: code, usedCandidate, rows: result.length },
+        'Retrieved salesperson dashboard data'
+      );
+
+      return result;
+    } catch (error: any) {
+      logger.error(
+        { error: error?.message || error, slpCode },
+        'Error fetching salesperson dashboard data'
+      );
+      throw new Error(
+        'Failed to fetch salesperson dashboard data: ' + error.message
+      );
+    }
+  }
+
+  /**
    * Get enquiry statistics for dashboard
    */
   async getEnquiryStats(slpCode?: string) {
@@ -461,7 +843,7 @@ class EnquiryService {
         SELECT
           "STATUS",
           COUNT(*) as "COUNT"
-        FROM "BI_NEGT_KSA"."DMS_SALESENQUIRY"
+        FROM "BI_NEGT_KSAISUZU"."DMS_SALESENQUIRY"
         WHERE "STATUS" != 'Deleted'
       `;
 

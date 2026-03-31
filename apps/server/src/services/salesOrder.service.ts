@@ -11,6 +11,15 @@ import type {
   UpdateSalesOrderInput,
 } from '../schemas/salesOrder.schema.js';
 
+const SALES_ORDER_DB_SCHEMA = (() => {
+  const raw = process.env.SALES_ORDER_DB_SCHEMA || 'BI_NEGT_KSAISUZU';
+  const normalized = raw.trim().toUpperCase();
+  if (!/^[A-Z0-9_]+$/.test(normalized)) {
+    throw new Error(`Invalid SALES_ORDER_DB_SCHEMA identifier: ${raw}`);
+  }
+  return normalized;
+})();
+
 export interface SalesOrder {
   SLNO: number;
   SALES_ORDER_NUMBER: string;
@@ -74,7 +83,7 @@ class SalesOrderService {
 
       const query = `
         SELECT "SALES_ORDER_NUMBER"
-        FROM "BI_NEGT_KSA"."DMS_SALES_ORDER"
+        FROM "${SALES_ORDER_DB_SCHEMA}"."DMS_SALES_ORDER"
         WHERE "SALES_ORDER_NUMBER" LIKE ?
         ORDER BY "SALES_ORDER_NUMBER" DESC
         LIMIT 1
@@ -128,7 +137,7 @@ class SalesOrderService {
     try {
       const quotationQuery = `
         SELECT *
-        FROM "BI_NEGT_KSA"."DMS_QUOTATION"
+        FROM "${SALES_ORDER_DB_SCHEMA}"."DMS_QUOTATION"
         WHERE "SLNO" = ? AND "IS_DELETED" = 'N'
       `;
       const quotation = await db.queryOne<any>(quotationQuery, [
@@ -152,7 +161,7 @@ class SalesOrderService {
         const enquiryVin = await db.queryOne<{ VINNUMBER: string | null }>(
           `
           SELECT "VINNUMBER"
-          FROM "BI_NEGT_KSA"."DMS_SALESENQUIRY"
+          FROM "${SALES_ORDER_DB_SCHEMA}"."DMS_SALESENQUIRY"
           WHERE "SLNO" = ?
         `,
           [quotation.ENQUIRY_SLNO]
@@ -162,19 +171,28 @@ class SalesOrderService {
 
       const currentDateTime = this.getCurrentDateTime();
       const salesOrderNumber = await this.generateSalesOrderNumber();
+      const slnoResult = await db.queryOne<{ NEXT_SLNO: number }>(
+        `
+        SELECT COALESCE(MAX("SLNO"), 0) + 1 AS "NEXT_SLNO"
+        FROM "${SALES_ORDER_DB_SCHEMA}"."DMS_SALES_ORDER"
+      `
+      );
+      const nextSlno = slnoResult?.NEXT_SLNO ?? 1;
 
       const insertQuery = `
-        INSERT INTO "BI_NEGT_KSA"."DMS_SALES_ORDER" (
+        INSERT INTO "${SALES_ORDER_DB_SCHEMA}"."DMS_SALES_ORDER" (
+          "SLNO",
           "SALES_ORDER_NUMBER", "QUOTATION_SLNO", "ENQUIRY_SLNO",
           "VERSION", "IS_LATEST_VERSION",
           "CUSTOMER_NAME", "CUSTOMER_MOBILE", "CUSTOMER_EMAIL",
           "VEHICLE_MAKE", "VEHICLE_MODEL", "VEHICLE_VARIANT", "VIN_NUMBER",
           "GRAND_TOTAL", "STATUS", "NOTES", "SLPCODE",
           "CREATED_BY", "CREATED_DATE", "IS_DELETED"
-        ) VALUES (?, ?, ?, 1, 'Y', ?, ?, ?, ?, ?, ?, ?, ?, 'Provisional', ?, ?, ?, ?, 'N')
+        ) VALUES (?, ?, ?, ?, 1, 'Y', ?, ?, ?, ?, ?, ?, ?, ?, 'Provisional', ?, ?, ?, ?, 'N')
       `;
 
       await db.execute(insertQuery, [
+        nextSlno,
         salesOrderNumber,
         quotation.SLNO,
         quotation.ENQUIRY_SLNO,
@@ -195,7 +213,7 @@ class SalesOrderService {
       const idResult = await db.query<{ SLNO: number }>(
         `
         SELECT "SLNO"
-        FROM "BI_NEGT_KSA"."DMS_SALES_ORDER"
+        FROM "${SALES_ORDER_DB_SCHEMA}"."DMS_SALES_ORDER"
         WHERE "SALES_ORDER_NUMBER" = ?
       `,
         [salesOrderNumber]
@@ -222,7 +240,7 @@ class SalesOrderService {
     try {
       let query = `
         SELECT *
-        FROM "BI_NEGT_KSA"."DMS_SALES_ORDER"
+        FROM "${SALES_ORDER_DB_SCHEMA}"."DMS_SALES_ORDER"
         WHERE "IS_DELETED" = 'N'
       `;
       const params: any[] = [];
@@ -264,7 +282,7 @@ class SalesOrderService {
     try {
       const query = `
         SELECT *
-        FROM "BI_NEGT_KSA"."DMS_SALES_ORDER"
+        FROM "${SALES_ORDER_DB_SCHEMA}"."DMS_SALES_ORDER"
         WHERE "SLNO" = ? AND "IS_DELETED" = 'N'
       `;
       return await db.queryOne<SalesOrder>(query, [id]);
@@ -304,7 +322,7 @@ class SalesOrderService {
       params.push(currentDateTime);
 
       const query = `
-        UPDATE "BI_NEGT_KSA"."DMS_SALES_ORDER"
+        UPDATE "${SALES_ORDER_DB_SCHEMA}"."DMS_SALES_ORDER"
         SET ${updates.join(', ')}
         WHERE "SLNO" = ?
       `;
@@ -330,7 +348,7 @@ class SalesOrderService {
 
       const currentDateTime = this.getCurrentDateTime();
       const query = `
-        UPDATE "BI_NEGT_KSA"."DMS_SALES_ORDER"
+        UPDATE "${SALES_ORDER_DB_SCHEMA}"."DMS_SALES_ORDER"
         SET "STATUS" = 'Printed',
             "PRINTED_BY" = ?,
             "PRINTED_DATE" = ?,
@@ -371,7 +389,7 @@ class SalesOrderService {
 
       const currentDateTime = this.getCurrentDateTime();
       const query = `
-        UPDATE "BI_NEGT_KSA"."DMS_SALES_ORDER"
+        UPDATE "${SALES_ORDER_DB_SCHEMA}"."DMS_SALES_ORDER"
         SET "STATUS" = 'PassedToVehicleAdmin',
             "PASSED_TO_VEHICLE_ADMIN" = 'Y',
             "PASSED_TO_VA_DATE" = ?,
@@ -419,7 +437,7 @@ class SalesOrderService {
 
       const currentDateTime = this.getCurrentDateTime();
       const query = `
-        UPDATE "BI_NEGT_KSA"."DMS_SALES_ORDER"
+        UPDATE "${SALES_ORDER_DB_SCHEMA}"."DMS_SALES_ORDER"
         SET "VEHICLE_RESERVED" = 'Y',
             "VEHICLE_RESERVED_DATE" = ?,
             "VEHICLE_RESERVED_BY" = ?,
@@ -471,7 +489,7 @@ class SalesOrderService {
 
       const currentDateTime = this.getCurrentDateTime();
       const query = `
-        UPDATE "BI_NEGT_KSA"."DMS_SALES_ORDER"
+        UPDATE "${SALES_ORDER_DB_SCHEMA}"."DMS_SALES_ORDER"
         SET "STATUS" = 'HandoverBooked',
             "HANDOVER_BOOKED" = 'Y',
             "HANDOVER_DATE" = ?,
@@ -515,7 +533,7 @@ class SalesOrderService {
 
       const currentDateTime = this.getCurrentDateTime();
       const query = `
-        UPDATE "BI_NEGT_KSA"."DMS_SALES_ORDER"
+        UPDATE "${SALES_ORDER_DB_SCHEMA}"."DMS_SALES_ORDER"
         SET "STATUS" = 'Lost',
             "IS_LOST_SALE" = 'Y',
             "VEHICLE_RESERVED" = 'N',
@@ -555,7 +573,7 @@ class SalesOrderService {
 
       const currentDateTime = this.getCurrentDateTime();
       const query = `
-        UPDATE "BI_NEGT_KSA"."DMS_SALES_ORDER"
+        UPDATE "${SALES_ORDER_DB_SCHEMA}"."DMS_SALES_ORDER"
         SET "STATUS" = 'Cancelled',
             "VEHICLE_RESERVED" = 'N',
             "HANDOVER_BOOKED" = 'N',

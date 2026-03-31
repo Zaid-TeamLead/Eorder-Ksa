@@ -33,6 +33,10 @@ export interface SalesEnquiry {
   BRANCHNAME?: string;
   BUDGET?: string;
   FINANCING?: string;
+  CHARGECODE?: string;
+  CHARGENAME?: string;
+  CHARGEPRICE?: string;
+  CHARGEDETAILS?: Record<string, unknown>;
   PREFERREDCONTACT?: string;
   PREFERREDTIME?: string;
   PREFERREDDELIVERY?: string;
@@ -93,6 +97,10 @@ export interface CreateEnquiryData {
   branchName?: string;
   budget?: string;
   financing?: 'yes' | 'no' | 'maybe';
+  chargeCode?: string;
+  chargeName?: string;
+  chargePrice?: string;
+  chargeDetails?: Record<string, unknown>;
   preferredContact?: 'phone' | 'email' | 'whatsapp' | 'sms';
   preferredTime?: 'morning' | 'afternoon' | 'evening' | 'anytime';
   preferredDelivery?: string;
@@ -121,6 +129,8 @@ export interface EnquiryFilters {
   fromDate?: string;
   toDate?: string;
 }
+
+export type SalespersonDashboardRow = Record<string, string | number | null>;
 
 export const getAllEnquiries = async (
   filters?: EnquiryFilters
@@ -161,4 +171,13 @@ export const deleteEnquiry = async (id: number): Promise<any> => {
 export const getEnquiryStats = async (slpCode?: string): Promise<any[]> => {
   const queryString = slpCode ? buildQueryString({ slpCode }) : '';
   return apiClient.get<any[]>(`${API_ENDPOINTS.ENQUIRY_STATS}${queryString}`);
+};
+
+export const getSalespersonDashboard = async (
+  slpCode?: string
+): Promise<SalespersonDashboardRow[]> => {
+  const queryString = slpCode ? buildQueryString({ slpCode }) : '';
+  return apiClient.get<SalespersonDashboardRow[]>(
+    `${API_ENDPOINTS.ENQUIRY_DASHBOARD}${queryString}`
+  );
 };

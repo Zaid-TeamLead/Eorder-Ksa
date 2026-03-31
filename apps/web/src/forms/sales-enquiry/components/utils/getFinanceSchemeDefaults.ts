@@ -4,6 +4,7 @@
 
 interface FinanceSchemeData {
   LENDER_CODE?: string;
+  CURRENCY?: string;
   VEHICLE_PRICE?: number;
   TERM_MONTHS?: number;
   DOWNPAYMENT?: number;
@@ -16,6 +17,7 @@ interface FinanceSchemeData {
 
 export interface FinanceSchemeFormData {
   lenderCode: string;
+  currency: string;
   vehiclePrice: string;
   term: string;
   downpayment: string;
@@ -23,7 +25,21 @@ export interface FinanceSchemeFormData {
   interestRate: string;
   fda: string;
   gpvBalloon: string;
+  salesEmployeeName: string;
   saleCode: string;
+}
+
+function toOptionalNumber(value: string): number | undefined {
+  const normalized = String(value || "").trim();
+  if (!normalized) return undefined;
+
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function toRequiredInteger(value: string): number {
+  const parsed = Number(String(value || "").trim());
+  return Number.isFinite(parsed) ? Math.trunc(parsed) : 0;
 }
 
 /**
@@ -38,13 +54,15 @@ export function getFinanceSchemeDefaults(
 ): FinanceSchemeFormData {
   return {
     lenderCode: data?.LENDER_CODE ?? '',
+    currency: data?.CURRENCY ?? '',
     vehiclePrice: data?.VEHICLE_PRICE?.toString() ?? '',
-    term: data?.TERM_MONTHS?.toString() ?? '',
+    term: data?.TERM_MONTHS?.toString() ?? '12',
     downpayment: data?.DOWNPAYMENT?.toString() ?? '',
     tradeInValue: data?.TRADE_IN_VALUE?.toString() ?? '',
     interestRate: data?.INTEREST_RATE?.toString() ?? '',
     fda: data?.FDA?.toString() ?? '',
     gpvBalloon: data?.GPV_BALLOON?.toString() ?? '',
+    salesEmployeeName: '',
     saleCode: data?.SALE_CODE ?? '',
   };
 }
@@ -64,13 +82,14 @@ export function transformFinanceSchemeToApi(
   return {
     lenderCode: formData.lenderCode,
     lenderName,
-    vehiclePrice: formData.vehiclePrice ? parseFloat(formData.vehiclePrice) : undefined,
-    termMonths: parseInt(formData.term, 10),
-    downpayment: formData.downpayment ? parseFloat(formData.downpayment) : undefined,
-    tradeInValue: formData.tradeInValue ? parseFloat(formData.tradeInValue) : undefined,
-    interestRate: formData.interestRate ? parseFloat(formData.interestRate) : undefined,
-    fda: formData.fda ? parseFloat(formData.fda) : undefined,
-    gpvBalloon: formData.gpvBalloon ? parseFloat(formData.gpvBalloon) : undefined,
+    currency: formData.currency,
+    vehiclePrice: toOptionalNumber(formData.vehiclePrice),
+    termMonths: toRequiredInteger(formData.term),
+    downpayment: toOptionalNumber(formData.downpayment),
+    tradeInValue: toOptionalNumber(formData.tradeInValue),
+    interestRate: toOptionalNumber(formData.interestRate),
+    fda: toOptionalNumber(formData.fda),
+    gpvBalloon: toOptionalNumber(formData.gpvBalloon),
     saleCode: formData.saleCode,
   };
 }

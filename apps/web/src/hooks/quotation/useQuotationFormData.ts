@@ -42,6 +42,114 @@ function extractVinFromUnknown(input: unknown): string {
   return dynamicMatch ? String(dynamicMatch[1]).trim() : '';
 }
 
+function toOptionalString(value: unknown): string {
+  if (value === undefined || value === null) return '';
+  return String(value).trim();
+}
+
+function sanitizeEmail(value: unknown): string {
+  const email = toOptionalString(value);
+  if (!email) return '';
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : '';
+}
+
+function parseNumberLoose(value: unknown): number {
+  if (value === undefined || value === null) return 0;
+  const normalized = String(value)
+    .replace(/,/g, '')
+    .replace(/[^0-9.-]/g, '')
+    .trim();
+  if (!normalized || normalized === '-' || normalized === '.' || normalized === '-.') return 0;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function pickField(record: Record<string, unknown>, keys: string[]): unknown {
+  for (const key of keys) {
+    if (key in record) return record[key];
+  }
+  return undefined;
+}
+
+function normalizeVinDetails(input: unknown): Record<string, unknown> {
+  if (!input) return {};
+  if (typeof input === 'string') {
+    try {
+      const parsed = JSON.parse(input);
+      return typeof parsed === 'object' && parsed !== null
+        ? (parsed as Record<string, unknown>)
+        : {};
+    } catch {
+      return {};
+    }
+  }
+  if (typeof input === 'object') {
+    return input as Record<string, unknown>;
+  }
+  return {};
+}
+
+function extractPricingFromVinDetails(vinDetailsInput: unknown) {
+  const vinDetails = normalizeVinDetails(vinDetailsInput);
+
+  const basePrice = parseNumberLoose(
+    pickField(vinDetails, ['Price', 'PRICE', 'Amount', 'AMOUNT', 'UnitPrice', 'UNITPRICE'])
+  );
+  const discountedPrice = parseNumberLoose(
+    pickField(vinDetails, [
+      'Discprice',
+      'DISCPRICE',
+      'DiscountPrice',
+      'DISCOUNTPRICE',
+      'NetPrice',
+      'NETPRICE',
+      'AmountAfterDiscount',
+      'AMOUNTAFTERDISCOUNT',
+    ])
+  );
+  const discountRaw = toOptionalString(
+    pickField(vinDetails, ['Discount', 'DISCOUNT', 'DiscPrcnt', 'DISCPRCNT', 'DiscPercent'])
+  );
+
+  let vehicleDiscount = 0; // kept negative for quotation calculations
+
+  if (basePrice > 0 && discountedPrice > 0) {
+    const delta = discountedPrice - basePrice;
+    vehicleDiscount = delta <= 0 ? delta : 0;
+  } else if (basePrice > 0 && discountRaw) {
+    if (discountRaw.includes('%')) {
+      const pct = parseNumberLoose(discountRaw);
+      if (pct > 0) {
+        vehicleDiscount = -((basePrice * pct) / 100);
+      }
+    } else {
+      const discountNumeric = parseNumberLoose(discountRaw);
+      if (discountNumeric !== 0) {
+        vehicleDiscount = discountNumeric > 0 ? -discountNumeric : discountNumeric;
+      }
+    }
+  }
+
+  const vehicleNetPrice =
+    basePrice > 0
+      ? Math.max(0, basePrice + vehicleDiscount)
+      : discountedPrice > 0
+        ? discountedPrice
+        : 0;
+
+  const discountPercentage =
+    basePrice > 0 && vehicleDiscount < 0
+      ? parseFloat(((Math.abs(vehicleDiscount) / basePrice) * 100).toFixed(2))
+      : 0;
+
+  return {
+    basePrice,
+    vehicleDiscount,
+    vehicleNetPrice,
+    discountPercentage,
+  };
+}
+
 /**
  * Custom hook for loading and preparing quotation form data
  * Handles both create-from-enquiry and supersede flows
@@ -77,6 +185,7 @@ export function useQuotationFormData({
       setError(null);
       const enquiryData = await getEnquiryById(id);
       setEnquiry(enquiryData);
+      const quantity = Number(enquiryData.QUANTITY) > 0 ? Number(enquiryData.QUANTITY) : 1;
       const enquiryVinDetails = enquiryData.VINDETAILS as string | Record<string, unknown> | undefined;
       let vinFromDetails = '';
       if (typeof enquiryVinDetails === 'string') {
@@ -94,13 +203,18 @@ export function useQuotationFormData({
         rawVinNumber !== undefined && rawVinNumber !== null && String(rawVinNumber).trim() !== ''
           ? String(rawVinNumber).trim()
           : '';
+      const pricing = extractPricingFromVinDetails(enquiryVinDetails);
+      const taxRate = 15;
+      const subtotal = pricing.vehicleNetPrice;
+      const taxAmount = parseFloat(((subtotal * taxRate) / 100).toFixed(2));
+      const grandTotal = parseFloat((subtotal + taxAmount).toFixed(2));
 
       // Prepare form data from enquiry
       const formData: QuotationFormData = {
         enquirySlno: id,
         customerName: enquiryData.CUSTOMERNAME || '',
         customerMobile: enquiryData.MOBILE || '',
-        customerEmail: enquiryData.HOMEEMAIL || '',
+        customerEmail: sanitizeEmail(enquiryData.HOMEEMAIL),
         customerAddress: enquiryData.ADDRESS || '',
         vehicleMake: enquiryData.MAKE || '',
         vehicleModel: enquiryData.MODEL || '',
@@ -112,23 +226,23 @@ export function useQuotationFormData({
           vinFromRecord ||
           vinFromDetails ||
           '',
-        vehicleBasePrice: 0,
-        vehicleDiscount: 0,
-        vehicleNetPrice: 0,
+        vehicleBasePrice: pricing.basePrice,
+        vehicleDiscount: pricing.vehicleDiscount,
+        vehicleNetPrice: pricing.vehicleNetPrice,
         accessoriesTotal: 0,
         accessoriesDiscount: 0,
         accessoriesNetTotal: 0,
         warrantyTotal: 0,
         insuranceTotal: 0,
-        subtotal: 0,
-        taxRate: 15,
-        taxAmount: 0,
-        grandTotal: 0,
+        subtotal,
+        taxRate,
+        taxAmount,
+        grandTotal,
         tradeInValue: 0,
         downpayment: 0,
-        netAmountDue: 0,
-        totalDiscountAmount: 0,
-        discountPercentage: 0,
+        netAmountDue: grandTotal,
+        totalDiscountAmount: pricing.vehicleDiscount,
+        discountPercentage: pricing.discountPercentage,
         validUntil: '',
         notes: '',
         termsAndConditions: '',
@@ -138,11 +252,11 @@ export function useQuotationFormData({
             lineNumber: 1,
             itemType: 'Vehicle',
             itemDescription: `${enquiryData.MAKE} ${enquiryData.MODEL} ${enquiryData.VARIANT || ''}`.trim(),
-            quantity: enquiryData.QUANTITY || 1,
-            unitPrice: 0,
-            discountAmount: 0,
-            discountPercentage: 0,
-            netPrice: 0,
+            quantity,
+            unitPrice: pricing.basePrice,
+            discountAmount: pricing.vehicleDiscount,
+            discountPercentage: pricing.discountPercentage,
+            netPrice: parseFloat((quantity * pricing.vehicleNetPrice).toFixed(2)),
           },
         ],
       };

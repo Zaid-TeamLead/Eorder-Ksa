@@ -1,29 +1,50 @@
 import { z } from 'zod';
 
+const emptyToUndefined = (value: unknown) => {
+  if (value === '' || value === null || value === undefined) {
+    return undefined;
+  }
+  return value;
+};
+
+const optionalNumber = z.preprocess(
+  emptyToUndefined,
+  z.coerce.number().nonnegative().optional()
+);
+const optionalPercent = z.preprocess(
+  emptyToUndefined,
+  z.coerce.number().min(0).max(100).optional()
+);
+const requiredInteger = z.preprocess(
+  emptyToUndefined,
+  z.coerce.number().int().min(1).max(120)
+);
+
 /**
  * Schema for creating a new financing scheme
  */
 export const createFinancingSchema = z.object({
-  enquirySlno: z.number().int().positive(),
+  enquirySlno: z.coerce.number().int().positive(),
   lenderCode: z.string().min(1, 'Lender code is required'),
   lenderName: z.string().min(1, 'Lender name is required'),
   schemeName: z.string().optional(),
+  currency: z.string().optional(),
 
   // Financial Parameters
-  vehiclePrice: z.number().nonnegative().optional(),
-  downpayment: z.number().nonnegative().optional(),
-  downpaymentPercent: z.number().min(0).max(100).optional(),
-  tradeInValue: z.number().nonnegative().optional(),
-  financeAmount: z.number().nonnegative().optional(),
+  vehiclePrice: optionalNumber,
+  downpayment: optionalNumber,
+  downpaymentPercent: optionalPercent,
+  tradeInValue: optionalNumber,
+  financeAmount: optionalNumber,
 
-  termMonths: z.number().int().min(1).max(120),
-  interestRate: z.number().min(0).max(100).optional(),
-  monthlyPayment: z.number().nonnegative().optional(),
-  totalInterest: z.number().nonnegative().optional(),
+  termMonths: requiredInteger,
+  interestRate: optionalPercent,
+  monthlyPayment: optionalNumber,
+  totalInterest: optionalNumber,
 
   // Additional Parameters
-  fda: z.number().nonnegative().optional(),
-  gpvBalloon: z.number().nonnegative().optional(),
+  fda: optionalNumber,
+  gpvBalloon: optionalNumber,
   saleCode: z.string().optional(),
 
   // Status

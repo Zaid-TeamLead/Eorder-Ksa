@@ -20,10 +20,13 @@ export interface UseVehiclesReturn {
   refetch: () => Promise<void>;
 }
 
-export function useVehicles(): UseVehiclesReturn {
+export function useVehicles(customerCode?: string): UseVehiclesReturn {
+  const normalizedCustomerCode = (customerCode || "").trim();
   const { data: vehicles, isLoading, error, refetch } = useEntityQuery({
-    queryKey: queryKeys.vehicles.all,
-    queryFn: getAllVehicleInventory,
+    queryKey: normalizedCustomerCode
+      ? queryKeys.vehicles.byCustomer(normalizedCustomerCode)
+      : queryKeys.vehicles.all,
+    queryFn: () => getAllVehicleInventory(normalizedCustomerCode || undefined),
     defaultValue: [],
   });
 

@@ -14,6 +14,7 @@ export const queryKeys = {
   enquiries: {
     all: ["enquiries"] as const,
     detail: (id: number) => ["enquiry", id] as const,
+    dashboard: ["enquiries", "dashboard"] as const,
   },
 
   // Financing / Bank Funding
@@ -26,6 +27,15 @@ export const queryKeys = {
   // Lenders
   lenders: {
     all: ["lenders"] as const,
+    byType: (qryType: string) => ["lenders", qryType.toUpperCase()] as const,
+  },
+
+  salesEmployees: {
+    all: ["sales-employees"] as const,
+  },
+
+  currencies: {
+    all: ["currencies"] as const,
   },
 
   // Trade-in Appraisal
@@ -47,6 +57,8 @@ export const queryKeys = {
   // Vehicle Inventory
   vehicles: {
     all: ["vehicle-inventory"] as const,
+    byCustomer: (customerCode: string) => ["vehicle-inventory", customerCode] as const,
+    chargesByCustomer: (customerCode: string) => ["vehicle-charges", customerCode] as const,
     detail: (id: number) => ["vehicle", id] as const,
     available: ["vehicle-inventory", "available"] as const,
   },

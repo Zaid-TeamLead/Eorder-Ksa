@@ -11,7 +11,7 @@ import { useMemo } from "react";
 const VehicleInventoryPage = () => {
     const { data: vehicles = [], isLoading, error } = useQuery({
         queryKey: ["vehicle-inventory"],
-        queryFn: getAllVehicleInventory,
+        queryFn: () => getAllVehicleInventory(),
     });
 
     const vehiclesOver100Days = useMemo(() => {
