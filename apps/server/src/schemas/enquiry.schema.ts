@@ -15,12 +15,12 @@ import {
 // VIN Details Schema (specific to enquiry)
 const vinDetailsSchema = z
   .object({
-    Location: optionalStringValidator,
-    VIN: optionalStringValidator,
-    WhsCode: optionalStringValidator,
-    WhsName: optionalStringValidator,
-    ItemCode: optionalStringValidator,
-    InDate: optionalStringValidator,
+    Location: z.string().nullable().optional(),
+    VIN: z.string().nullable().optional(),
+    WhsCode: z.string().nullable().optional(),
+    WhsName: z.string().nullable().optional(),
+    ItemCode: z.string().nullable().optional(),
+    InDate: z.string().nullable().optional(),
     U_Veh_StockID: z.string().nullable().optional(),
     U_Veh_Brand: z.string().nullable().optional(),
     U_Veh_Model: z.string().nullable().optional(),
@@ -35,10 +35,10 @@ const vinDetailsSchema = z
     U_Veh_DispDate: z.string().nullable().optional(),
     U_Veh_IC: z.string().nullable().optional(),
     AgeinDays: z.number().optional(),
-    Price: optionalStringValidator,
+    Price: z.string().nullable().optional(),
     Discount: z.string().nullable().optional(),
     Discprice: z.string().nullable().optional(),
-    Currency: optionalStringValidator,
+    Currency: z.string().nullable().optional(),
   })
   .optional();
 
