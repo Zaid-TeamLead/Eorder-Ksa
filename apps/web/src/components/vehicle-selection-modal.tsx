@@ -617,97 +617,97 @@ export function VehicleSelectionModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="h-[88vh] w-[96vw] max-w-[96vw] overflow-hidden p-0 sm:max-w-[96vw] lg:max-w-[90vw] xl:max-w-[86vw]">
-        <DialogHeader className="border-b px-6 py-4">
+      <DialogContent className="h-[96vh] w-[99vw] max-w-[99vw] overflow-hidden p-0 sm:max-w-[99vw]">
+        <DialogHeader className="border-b px-4 py-2.5">
           <DialogTitle>Select Vehicle</DialogTitle>
         </DialogHeader>
 
-        <div className="flex min-h-0 flex-1 flex-col p-4">
+        <div className="flex min-h-0 flex-1 flex-col p-2.5">
           {/* Search */}
-          <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <div className="relative w-full md:max-w-md">
+          <div className="mb-2 flex flex-col gap-1.5 2xl:flex-row 2xl:items-center 2xl:justify-between">
+            <div className="relative w-full xl:max-w-md">
               <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search by VIN, item code, brand, model, warehouse..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-9 pl-10 text-sm"
+                className="h-8 pl-10 text-xs"
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-              <Badge variant="outline" className="text-[11px]">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[10px] text-muted-foreground">
+              <Badge variant="outline" className="whitespace-nowrap px-2 py-0 text-[10px]">
                 Total: {vehicles.length}
               </Badge>
-              <Badge variant="outline" className="text-[11px]">
+              <Badge variant="outline" className="whitespace-nowrap px-2 py-0 text-[10px]">
                 Showing: {displayedVehicles.length} / {filteredVehicles.length}
               </Badge>
               {selectedVehicleIds.size > 0 ? (
-                <Badge variant="outline" className="text-[11px]">
+                <Badge variant="outline" className="whitespace-nowrap px-2 py-0 text-[10px]">
                   Selected: {selectedVehicleIds.size}
                 </Badge>
               ) : null}
             </div>
           </div>
 
-          <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
-            <select
-              value={brandFilter}
-              onChange={(event) => setBrandFilter(event.target.value)}
-              className="h-9 rounded-md border bg-background px-2 text-xs"
-            >
-              <option value={ALL_FILTER}>All Brands</option>
-              {filterOptions.brands.map((brand) => (
-                <option key={brand} value={brand}>
-                  {brand}
-                </option>
-              ))}
-            </select>
+          <div className="mb-2 overflow-x-auto pb-1">
+            <div className="flex min-w-max gap-2">
+              <select
+                value={brandFilter}
+                onChange={(event) => setBrandFilter(event.target.value)}
+                className="h-8 min-w-[170px] rounded-md border bg-background px-2 text-xs"
+              >
+                <option value={ALL_FILTER}>All Brands</option>
+                {filterOptions.brands.map((brand) => (
+                  <option key={brand} value={brand}>
+                    {brand}
+                  </option>
+                ))}
+              </select>
 
-            <select
-              value={modelFilter}
-              onChange={(event) => setModelFilter(event.target.value)}
-              className="h-9 rounded-md border bg-background px-2 text-xs"
-            >
-              <option value={ALL_FILTER}>All Models</option>
-              {filterOptions.models.map((model) => (
-                <option key={model} value={model}>
-                  {model}
-                </option>
-              ))}
-            </select>
+              <select
+                value={modelFilter}
+                onChange={(event) => setModelFilter(event.target.value)}
+                className="h-8 min-w-[170px] rounded-md border bg-background px-2 text-xs"
+              >
+                <option value={ALL_FILTER}>All Models</option>
+                {filterOptions.models.map((model) => (
+                  <option key={model} value={model}>
+                    {model}
+                  </option>
+                ))}
+              </select>
 
-            <select
-              value={colorFilter}
-              onChange={(event) => setColorFilter(event.target.value)}
-              className="h-9 rounded-md border bg-background px-2 text-xs"
-            >
-              <option value={ALL_FILTER}>All Colors</option>
-              {filterOptions.colors.map((color) => (
-                <option key={color} value={color}>
-                  {color}
-                </option>
-              ))}
-            </select>
+              <select
+                value={colorFilter}
+                onChange={(event) => setColorFilter(event.target.value)}
+                className="h-8 min-w-[170px] rounded-md border bg-background px-2 text-xs"
+              >
+                <option value={ALL_FILTER}>All Colors</option>
+                {filterOptions.colors.map((color) => (
+                  <option key={color} value={color}>
+                    {color}
+                  </option>
+                ))}
+              </select>
 
-            <select
-              value={yearFilter}
-              onChange={(event) => setYearFilter(event.target.value)}
-              className="h-9 rounded-md border bg-background px-2 text-xs"
-            >
-              <option value={ALL_FILTER}>All Years</option>
-              {filterOptions.years.map((year) => (
-                <option key={year} value={year}>
-                  {year}
-                </option>
-              ))}
-            </select>
+              <select
+                value={yearFilter}
+                onChange={(event) => setYearFilter(event.target.value)}
+                className="h-8 min-w-[150px] rounded-md border bg-background px-2 text-xs"
+              >
+                <option value={ALL_FILTER}>All Years</option>
+                {filterOptions.years.map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </select>
 
-            <div className="flex gap-2">
               <select
                 value={warehouseFilter}
                 onChange={(event) => setWarehouseFilter(event.target.value)}
-                className="h-9 flex-1 rounded-md border bg-background px-2 text-xs"
+                className="h-8 min-w-[190px] rounded-md border bg-background px-2 text-xs"
               >
                 <option value={ALL_FILTER}>All Warehouses</option>
                 {filterOptions.warehouses.map((warehouse) => (
@@ -716,39 +716,32 @@ export function VehicleSelectionModal({
                   </option>
                 ))}
               </select>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-9 px-3 text-xs"
-                onClick={resetFilters}
-              >
+
+              <Button type="button" variant="outline" className="h-8 px-3 text-xs" onClick={resetFilters}>
                 Reset
               </Button>
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-[11px] text-muted-foreground">
-              Scroll inside the table to see all columns. Use Shift + mouse wheel for horizontal scroll.
-            </p>
+          <div className="flex items-center justify-end gap-1">
             <div className="flex items-center gap-1">
               <Button
                 type="button"
                 variant="outline"
                 size="icon"
-                className="h-6 w-6"
+                className="h-5 w-5"
                 onClick={() => scrollHorizontalBy(-260)}
               >
-                <IconChevronLeft className="h-3.5 w-3.5" />
+                <IconChevronLeft className="h-3 w-3" />
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 size="icon"
-                className="h-6 w-6"
+                className="h-5 w-5"
                 onClick={() => scrollHorizontalBy(260)}
               >
-                <IconChevronRight className="h-3.5 w-3.5" />
+                <IconChevronRight className="h-3 w-3" />
               </Button>
             </div>
           </div>
@@ -786,24 +779,24 @@ export function VehicleSelectionModal({
                 onScroll={handleMainScroll}
                 onWheel={handleTableWheel}
               >
-                <table ref={tableRef} className="min-w-[2100px] text-xs">
+                <table ref={tableRef} className="min-w-[1780px] text-[11px]">
                   <thead className="sticky top-0 z-10 bg-muted/30 backdrop-blur">
                     <tr className="border-b">
-                      <th className="h-10 w-12 px-2 text-left font-medium"></th>
-                      <th className="h-10 min-w-[220px] px-2 text-left font-medium">VIN</th>
-                      <th className="h-10 min-w-[120px] px-2 text-left font-medium">Item Code</th>
-                      <th className="h-10 min-w-[120px] px-2 text-left font-medium">Brand</th>
-                      <th className="h-10 min-w-[130px] px-2 text-left font-medium">Model</th>
-                      <th className="h-10 min-w-[220px] px-2 text-left font-medium">Description</th>
-                      <th className="h-10 min-w-[90px] px-2 text-left font-medium">Color</th>
-                      <th className="h-10 min-w-[80px] px-2 text-left font-medium">Year</th>
-                      <th className="h-10 min-w-[150px] px-2 text-left font-medium">Display Date</th>
-                      <th className="h-10 min-w-[140px] px-2 text-left font-medium">Price</th>
-                      <th className="h-10 min-w-[120px] px-2 text-left font-medium">Discount</th>
-                      <th className="h-10 min-w-[140px] px-2 text-left font-medium">Discprice</th>
-                      <th className="h-10 min-w-[120px] px-2 text-left font-medium">Warehouse</th>
-                      <th className="h-10 min-w-[90px] px-2 text-left font-medium">Age (Days)</th>
-                      <th className="h-10 min-w-[110px] px-2 text-left font-medium">Status</th>
+                      <th className="h-9 w-10 px-2 text-left font-medium"></th>
+                      <th className="h-9 min-w-[180px] px-2 text-left font-medium">VIN</th>
+                      <th className="h-9 min-w-[105px] px-2 text-left font-medium">Item Code</th>
+                      <th className="h-9 min-w-[100px] px-2 text-left font-medium">Brand</th>
+                      <th className="h-9 min-w-[120px] px-2 text-left font-medium">Model</th>
+                      <th className="h-9 min-w-[180px] px-2 text-left font-medium">Description</th>
+                      <th className="h-9 min-w-[85px] px-2 text-left font-medium">Color</th>
+                      <th className="h-9 min-w-[70px] px-2 text-left font-medium">Year</th>
+                      <th className="h-9 min-w-[120px] px-2 text-left font-medium">Display Date</th>
+                      <th className="h-9 min-w-[120px] px-2 text-left font-medium">Price</th>
+                      <th className="h-9 min-w-[100px] px-2 text-left font-medium">Discount</th>
+                      <th className="h-9 min-w-[120px] px-2 text-left font-medium">Discprice</th>
+                      <th className="h-9 min-w-[110px] px-2 text-left font-medium">Warehouse</th>
+                      <th className="h-9 min-w-[80px] px-2 text-left font-medium">Age</th>
+                      <th className="h-9 min-w-[95px] px-2 text-left font-medium">Status</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -818,30 +811,30 @@ export function VehicleSelectionModal({
                         }`}
                         onClick={() => toggleVehicleSelection(vehicleData)}
                       >
-                        <td className="p-2 align-middle">
+                        <td className="px-2 py-1.5 align-middle">
                           {isSelected && (
                             <IconCheck className="h-4 w-4 text-primary" />
                           )}
                         </td>
-                        <td className="p-2 align-middle font-medium">{vehicleData.vin}</td>
-                        <td className="p-2 align-middle">{vehicleData.itemCode}</td>
-                        <td className="p-2 align-middle">{vehicleData.brand}</td>
-                        <td className="p-2 align-middle">{vehicleData.model}</td>
-                        <td className="max-w-[200px] truncate p-2 align-middle">
+                        <td className="px-2 py-1.5 align-middle font-medium">{vehicleData.vin}</td>
+                        <td className="px-2 py-1.5 align-middle">{vehicleData.itemCode}</td>
+                        <td className="px-2 py-1.5 align-middle">{vehicleData.brand}</td>
+                        <td className="px-2 py-1.5 align-middle">{vehicleData.model}</td>
+                        <td className="max-w-[180px] truncate px-2 py-1.5 align-middle">
                           {vehicleData.description}
                         </td>
-                        <td className="p-2 align-middle">{vehicleData.color}</td>
-                        <td className="p-2 align-middle">{vehicleData.year}</td>
-                        <td className="p-2 align-middle">{vehicleData.displayDate}</td>
-                        <td className="p-2 align-middle">{vehicleData.price}</td>
-                        <td className="p-2 align-middle">{vehicleData.discount}</td>
-                        <td className="p-2 align-middle">{vehicleData.discPrice}</td>
-                        <td className="p-2 align-middle">{vehicleData.warehouse}</td>
-                        <td className="p-2 align-middle">{vehicleData.raw.AgeinDays ?? "N/A"}</td>
-                        <td className="p-2 align-middle">
+                        <td className="px-2 py-1.5 align-middle">{vehicleData.color}</td>
+                        <td className="px-2 py-1.5 align-middle">{vehicleData.year}</td>
+                        <td className="px-2 py-1.5 align-middle">{vehicleData.displayDate}</td>
+                        <td className="px-2 py-1.5 align-middle">{vehicleData.price}</td>
+                        <td className="px-2 py-1.5 align-middle">{vehicleData.discount}</td>
+                        <td className="px-2 py-1.5 align-middle">{vehicleData.discPrice}</td>
+                        <td className="px-2 py-1.5 align-middle">{vehicleData.warehouse}</td>
+                        <td className="px-2 py-1.5 align-middle">{vehicleData.raw.AgeinDays ?? "N/A"}</td>
+                        <td className="px-2 py-1.5 align-middle">
                           <Badge
                             variant="outline"
-                            className={status.className}
+                            className={`${status.className} text-[10px]`}
                           >
                             {status.text}
                           </Badge>
@@ -863,7 +856,7 @@ export function VehicleSelectionModal({
 
           {/* Selection Info */}
           {selectedVehicles.length > 0 && (
-            <div className="mt-3 rounded-lg bg-muted p-3">
+            <div className="mt-1.5 rounded-lg bg-muted p-2">
               <div className="mb-1 text-xs font-medium">
                 Selected Vehicle{selectedVehicles.length > 1 ? "s" : ""} ({selectedVehicles.length})
               </div>
@@ -878,7 +871,7 @@ export function VehicleSelectionModal({
           )}
         </div>
 
-        <div className="flex shrink-0 justify-end gap-2 border-t px-4 py-3">
+        <div className="flex shrink-0 justify-end gap-2 border-t bg-background px-4 py-2">
           <Button variant="outline" onClick={handleCancel}>
             Cancel
           </Button>
