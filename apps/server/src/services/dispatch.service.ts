@@ -1,10 +1,6 @@
-import { createRequire } from 'node:module';
 import { db } from './database.service.js';
 import { AppError, NotFoundError } from '../types/errors.js';
 import { logger } from '../utils/logger.js';
-
-const require = createRequire(import.meta.url);
-const hanaStream = require('../../../../node_modules/.bun/node_modules/@sap/hana-client/extension/Stream.js');
 
 const DISPATCH_DB_SCHEMA = (() => {
   const raw = process.env.DISPATCH_DB_SCHEMA || 'BI_NEGT_KSAISUZU';
@@ -241,41 +237,6 @@ async function queryDispatchSp(queryType: string, arg1: string, arg2: string, ar
   return db.query<Row>(getSpCallSql(DISPATCH_QUERY_SP, 5), [queryType, arg1, arg2, arg3, arg4]);
 }
 
-async function queryProcedureRows<T = Row>(sql: string, params: any[]): Promise<T[]> {
-  const connection = (db as any).connection;
-  const isConnected = (db as any).isConnected;
-
-  if (!isConnected || !connection) {
-    throw new Error('Not connected to database. Call connect() first.');
-  }
-
-  return new Promise((resolve, reject) => {
-    hanaStream.createProcStatement(connection, sql, (prepareErr: Error | null, stmt: any) => {
-      if (prepareErr) {
-        reject(prepareErr);
-        return;
-      }
-
-      stmt.exec(params, (execErr: Error | null, _scalarParams: any, ...tableParams: any[]) => {
-        if (execErr) {
-          stmt.drop(() => reject(execErr));
-          return;
-        }
-
-        stmt.drop((dropErr: Error | null) => {
-          if (dropErr) {
-            reject(dropErr);
-            return;
-          }
-
-          const firstTable = tableParams.find((table) => Array.isArray(table)) || [];
-          resolve(firstTable as T[]);
-        });
-      });
-    });
-  });
-}
-
 async function getLatestPodByDispatchNo(dispatchNo: string) {
   try {
     const row = await db.queryOne<Row>(
@@ -495,10 +456,7 @@ export async function createDispatch(data: {
         throw error;
       }
 
-      headerRows = await queryProcedureRows<Row>(
-        getSpCallSql(DISPATCH_CREATE_HEADER_SP, 16),
-        headerInputParams
-      );
+      headerRows = await db.query<Row>(getSpCallSql(DISPATCH_CREATE_HEADER_SP, 15), headerInputParams);
     }
 
     let headerSlno = toNumber(pickValue(headerRows[0] || {}, ['HDSLNO', 'SLNO']));
