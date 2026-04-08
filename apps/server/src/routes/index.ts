@@ -12,6 +12,7 @@ import tradeInAppraisalRoutes from './tradeInAppraisal.routes.js';
 import financingRoutes from './financing.routes.js';
 import quotationRoutes from './quotation.routes.js';
 import salesOrderRoutes from './salesOrder.routes.js';
+import dispatchRoutes from './dispatch.routes.js';
 
 export function registerRoutes(app: Router): void {
   app.use('/', healthRoutes);
@@ -33,4 +34,5 @@ export function registerRoutes(app: Router): void {
   app.use('/api/financing', authenticate, financingRoutes);
   app.use('/api/quotations', authenticate, quotationRoutes);
   app.use('/api/sales-orders', authenticate, salesOrderRoutes);
+  app.use('/api/dispatch-pod', authenticate, dispatchRoutes);
 }

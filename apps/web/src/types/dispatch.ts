@@ -1,69 +1,83 @@
 export type DispatchStatus =
-  | 'Pending'
-  | 'Dispatched'
-  | 'In Transit'
-  | 'POD Submitted'
+  | 'Confirmed'
   | 'Completed'
-  | 'Partially Completed';
+  | 'POD Submitted'
+  | 'Dispatched';
 
-export type DeliveryStatus =
-  | 'Pending'
-  | 'Delivered'
-  | 'Partially Delivered'
-  | 'Failed Delivery';
-
-export interface DeliveryNote {
+export interface DeliveryNoteVehicle {
   id: string;
-  branch: string;
-  dNoteNo: string;
-  loadList: string;
-  freightLL: string;
-  dNoteDate: string;
-  diNo: string;
+  serialNo: number;
+  deliveryNo: string;
+  soNo: string;
   invoiceNo: string;
-  customerCodeName: string;
-  invoiceType: string;
+  vinNo: string;
+  model: string;
   qty: number;
-  directShipment: 'YES' | 'NO';
-  warehouse: string;
 }
 
-export interface DispatchLine extends DeliveryNote {
-  lineId: string;
-  vehicle: string;
-  driver: string;
-  packageCount: number;
-  packageRemarks?: string;
-  deliveryLocation?: string;
-  deliveryStatus: DeliveryStatus;
-  proofAttached: boolean;
+export interface DeliveryNoteSource {
+  id: string;
+  hdSlno?: number;
+  dndocEntry?: string;
+  dNoteNo: string;
+  dNoteDate: string;
+  customerCode: string;
+  customerName: string;
+  address: string;
+  salespersonName?: string;
+  salespersonEmail?: string;
+  soRef: string;
+  remarks: string;
+  totalQty: number;
+  vehicles: DeliveryNoteVehicle[];
+}
+
+export interface DispatchVehicle {
+  lineId?: string;
+  sourceVehicleId?: string;
+  serialNo: number;
+  deliveryNo: string;
+  soNo: string;
+  invoiceNo: string;
+  vinNo: string;
+  model: string;
+  qty: number;
 }
 
 export interface DispatchPOD {
-  receiverName: string;
-  receiverPhone?: string;
-  proofType: 'Signature';
-  signatureDataUrl?: string;
-  notes?: string;
+  invoice: boolean;
+  insurance: boolean;
+  warranty: boolean;
+  deliveryCheckList: boolean;
+  registrationPapers: boolean;
+  vehicleKeys: boolean;
+  vehicleManuals: boolean;
+  receivedByName: string;
+  receivedByMobile: string;
+  deliveredBy: string;
+  signature: string;
   submittedAt: string;
 }
 
 export interface DispatchRecord {
   id: string;
-  refNo: string;
-  loadingNo: string;
-  date: string;
-  driver: string;
-  vehicle: string;
-  externalDriverName?: string;
-  externalVehicleNo?: string;
-  externalVendor?: string;
-  remarks?: string;
-  deliveryInstructions?: string;
-  lfsDetails?: string;
+  hdSlno?: number;
+  dndocEntry?: string;
+  dispatchNo: string;
+  dispatchDate: string;
+  sourceDNoteId: string;
+  dNoteNo: string;
+  dNoteDate: string;
+  customerCode: string;
+  customerName: string;
+  address: string;
+  salespersonName?: string;
+  salespersonEmail?: string;
+  soRef: string;
+  remarks: string;
+  totalQty: number;
+  vehicles: DispatchVehicle[];
   status: DispatchStatus;
-  lines: DispatchLine[];
-  finalized: boolean;
   pod?: DispatchPOD;
   createdAt: string;
   updatedAt: string;
@@ -71,16 +85,12 @@ export interface DispatchRecord {
 
 export interface DispatchStore {
   dispatches: DispatchRecord[];
-  availableNotes: DeliveryNote[];
+  dnotes: DeliveryNoteSource[];
 }
 
 export interface CreateDispatchInput {
-  loadingNo: string;
-  date: string;
-  driver: string;
-  vehicle: string;
-  externalDriverName?: string;
-  externalVehicleNo?: string;
-  externalVendor?: string;
+  dispatchDate: string;
+  sourceDNoteId: string;
   remarks?: string;
+  selectedVehicleIds: string[];
 }

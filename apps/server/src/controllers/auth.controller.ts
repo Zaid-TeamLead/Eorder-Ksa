@@ -17,6 +17,7 @@ function setAccessTokenCookie(res: Response, accessToken: string): void {
     ...(isProduction ? {} : { domain: undefined }),
   });
 
+
   // Debug log in development
   if (!isProduction) {
     console.log('Cookie set:', {

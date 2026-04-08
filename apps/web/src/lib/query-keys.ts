@@ -89,6 +89,14 @@ export const queryKeys = {
     detail: (id: number) => ['sales-order', id] as const,
   },
 
+
+  // Dispatch & POD
+  dispatch: {
+    all: ['dispatch-pod'] as const,
+    detail: (dispatchNo: string) => ['dispatch-pod', dispatchNo] as const,
+    dnotes: ['dispatch-pod', 'dnotes'] as const,
+  },
+
   // Discount Approvals
   discountApprovals: {
     all: ["discount-approvals"] as const,

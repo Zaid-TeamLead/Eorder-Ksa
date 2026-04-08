@@ -50,6 +50,13 @@ export const API_ENDPOINTS = {
   TEST_DRIVE_BY_ID: (id: string | number) => `/api/book-test-drive/${id}`,
   TEST_DRIVE_STATUS: (id: string | number) => `/api/book-test-drive/${id}/status`,
 
+  // Dispatch & POD endpoints
+  DISPATCH_POD: '/api/dispatch-pod',
+  DISPATCH_POD_BY_ID: (dispatchNo: string | number) => `/api/dispatch-pod/${dispatchNo}`,
+  DISPATCH_DNOTES: '/api/dispatch-pod/dnotes',
+  DISPATCH_DNOTE_BY_ID: (dNoteNo: string | number) => `/api/dispatch-pod/dnotes/${dNoteNo}`,
+  DISPATCH_POD_SUBMIT: (dispatchNo: string | number) => `/api/dispatch-pod/${dispatchNo}/pod`,
+
   // Financing endpoints
   FINANCING: '/api/financing',
   FINANCING_BY_ID: (id: string | number) => `/api/financing/${id}`,
