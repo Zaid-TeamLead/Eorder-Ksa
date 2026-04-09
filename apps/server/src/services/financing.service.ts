@@ -84,7 +84,7 @@ async function callFinancingCreateSp(data: any, currentDate: string) {
 
   try {
     await db.query(getSpCallSql(FINANCING_CREATE_SP, 21), paramsV2);
-    return;
+    return { usedLegacyProcedure: false };
   } catch (error) {
     if (!isProcedureArityError(error)) {
       throw error;
@@ -120,6 +120,7 @@ async function callFinancingCreateSp(data: any, currentDate: string) {
   ];
 
   await db.query(getSpCallSql(FINANCING_CREATE_SP, 20), paramsV1);
+  return { usedLegacyProcedure: true };
 }
 
 async function callFinancingUpdateSp(id: number, merged: any, updatedBy: string, currentDate: string) {
@@ -149,7 +150,7 @@ async function callFinancingUpdateSp(id: number, merged: any, updatedBy: string,
 
   try {
     await db.query(getSpCallSql(FINANCING_UPDATE_SP, 21), paramsV2);
-    return;
+    return { usedLegacyProcedure: false };
   } catch (error) {
     if (!isProcedureArityError(error)) {
       throw error;
@@ -185,6 +186,36 @@ async function callFinancingUpdateSp(id: number, merged: any, updatedBy: string,
   ];
 
   await db.query(getSpCallSql(FINANCING_UPDATE_SP, 20), paramsV1);
+  return { usedLegacyProcedure: true };
+}
+
+function isMissingCurrencyColumnError(error: unknown): boolean {
+  const message = String((error as any)?.message || '').toLowerCase();
+  return message.includes('invalid column name') || message.includes('unknown column');
+}
+
+async function syncCurrencyForLegacyProcedure(id: number, currency: string | null | undefined) {
+  const normalizedCurrency = String(currency || '').trim();
+  if (!normalizedCurrency) {
+    return;
+  }
+
+  try {
+    await db.query(
+      `UPDATE "${FINANCING_TABLE_SCHEMA}"."DMS_ENQUIRY_FINANCING" SET "CURRENCY" = ? WHERE "SLNO" = ?`,
+      [normalizedCurrency, id]
+    );
+  } catch (error) {
+    if (isMissingCurrencyColumnError(error)) {
+      logger.warn(
+        { financingId: id, error },
+        'Financing currency column is not available; currency value could not be synchronized'
+      );
+      return;
+    }
+
+    throw error;
+  }
 }
 
 function pickStringValue(row: Record<string, any>, keys: string[]): string | null {
@@ -196,6 +227,89 @@ function pickStringValue(row: Record<string, any>, keys: string[]): string | nul
     return text;
   }
   return null;
+}
+
+function pickNumberValue(row: Record<string, any>, keys: string[]): number | null {
+  for (const key of keys) {
+    const value = row[key];
+    if (value === undefined || value === null || value === '') continue;
+
+    const parsed = typeof value === 'number' ? value : Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return null;
+}
+
+function pickRawValue<T = any>(row: Record<string, any>, keys: string[]): T | null {
+  for (const key of keys) {
+    const value = row[key];
+    if (value !== undefined && value !== null) {
+      return value as T;
+    }
+  }
+
+  return null;
+}
+
+function normalizeFinancingRow(row: any) {
+  const record = row as Record<string, any>;
+
+  return {
+    ...record,
+    SLNO: pickNumberValue(record, ['SLNO', 'Slno', 'slno']) ?? 0,
+    ENQUIRY_SLNO:
+      pickNumberValue(record, ['ENQUIRY_SLNO', 'EnquirySlno', 'enquirySlno', 'ENQUIRYID']) ?? 0,
+    LENDER_CODE:
+      pickStringValue(record, ['LENDER_CODE', 'LenderCode', 'lenderCode', 'BANK_CODE']) || '',
+    LENDER_NAME:
+      pickStringValue(record, ['LENDER_NAME', 'LenderName', 'lenderName', 'BANK_NAME']) || '',
+    SCHEME_NAME:
+      pickStringValue(record, ['SCHEME_NAME', 'SchemeName', 'schemeName', 'DESCRIPTION']) || null,
+    CURRENCY:
+      pickStringValue(record, ['CURRENCY', 'Currency', 'currency', 'Curr', 'CURR']) || null,
+    VEHICLE_PRICE:
+      pickNumberValue(record, ['VEHICLE_PRICE', 'VehiclePrice', 'vehiclePrice']) ?? null,
+    DOWNPAYMENT:
+      pickNumberValue(record, ['DOWNPAYMENT', 'Downpayment', 'downpayment']) ?? null,
+    DOWNPAYMENT_PERCENT:
+      pickNumberValue(record, [
+        'DOWNPAYMENT_PERCENT',
+        'DownpaymentPercent',
+        'downpaymentPercent',
+      ]) ?? null,
+    TRADE_IN_VALUE:
+      pickNumberValue(record, ['TRADE_IN_VALUE', 'TradeInValue', 'tradeInValue']) ?? null,
+    FINANCE_AMOUNT:
+      pickNumberValue(record, ['FINANCE_AMOUNT', 'FinanceAmount', 'financeAmount']) ?? null,
+    TERM_MONTHS:
+      pickNumberValue(record, ['TERM_MONTHS', 'TermMonths', 'termMonths']) ?? null,
+    INTEREST_RATE:
+      pickNumberValue(record, ['INTEREST_RATE', 'InterestRate', 'interestRate']) ?? null,
+    MONTHLY_PAYMENT:
+      pickNumberValue(record, ['MONTHLY_PAYMENT', 'MonthlyPayment', 'monthlyPayment']) ?? null,
+    TOTAL_INTEREST:
+      pickNumberValue(record, ['TOTAL_INTEREST', 'TotalInterest', 'totalInterest']) ?? null,
+    FDA: pickNumberValue(record, ['FDA', 'fda']) ?? null,
+    GPV_BALLOON:
+      pickNumberValue(record, ['GPV_BALLOON', 'GpvBalloon', 'gpvBalloon']) ?? null,
+    SALE_CODE: pickStringValue(record, ['SALE_CODE', 'SaleCode', 'saleCode']) || null,
+    STATUS: pickStringValue(record, ['STATUS', 'Status', 'status']) || null,
+    IS_SELECTED:
+      pickStringValue(record, ['IS_SELECTED', 'IsSelected', 'isSelected']) || null,
+    CREATED_DATE:
+      pickRawValue(record, ['CREATED_DATE', 'CreatedDate', 'createdDate']) ?? null,
+    CREATED_BY: pickStringValue(record, ['CREATED_BY', 'CreatedBy', 'createdBy']) || null,
+    UPDATED_DATE:
+      pickRawValue(record, ['UPDATED_DATE', 'UpdatedDate', 'updatedDate']) ?? null,
+    UPDATED_BY: pickStringValue(record, ['UPDATED_BY', 'UpdatedBy', 'updatedBy']) || null,
+  };
+}
+
+function normalizeFinancingRows(rows: any[]) {
+  return rows.map(normalizeFinancingRow);
 }
 
 function normalizeLenders(rows: any[]): any[] {
@@ -349,7 +463,8 @@ export const financingService = {
    */
   async getByEnquiryId(enquiryId: number) {
     try {
-      return await db.query(getSpCallSql(FINANCING_GET_BY_ENQUIRY_SP, 1), [enquiryId]);
+      const rows = await db.query(getSpCallSql(FINANCING_GET_BY_ENQUIRY_SP, 1), [enquiryId]);
+      return normalizeFinancingRows(rows);
     } catch (error: any) {
       throw new AppError(
         `Failed to load financing schemes: ${error.message}`,
@@ -365,7 +480,7 @@ export const financingService = {
   async getById(id: number) {
     try {
       const rows = await db.query(getSpCallSql(FINANCING_GET_BY_ID_SP, 1), [id]);
-      return rows[0] || null;
+      return rows[0] ? normalizeFinancingRow(rows[0]) : null;
     } catch (error: any) {
       throw new AppError(
         `Failed to load financing scheme: ${error.message}`,
@@ -381,12 +496,16 @@ export const financingService = {
   async create(data: any) {
     const currentDate = new Date().toISOString().replace('T', ' ').substring(0, 19);
     try {
-      await callFinancingCreateSp(data, currentDate);
+      const createResult = await callFinancingCreateSp(data, currentDate);
 
       const insertedId = await db.queryOne<{ SLNO: number }>(
         `SELECT "SLNO" FROM "${FINANCING_TABLE_SCHEMA}"."DMS_ENQUIRY_FINANCING" WHERE "ENQUIRY_SLNO" = ? AND "IS_DELETED" = 'N' ORDER BY "CREATED_DATE" DESC`,
         [data.enquirySlno]
       );
+
+      if (createResult.usedLegacyProcedure && insertedId?.SLNO) {
+        await syncCurrencyForLegacyProcedure(insertedId.SLNO, data.currency);
+      }
 
       logger.info({ enquiryId: data.enquirySlno, lender: data.lenderCode }, 'Financing scheme created');
 
@@ -436,7 +555,11 @@ export const financingService = {
         isSelected: data.isSelected ?? existing.IS_SELECTED ?? 'N',
       };
 
-      await callFinancingUpdateSp(id, merged, data.updatedBy, currentDate);
+      const updateResult = await callFinancingUpdateSp(id, merged, data.updatedBy, currentDate);
+
+      if (updateResult.usedLegacyProcedure) {
+        await syncCurrencyForLegacyProcedure(id, merged.currency);
+      }
 
       logger.info({ financingId: id }, 'Financing scheme updated');
 
