@@ -3,6 +3,19 @@ import { useRouter } from 'next/navigation';
 import type { SalesEnquiry } from '@/services/enquiry';
 import { toast } from 'sonner';
 
+interface ImmediateTestDriveDefaults {
+  customerId?: string;
+  customerName?: string;
+  postcode?: string;
+  address?: string;
+  phoneNumber?: string;
+  email?: string;
+  registrationNumber?: string;
+  manufacturer?: string;
+  model?: string;
+  variant?: string;
+}
+
 export interface UseEnquiryActionsReturn {
   handleTradeInAppraisal: (enquiry: SalesEnquiry) => void;
   handleBankFunding: (enquiry: SalesEnquiry) => void;
@@ -34,6 +47,19 @@ export interface UseEnquiryActionsReturn {
  */
 export function useEnquiryActions(): UseEnquiryActionsReturn {
   const router = useRouter();
+
+  const pickFirstString = useCallback(
+    (record: Record<string, unknown>, keys: string[]): string => {
+      for (const key of keys) {
+        const value = record[key];
+        if (value !== undefined && value !== null && String(value).trim() !== '') {
+          return String(value).trim();
+        }
+      }
+      return '';
+    },
+    []
+  );
 
   const extractEnquiryVin = useCallback((enquiry: SalesEnquiry): string => {
     if (enquiry.VINNUMBER?.trim()) {
@@ -72,6 +98,83 @@ export function useEnquiryActions(): UseEnquiryActionsReturn {
     return dynamicMatch ? String(dynamicMatch[1]).trim() : '';
   }, []);
 
+  const getVehicleRecordForVin = useCallback(
+    (enquiry: SalesEnquiry, vin: string): Record<string, unknown> => {
+      const vinDetails = enquiry.VINDETAILS as unknown;
+      if (!vinDetails || typeof vinDetails !== 'object') {
+        return {};
+      }
+
+      const record = vinDetails as Record<string, unknown>;
+      const selectedVehicleLines = Array.isArray(record.SELECTED_VEHICLE_LINES)
+        ? (record.SELECTED_VEHICLE_LINES as Array<Record<string, unknown>>)
+        : [];
+
+      const matchingLine = selectedVehicleLines.find((line) => {
+        const directVin = line.vinValue;
+        if (directVin !== undefined && directVin !== null && String(directVin).trim() === vin) {
+          return true;
+        }
+
+        const nestedVin =
+          line.vin && typeof line.vin === 'object'
+            ? pickFirstString(line.vin as Record<string, unknown>, [
+                'VINNUMBER',
+                'VIN',
+                'vinNumber',
+                'vin',
+                'U_Veh_StockID',
+                'u_veh_stockid',
+              ])
+            : '';
+
+        return nestedVin === vin;
+      });
+
+      if (matchingLine?.vin && typeof matchingLine.vin === 'object') {
+        return matchingLine.vin as Record<string, unknown>;
+      }
+
+      return record;
+    },
+    [pickFirstString]
+  );
+
+  const buildImmediateTestDriveDefaults = useCallback(
+    (enquiry: SalesEnquiry, vin: string): ImmediateTestDriveDefaults => {
+      const vehicleRecord = getVehicleRecordForVin(enquiry, vin);
+
+      return {
+        customerId: enquiry.CUSTOMERID || '',
+        customerName: enquiry.CUSTOMERNAME || '',
+        postcode: enquiry.POSTCODE || '',
+        address: enquiry.ADDRESS || '',
+        phoneNumber: enquiry.MOBILE || enquiry.HOMEPHONE || enquiry.WORKPHONE || '',
+        email: enquiry.HOMEEMAIL || '',
+        registrationNumber: vin,
+        manufacturer:
+          enquiry.MAKENAME ||
+          enquiry.MAKE ||
+          pickFirstString(vehicleRecord, ['U_Veh_Brand', 'Brand', 'MAKENAME', 'MAKE', 'Make']),
+        model:
+          enquiry.MODELNAME ||
+          enquiry.MODEL ||
+          pickFirstString(vehicleRecord, [
+            'U_Veh_ModelDescr',
+            'Model',
+            'MODELNAME',
+            'MODEL',
+            'ItemName',
+          ]),
+        variant:
+          enquiry.VARIANTNAME ||
+          enquiry.VARIANT ||
+          pickFirstString(vehicleRecord, ['Variant', 'VARIANTNAME', 'VARIANT', 'ItemCode']),
+      };
+    },
+    [getVehicleRecordForVin, pickFirstString]
+  );
+
   const handleTradeInAppraisal = useCallback(
     (enquiry: SalesEnquiry) => {
       router.push(`/dashboard/trade-in-appraisal/${enquiry.SLNO}`);
@@ -101,11 +204,17 @@ export function useEnquiryActions(): UseEnquiryActionsReturn {
         return;
       }
 
-      router.push(
-        `/dashboard/test-drive?action=create&immediate=true&enquiryId=${enquiry.SLNO}&vehicleVin=${encodeURIComponent(vin)}`
-      );
+      const params = new URLSearchParams({
+        action: 'create',
+        immediate: 'true',
+        enquiryId: String(enquiry.SLNO),
+        vehicleVin: vin,
+        enquiryDefaults: JSON.stringify(buildImmediateTestDriveDefaults(enquiry, vin)),
+      });
+
+      router.push(`/dashboard/test-drive?${params.toString()}`);
     },
-    [extractEnquiryVin, router]
+    [buildImmediateTestDriveDefaults, extractEnquiryVin, router]
   );
 
   return {

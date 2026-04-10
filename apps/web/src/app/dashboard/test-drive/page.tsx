@@ -86,6 +86,40 @@ const sanitizeEmail = (value?: string | null): string => {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed) ? trimmed : "";
 };
 
+const parseImmediateEnquiryDefaults = (
+  value?: string,
+  vehicleVin?: string
+): Partial<BookTestDriveFormData> | undefined => {
+  if (!value) return undefined;
+
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>;
+    const manufacturer =
+      typeof parsed.manufacturer === "string" ? parsed.manufacturer : "";
+    const model = typeof parsed.model === "string" ? parsed.model : "";
+    const variant = typeof parsed.variant === "string" ? parsed.variant : "";
+
+    return {
+      customerId: typeof parsed.customerId === "string" ? parsed.customerId : "",
+      customerName: typeof parsed.customerName === "string" ? parsed.customerName : "",
+      postcode: typeof parsed.postcode === "string" ? parsed.postcode : "",
+      address: typeof parsed.address === "string" ? parsed.address : "",
+      phoneNumber: typeof parsed.phoneNumber === "string" ? parsed.phoneNumber : "",
+      email: sanitizeEmail(typeof parsed.email === "string" ? parsed.email : ""),
+      registrationNumber:
+        vehicleVin ||
+        (typeof parsed.registrationNumber === "string" ? parsed.registrationNumber : ""),
+      manufacturer,
+      model,
+      variant,
+      description: [manufacturer, model, variant].filter(Boolean).join(" "),
+    };
+  } catch (error) {
+    logger.warn("Failed to parse immediate enquiry defaults from URL:", error);
+    return undefined;
+  }
+};
+
 // Get immediate booking defaults from URL params (vehicleVin)
 const getImmediateBookingDefaults = (
   vehicleVin?: string,
@@ -202,13 +236,20 @@ const toBookingPayload = (
 export default function BookTestDrive({
   searchParams,
 }: {
-  searchParams: Promise<{ action?: string; immediate?: string; vehicleVin?: string; enquiryId?: string }>;
+  searchParams: Promise<{
+    action?: string;
+    immediate?: string;
+    vehicleVin?: string;
+    enquiryId?: string;
+    enquiryDefaults?: string;
+  }>;
 }) {
   const params = use(searchParams);
   const action = params.action;
   const immediate = params.immediate === "true";
   const vehicleVin = params.vehicleVin;
   const enquiryId = params.enquiryId;
+  const enquiryDefaultsParam = params.enquiryDefaults;
   const { data: session } = useSession();
   const slpCode = session?.user.SlpCode;
   const formRef = useRef<{ submit: () => void; reset: () => void }>(null);
@@ -236,7 +277,22 @@ export default function BookTestDrive({
     let isCancelled = false;
 
     const loadImmediateEnquiryDefaults = async () => {
-      if (!immediate || !enquiryId) {
+      if (!immediate) {
+        setImmediateEnquiryDefaults(undefined);
+        return;
+      }
+
+      const fallbackDefaults: Partial<BookTestDriveFormData> = {
+        registrationNumber: vehicleVin || "",
+      };
+
+      const parsedDefaults = parseImmediateEnquiryDefaults(enquiryDefaultsParam, vehicleVin);
+      if (parsedDefaults) {
+        setImmediateEnquiryDefaults(parsedDefaults);
+        return;
+      }
+
+      if (!enquiryId) {
         setImmediateEnquiryDefaults(undefined);
         return;
       }
@@ -270,10 +326,19 @@ export default function BookTestDrive({
           description,
         });
       } catch (error) {
-        logger.error("Failed to load enquiry defaults for immediate test drive:", error);
         if (!isCancelled) {
-          setImmediateEnquiryDefaults(undefined);
+          setImmediateEnquiryDefaults(fallbackDefaults);
         }
+
+        if (axios.isAxiosError(error) && error.response?.status === 403) {
+          logger.warn(
+            "Immediate test drive enquiry defaults are not accessible for this user; using VIN-only defaults.",
+            { enquiryId: parsedId }
+          );
+          return;
+        }
+
+        logger.warn("Failed to load enquiry defaults for immediate test drive:", error);
       }
     };
 
@@ -282,7 +347,7 @@ export default function BookTestDrive({
     return () => {
       isCancelled = true;
     };
-  }, [immediate, enquiryId, vehicleVin]);
+  }, [immediate, enquiryDefaultsParam, enquiryId, vehicleVin]);
 
   // Fetch bookings using custom hook
   const { bookings, isLoading, error } = useTestDrives();
