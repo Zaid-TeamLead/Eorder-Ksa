@@ -21,9 +21,10 @@ import { toast } from "sonner";
 interface FundingProps {
   enquiryId?: number;
   financingSchemes: Financing[];
-  onAddScheme: (data: any) => void;
-  onUpdateScheme: (id: number, data: any) => void;
-  onDeleteScheme: (id: number) => void;
+  onAddScheme: (data: any) => Promise<void>;
+  onUpdateScheme: (id: number, data: any) => Promise<void>;
+  onDeleteScheme: (id: number) => Promise<void>;
+  isSavingScheme?: boolean;
 }
 
 export function Funding({
@@ -32,6 +33,7 @@ export function Funding({
   onAddScheme,
   onUpdateScheme,
   onDeleteScheme,
+  isSavingScheme = false,
 }: FundingProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingScheme, setEditingScheme] = useState<Financing | null>(null);
@@ -51,12 +53,13 @@ export function Funding({
     setDialogOpen(true);
   };
 
-  const handleSubmit = (data: any) => {
+  const handleSubmit = async (data: any) => {
     if (editingScheme) {
-      onUpdateScheme(editingScheme.SLNO, data);
-    } else {
-      onAddScheme(data);
+      await onUpdateScheme(editingScheme.SLNO, data);
+      return;
     }
+
+    await onAddScheme(data);
   };
 
   const handleDelete = async (id: number) => {
@@ -148,6 +151,7 @@ export function Funding({
         salesEmployees={salesEmployees}
         onSubmit={handleSubmit}
         initialData={editingScheme}
+        isSubmitting={isSavingScheme}
       />
     </div>
   );

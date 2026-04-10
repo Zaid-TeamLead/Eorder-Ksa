@@ -55,6 +55,7 @@ import {
   approveDiscount,
   passToCashier,
   allocateDeposit,
+  reserveVehicle,
   cancelQuotation,
   logActivity,
 } from "@/services/quotation";
@@ -66,6 +67,7 @@ import type {
   ApproveDiscountData,
   PassToCashierData,
   AllocateDepositData,
+  ReserveVehicleData,
   CancelQuotationData,
   CreateActivityData,
   UseQuotationMutationsReturn,
@@ -160,6 +162,23 @@ export function useQuotationMutations(): UseQuotationMutationsReturn {
     },
   });
 
+  const reserveVehicleMutation = useMutationWithToast({
+    mutationFn: ({
+      quotationId,
+      data,
+    }: {
+      quotationId: number;
+      data: ReserveVehicleData;
+    }) => reserveVehicle(quotationId, data),
+    successMessage: "Vehicle reserved successfully",
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.quotations.all });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.quotations.detail(variables.quotationId),
+      });
+    },
+  });
+
   // Cancel quotation mutation
   const cancelQuotationMutation = useMutationWithToast({
     mutationFn: ({
@@ -218,6 +237,9 @@ export function useQuotationMutations(): UseQuotationMutationsReturn {
     allocateDeposit: async (quotationId: number, data: AllocateDepositData) => {
       await allocateDepositMutation.mutateAsync({ quotationId, data });
     },
+    reserveVehicle: async (quotationId: number, data: ReserveVehicleData) => {
+      await reserveVehicleMutation.mutateAsync({ quotationId, data });
+    },
     cancelQuotation: async (quotationId: number, data: CancelQuotationData) => {
       await cancelQuotationMutation.mutateAsync({ quotationId, data });
     },
@@ -226,5 +248,6 @@ export function useQuotationMutations(): UseQuotationMutationsReturn {
     isDeleting,
     isSuperseding: supersedeMutation.isPending,
     isCancelling: cancelQuotationMutation.isPending,
+    isReservingVehicle: reserveVehicleMutation.isPending,
   };
 }

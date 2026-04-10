@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Save, Send, ArrowLeft } from 'lucide-react';
+import { Save, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,6 +22,7 @@ import { Separator } from '@/components/ui/separator';
 import { LineItemsEditor } from '@/forms/quotation/components/line-items-editor';
 import { PricingSummary } from '@/forms/quotation/components/pricing-summary';
 import { quotationFormSchema, defaultQuotationFormValues, type QuotationFormData } from '@/forms/quotation/schema';
+import { getQuotationsByEnquiryId } from '@/services/quotation';
 
 // Shared components
 import { LoadingState } from '@/components/shared/loading-state';
@@ -37,6 +38,9 @@ export default function CreateQuotationPage() {
   const router = useRouter();
   const enquiryId = searchParams.get('enquiryId');
   const supersedeId = searchParams.get('supersede');
+  const [isCheckingExistingQuotation, setIsCheckingExistingQuotation] = useState(
+    Boolean(enquiryId) && !supersedeId
+  );
 
   const form = useForm<QuotationFormData>({
     resolver: zodResolver(quotationFormSchema) as any,
@@ -57,15 +61,64 @@ export default function CreateQuotationPage() {
   });
 
   // Handle form submission
-  const { handleSaveAsDraft, handleSaveAndSend, isCreating } = useQuotationFormSubmit({
+  const { handleSaveAsDraft, isCreating } = useQuotationFormSubmit({
     isSuperseding,
     supersedeId,
   });
 
-  if (isLoading) {
+  useEffect(() => {
+    if (!enquiryId || supersedeId) {
+      setIsCheckingExistingQuotation(false);
+      return;
+    }
+
+    let isActive = true;
+
+    const checkExistingQuotation = async () => {
+      try {
+        const parsedEnquiryId = Number.parseInt(enquiryId, 10);
+        if (!Number.isFinite(parsedEnquiryId) || parsedEnquiryId <= 0) {
+          if (isActive) {
+            setIsCheckingExistingQuotation(false);
+          }
+          return;
+        }
+
+        const quotations = await getQuotationsByEnquiryId(parsedEnquiryId);
+        if (!isActive) return;
+
+        if (quotations.length > 0) {
+          const existingQuotation = quotations[0];
+          toast.info(`Quotation ${existingQuotation.QUOTATION_NUMBER} already exists for this enquiry`);
+          router.replace(`/dashboard/quotations/${existingQuotation.SLNO}`);
+          return;
+        }
+      } catch {
+        // Allow the page to continue if duplicate lookup fails.
+      }
+
+      if (isActive) {
+        setIsCheckingExistingQuotation(false);
+      }
+    };
+
+    checkExistingQuotation();
+
+    return () => {
+      isActive = false;
+    };
+  }, [enquiryId, router, supersedeId]);
+
+  if (isLoading || isCheckingExistingQuotation) {
     return (
       <LoadingState
-        message={isSuperseding ? 'Loading quotation data...' : 'Loading enquiry data...'}
+        message={
+          isCheckingExistingQuotation
+            ? 'Checking existing quotations...'
+            : isSuperseding
+              ? 'Loading quotation data...'
+              : 'Loading enquiry data...'
+        }
       />
     );
   }
@@ -402,21 +455,7 @@ export default function CreateQuotationPage() {
                   ) : (
                     <>
                       <Save className="mr-2 h-4 w-4" />
-                      Save as Draft
-                    </>
-                  )}
-                </Button>
-                <Button
-                  type="button"
-                  onClick={form.handleSubmit(handleSaveAndSend)}
-                  disabled={isCreating}
-                >
-                  {isCreating ? (
-                    <ButtonLoading text="Saving..." />
-                  ) : (
-                    <>
-                      <Send className="mr-2 h-4 w-4" />
-                      Save & Send
+                      {isSuperseding ? 'Create New Version' : 'Generate Quotation'}
                     </>
                   )}
                 </Button>

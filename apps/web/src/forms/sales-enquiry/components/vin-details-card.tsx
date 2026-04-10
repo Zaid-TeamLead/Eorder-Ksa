@@ -2,6 +2,7 @@
 
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { logger } from "@/lib/logger";
 
 interface VinDetailsCardProps {
     vin: any;
@@ -18,14 +19,61 @@ export function VinDetailsCard({
     onQuantityChange,
     onRemove,
 }: VinDetailsCardProps) {
+    const normalizeKey = (key: string) =>
+        key.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+
     const getValue = (keys: string[]) => {
-        for (const key of keys) {
-            const value = vin?.[key];
-            if (value !== undefined && value !== null && String(value).trim() !== "") {
-                return String(value).trim();
+        if (!vin || typeof vin !== "object") return "";
+
+        const normalizedKeys = new Set(keys.map(normalizeKey));
+        for (const [rawKey, rawValue] of Object.entries(vin as Record<string, unknown>)) {
+            if (rawValue === undefined || rawValue === null) continue;
+            const value = String(rawValue).trim();
+            if (!value) continue;
+
+            if (normalizedKeys.has(normalizeKey(rawKey))) {
+                return value;
             }
         }
+
         return "";
+    };
+
+    const getValueFromContains = (terms: string[]) => {
+        if (!vin || typeof vin !== "object") return "";
+
+        const normalizedTerms = terms.map(normalizeKey);
+        for (const [rawKey, rawValue] of Object.entries(vin as Record<string, unknown>)) {
+            if (rawValue === undefined || rawValue === null) continue;
+            const value = String(rawValue).trim();
+            if (!value) continue;
+
+            const normalizedRawKey = normalizeKey(rawKey);
+            if (normalizedTerms.some((term) => normalizedRawKey.includes(term))) {
+                return value;
+            }
+        }
+
+        return "";
+    };
+
+    const resolveMake = () => {
+        const direct = getValue([
+            "U_Veh_Brand",
+            "U_VEH_BRAND",
+            "Brand",
+            "BRAND",
+            "MAKENAME",
+            "MAKE",
+            "Make",
+            "ItmsGrpNam",
+        ]);
+
+        if (direct) {
+            return direct === getValue(["ItmsGrpNam"]) ? direct.split(" ")[0] || direct : direct;
+        }
+
+        return getValueFromContains(["brand", "make", "itmsgrp", "group"]);
     };
 
     const formatMoney = (raw: string) => {
@@ -35,7 +83,8 @@ export function VinDetailsCard({
         return `${currency} ${parsed.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     };
 
-    const make = getValue(["U_Veh_Brand", "U_VEH_BRAND", "Brand", "BRAND"]) || "N/A";
+    const resolvedMake = resolveMake();
+    const make = resolvedMake || "N/A";
     const model = getValue(["U_Veh_ModelDescr", "U_Veh_ModelFull", "U_Veh_Model", "U_VEH_MODEL", "Model Description", "MODEL"]) || "N/A";
     const variant = getValue(["ItemCode", "ITEMCODE", "ProductCode", "PRODUCTCODE"]) || "N/A";
     const year = getValue(["U_Veh_MY", "U_VEH_MY", "Model Year", "MODELYEAR", "YEAR", "Year"]) || "N/A";
@@ -54,6 +103,19 @@ export function VinDetailsCard({
     const available = Number.isFinite(Number(availableRaw)) && Number(availableRaw) > 0
         ? Number(availableRaw)
         : undefined;
+
+    if (make === "N/A" || location === "N/A") {
+        logger.warn("VinDetailsCard could not resolve vehicle fields", {
+            vinValue,
+            make,
+            location,
+            availableKeys:
+                vin && typeof vin === "object"
+                    ? Object.keys(vin as Record<string, unknown>).sort()
+                    : [],
+            vehicle: vin,
+        });
+    }
 
     return (
         <div className="rounded-lg border bg-muted/30 p-3 space-y-2">

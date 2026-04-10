@@ -86,6 +86,7 @@ export const queryKeys = {
   // Sales Orders
   salesOrders: {
     all: ['sales-orders'] as const,
+    list: (filters?: unknown) => ['sales-orders', filters ?? {}] as const,
     detail: (id: number) => ['sales-order', id] as const,
   },
 

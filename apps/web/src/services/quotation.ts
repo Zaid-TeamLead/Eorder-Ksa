@@ -13,6 +13,7 @@ import type {
   ApproveDiscountData,
   PassToCashierData,
   AllocateDepositData,
+  ReserveVehicleData,
   CancelQuotationData,
   CreateActivityData,
   QuotationFilters,
@@ -152,6 +153,16 @@ export const allocateDeposit = async (
   data: AllocateDepositData
 ): Promise<{ success: boolean; message: string }> => {
   return apiClient.post(API_ENDPOINTS.QUOTATION_ALLOCATE_DEPOSIT(quotationId), data);
+};
+
+/**
+ * Reserve vehicle directly from quotation
+ */
+export const reserveVehicle = async (
+  quotationId: number,
+  data: ReserveVehicleData
+): Promise<{ success: boolean; message: string }> => {
+  return apiClient.post(API_ENDPOINTS.QUOTATION_RESERVE_VEHICLE(quotationId), data);
 };
 
 /**

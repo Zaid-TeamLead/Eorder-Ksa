@@ -57,6 +57,35 @@ export function EnquiryDetailsModal({
     };
   };
 
+  const getVehicleFallbackValue = (keys: string[]): string => {
+    const vinDetails =
+      enquiry.VINDETAILS && typeof enquiry.VINDETAILS === "object"
+        ? (enquiry.VINDETAILS as Record<string, unknown>)
+        : null;
+
+    const selectedLines = Array.isArray(vinDetails?.SELECTED_VEHICLE_LINES)
+      ? (vinDetails?.SELECTED_VEHICLE_LINES as Array<Record<string, unknown>>)
+      : [];
+    const firstLineVin =
+      selectedLines[0]?.vin && typeof selectedLines[0].vin === "object"
+        ? (selectedLines[0].vin as Record<string, unknown>)
+        : null;
+
+    const sources = [firstLineVin, vinDetails];
+    for (const source of sources) {
+      if (!source) continue;
+      for (const key of keys) {
+        const value = source[key];
+        const normalized = normalizeValue(value);
+        if (normalized) {
+          return normalized;
+        }
+      }
+    }
+
+    return "";
+  };
+
   const charge = getChargeDetails();
 
   const statusColors: Record<string, string> = {
@@ -144,32 +173,93 @@ export function EnquiryDetailsModal({
               <div>
                 <span className="text-muted-foreground">Make:</span>
                 <p className="font-medium">
-                  {enquiry.MAKENAME || enquiry.MAKE || "N/A"}
+                  {enquiry.MAKENAME ||
+                    enquiry.MAKE ||
+                    getVehicleFallbackValue([
+                      "U_Veh_Brand",
+                      "U_VEH_BRAND",
+                      "Brand",
+                      "BRAND",
+                      "ItmsGrpNam",
+                      "MAKE",
+                      "Make",
+                    ]) ||
+                    "N/A"}
                 </p>
               </div>
               <div>
                 <span className="text-muted-foreground">Model:</span>
                 <p className="font-medium">
-                  {enquiry.MODELNAME || enquiry.MODEL || "N/A"}
+                  {enquiry.MODELNAME ||
+                    enquiry.MODEL ||
+                    getVehicleFallbackValue([
+                      "U_Veh_ModelDescr",
+                      "U_Veh_ModelFull",
+                      "U_Veh_Model",
+                      "U_VEH_MODEL",
+                      "Model Description",
+                      "MODEL",
+                      "Model",
+                    ]) ||
+                    "N/A"}
                 </p>
               </div>
               <div>
                 <span className="text-muted-foreground">Variant:</span>
                 <p className="font-medium">
-                  {enquiry.VARIANTNAME || enquiry.VARIANT || "N/A"}
+                  {enquiry.VARIANTNAME ||
+                    enquiry.VARIANT ||
+                    getVehicleFallbackValue([
+                      "ItemCode",
+                      "ITEMCODE",
+                      "ProductCode",
+                      "PRODUCTCODE",
+                    ]) ||
+                    "N/A"}
                 </p>
               </div>
               <div>
                 <span className="text-muted-foreground">Year:</span>
-                <p className="font-medium">{enquiry.YEAR || "N/A"}</p>
+                <p className="font-medium">
+                  {enquiry.YEAR ||
+                    getVehicleFallbackValue([
+                      "U_Veh_MY",
+                      "U_VEH_MY",
+                      "Model Year",
+                      "MODELYEAR",
+                      "YEAR",
+                      "Year",
+                    ]) ||
+                    "N/A"}
+                </p>
               </div>
               <div>
                 <span className="text-muted-foreground">Color:</span>
-                <p className="font-medium">{enquiry.COLOR || "N/A"}</p>
+                <p className="font-medium">
+                  {enquiry.COLOR ||
+                    getVehicleFallbackValue([
+                      "U_Veh_Color",
+                      "U_VEH_COLOR",
+                      "COLOR",
+                      "Color",
+                    ]) ||
+                    "N/A"}
+                </p>
               </div>
               <div>
                 <span className="text-muted-foreground">VIN Number:</span>
-                <p className="font-medium">{enquiry.VINNUMBER || "N/A"}</p>
+                <p className="font-medium">
+                  {enquiry.VINNUMBER ||
+                    getVehicleFallbackValue([
+                      "VIN",
+                      "VINNUMBER",
+                      "vin",
+                      "vinNumber",
+                      "U_Veh_StockID",
+                      "U_VEH_STOCKID",
+                    ]) ||
+                    "N/A"}
+                </p>
               </div>
             </div>
           </div>

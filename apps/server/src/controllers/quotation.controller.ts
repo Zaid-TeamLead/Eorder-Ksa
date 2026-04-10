@@ -8,6 +8,7 @@ import type {
   ApproveDiscountInput,
   PassToCashierInput,
   AllocateDepositInput,
+  ReserveVehicleInput,
   CancelQuotationInput,
   CreateActivityInput,
   QuotationFilters,
@@ -41,6 +42,22 @@ export const createQuotation = async (req: Request, res: Response) => {
 
   // Remove slpCode from body if it exists (prevent unauthorized assignment)
   const { slpCode: _ignored, ...bodyData } = req.body;
+
+  const enquirySlno = Number(bodyData.enquirySlno);
+  if (Number.isFinite(enquirySlno) && enquirySlno > 0) {
+    const existingQuotations = await quotationService.getQuotationsByEnquiryId(enquirySlno);
+    const existingQuotation = existingQuotations[0];
+    if (existingQuotation) {
+      return res.status(409).json({
+        success: false,
+        message: 'Quotation already exists for this enquiry',
+        data: {
+          id: existingQuotation.SLNO,
+          quotationNumber: existingQuotation.QUOTATION_NUMBER,
+        },
+      });
+    }
+  }
 
   const quotationData: CreateQuotationInput & {
     createdBy: string;
@@ -258,6 +275,21 @@ export const allocateDeposit = async (req: Request, res: Response) => {
   };
 
   const result = await quotationService.allocateDeposit(quotationId, allocationData);
+  sendSuccess(res, result);
+};
+
+/**
+ * Reserve vehicle directly from quotation
+ * POST /api/quotations/:id/reserve-vehicle
+ */
+export const reserveVehicle = async (req: Request, res: Response) => {
+  const quotationId = Number(req.params.id);
+  const reserveData: ReserveVehicleInput & { reservedBy: string } = {
+    ...req.body,
+    reservedBy: getAuditUser(req),
+  };
+
+  const result = await quotationService.reserveVehicle(quotationId, reserveData);
   sendSuccess(res, result);
 };
 

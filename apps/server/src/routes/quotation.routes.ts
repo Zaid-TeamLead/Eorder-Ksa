@@ -19,6 +19,7 @@ import {
   passToCashier,
   getOpenDeposits,
   allocateDeposit,
+  reserveVehicle,
   cancelQuotation,
   logActivity,
   getQuotationActivities,
@@ -38,6 +39,7 @@ import {
   approveDiscountSchema,
   passToCashierSchema,
   allocateDepositSchema,
+  reserveVehicleSchema,
   cancelQuotationSchema,
   createActivitySchema,
   getQuotationByIdSchema,
@@ -242,6 +244,26 @@ router.post(
   validate(getQuotationByIdSchema, 'params'),
   validate(allocateDepositSchema),
   asyncHandler(allocateDeposit)
+);
+
+/**
+ * POST /api/quotations/:id/reserve-vehicle
+ * Reserve VIN directly against the quotation
+ */
+router.post(
+  '/:id/reserve-vehicle',
+  validate(getQuotationByIdSchema, 'params'),
+  validate(reserveVehicleSchema),
+  asyncHandler(
+    checkResourceOwnership({
+      getResourceById: (id) => quotationService.getQuotationById(Number(id)),
+      getOwnerId: (quotation) => quotation.SLPCODE,
+      getUserId: (req) => req.user?.SlpCode,
+      resourceName: 'Quotation',
+      allowUnassigned: false,
+    })
+  ),
+  asyncHandler(reserveVehicle)
 );
 
 /**

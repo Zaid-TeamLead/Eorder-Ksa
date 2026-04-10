@@ -150,6 +150,162 @@ function extractPricingFromVinDetails(vinDetailsInput: unknown) {
   };
 }
 
+function getVehicleField(vehicleInput: unknown, keys: string[]): string {
+  const vehicle = normalizeVinDetails(vehicleInput);
+  for (const key of keys) {
+    const value = vehicle[key];
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      return String(value).trim();
+    }
+  }
+  return '';
+}
+
+function getSelectedVehicleLines(vinDetailsInput: unknown) {
+  const vinDetails = normalizeVinDetails(vinDetailsInput);
+  const lines = vinDetails.SELECTED_VEHICLE_LINES;
+
+  if (!Array.isArray(lines)) {
+    return [];
+  }
+
+  return lines
+    .map((line) => {
+      if (!line || typeof line !== 'object') return null;
+      const record = line as Record<string, unknown>;
+      const vin =
+        record.vin && typeof record.vin === 'object'
+          ? (record.vin as Record<string, unknown>)
+          : null;
+      if (!vin) return null;
+
+      const quantity = Number(record.quantity);
+      return {
+        vin,
+        vinValue: toOptionalString(record.vinValue) || extractVinFromUnknown(vin),
+        quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
+      };
+    })
+    .filter((line): line is NonNullable<typeof line> => Boolean(line));
+}
+
+function buildQuotationVehicleLineItems(enquiryData: SalesEnquiry) {
+  const enquiryVinDetails = enquiryData.VINDETAILS as string | Record<string, unknown> | undefined;
+  const selectedLines = getSelectedVehicleLines(enquiryVinDetails);
+
+  if (selectedLines.length === 0) {
+    const quantity = Number(enquiryData.QUANTITY) > 0 ? Number(enquiryData.QUANTITY) : 1;
+    const pricing = extractPricingFromVinDetails(enquiryVinDetails);
+
+    return {
+      primaryVehicle: {
+        make: enquiryData.MAKE || '',
+        model: enquiryData.MODEL || '',
+        variant: enquiryData.VARIANT || '',
+        year: enquiryData.YEAR || '',
+        color: enquiryData.COLOR || '',
+        vinNumber: enquiryData.VINNUMBER || extractVinFromUnknown(enquiryVinDetails) || '',
+      },
+      pricing,
+      lineItems: [
+        {
+          lineNumber: 1,
+          itemType: 'Vehicle' as const,
+          itemCode: enquiryData.VARIANT || '',
+          itemDescription: `${enquiryData.MAKE || ''} ${enquiryData.MODEL || ''} ${enquiryData.VARIANT || ''}`.trim(),
+          quantity,
+          unitPrice: pricing.basePrice,
+          discountAmount: pricing.vehicleDiscount,
+          discountPercentage: pricing.discountPercentage,
+          netPrice: parseFloat((quantity * pricing.vehicleNetPrice).toFixed(2)),
+          manufacturer: enquiryData.MAKE || '',
+          notes: enquiryData.VINNUMBER || '',
+        },
+      ],
+      totals: {
+        basePrice: pricing.basePrice,
+        discount: pricing.vehicleDiscount,
+        netPrice: parseFloat((quantity * pricing.vehicleNetPrice).toFixed(2)),
+      },
+    };
+  }
+
+  const lineItems = selectedLines.map((line, index) => {
+    const pricing = extractPricingFromVinDetails(line.vin);
+    const make =
+      getVehicleField(line.vin, ['U_Veh_Brand', 'U_VEH_BRAND', 'Brand', 'BRAND', 'MAKENAME', 'MAKE', 'Make', 'ItmsGrpNam']) ||
+      enquiryData.MAKE ||
+      '';
+    const model =
+      getVehicleField(line.vin, ['U_Veh_ModelDescr', 'U_Veh_ModelFull', 'U_Veh_Model', 'U_VEH_MODEL', 'Model Description', 'MODEL', 'Model']) ||
+      enquiryData.MODEL ||
+      '';
+    const variant =
+      getVehicleField(line.vin, ['ItemCode', 'ITEMCODE', 'ProductCode', 'PRODUCTCODE']) ||
+      enquiryData.VARIANT ||
+      '';
+
+    return {
+      lineNumber: index + 1,
+      itemType: 'Vehicle' as const,
+      itemCode: variant,
+      itemDescription: `${make} ${model} ${variant}`.trim(),
+      quantity: line.quantity,
+      unitPrice: pricing.basePrice,
+      discountAmount: pricing.vehicleDiscount,
+      discountPercentage: pricing.discountPercentage,
+      netPrice: parseFloat((line.quantity * pricing.vehicleNetPrice).toFixed(2)),
+      manufacturer: make,
+      notes: line.vinValue,
+    };
+  });
+
+  const firstVehicle = selectedLines[0];
+  const primaryPricing = extractPricingFromVinDetails(firstVehicle.vin);
+  const totals = lineItems.reduce(
+    (acc, item) => {
+      acc.basePrice += Number(item.unitPrice) * Number(item.quantity);
+      acc.discount += Number(item.discountAmount) * Number(item.quantity);
+      acc.netPrice += Number(item.netPrice);
+      return acc;
+    },
+    { basePrice: 0, discount: 0, netPrice: 0 }
+  );
+
+  return {
+    primaryVehicle: {
+      make:
+        getVehicleField(firstVehicle.vin, ['U_Veh_Brand', 'U_VEH_BRAND', 'Brand', 'BRAND', 'MAKENAME', 'MAKE', 'Make', 'ItmsGrpNam']) ||
+        enquiryData.MAKE ||
+        '',
+      model:
+        getVehicleField(firstVehicle.vin, ['U_Veh_ModelDescr', 'U_Veh_ModelFull', 'U_Veh_Model', 'U_VEH_MODEL', 'Model Description', 'MODEL', 'Model']) ||
+        enquiryData.MODEL ||
+        '',
+      variant:
+        getVehicleField(firstVehicle.vin, ['ItemCode', 'ITEMCODE', 'ProductCode', 'PRODUCTCODE']) ||
+        enquiryData.VARIANT ||
+        '',
+      year:
+        getVehicleField(firstVehicle.vin, ['U_Veh_MY', 'U_VEH_MY', 'Model Year', 'MODELYEAR', 'YEAR', 'Year']) ||
+        enquiryData.YEAR ||
+        '',
+      color:
+        getVehicleField(firstVehicle.vin, ['U_Veh_Color', 'U_VEH_COLOR', 'COLOR', 'Color']) ||
+        enquiryData.COLOR ||
+        '',
+      vinNumber: firstVehicle.vinValue || extractVinFromUnknown(firstVehicle.vin),
+    },
+    pricing: primaryPricing,
+    lineItems,
+    totals: {
+      basePrice: parseFloat(totals.basePrice.toFixed(2)),
+      discount: parseFloat(totals.discount.toFixed(2)),
+      netPrice: parseFloat(totals.netPrice.toFixed(2)),
+    },
+  };
+}
+
 /**
  * Custom hook for loading and preparing quotation form data
  * Handles both create-from-enquiry and supersede flows
@@ -185,7 +341,6 @@ export function useQuotationFormData({
       setError(null);
       const enquiryData = await getEnquiryById(id);
       setEnquiry(enquiryData);
-      const quantity = Number(enquiryData.QUANTITY) > 0 ? Number(enquiryData.QUANTITY) : 1;
       const enquiryVinDetails = enquiryData.VINDETAILS as string | Record<string, unknown> | undefined;
       let vinFromDetails = '';
       if (typeof enquiryVinDetails === 'string') {
@@ -203,9 +358,9 @@ export function useQuotationFormData({
         rawVinNumber !== undefined && rawVinNumber !== null && String(rawVinNumber).trim() !== ''
           ? String(rawVinNumber).trim()
           : '';
-      const pricing = extractPricingFromVinDetails(enquiryVinDetails);
+      const vehicleData = buildQuotationVehicleLineItems(enquiryData);
       const taxRate = 15;
-      const subtotal = pricing.vehicleNetPrice;
+      const subtotal = vehicleData.totals.netPrice;
       const taxAmount = parseFloat(((subtotal * taxRate) / 100).toFixed(2));
       const grandTotal = parseFloat((subtotal + taxAmount).toFixed(2));
 
@@ -216,19 +371,20 @@ export function useQuotationFormData({
         customerMobile: enquiryData.MOBILE || '',
         customerEmail: sanitizeEmail(enquiryData.HOMEEMAIL),
         customerAddress: enquiryData.ADDRESS || '',
-        vehicleMake: enquiryData.MAKE || '',
-        vehicleModel: enquiryData.MODEL || '',
-        vehicleVariant: enquiryData.VARIANT || '',
-        vehicleYear: enquiryData.YEAR || '',
-        vehicleColor: enquiryData.COLOR || '',
+        vehicleMake: vehicleData.primaryVehicle.make,
+        vehicleModel: vehicleData.primaryVehicle.model,
+        vehicleVariant: vehicleData.primaryVehicle.variant,
+        vehicleYear: vehicleData.primaryVehicle.year,
+        vehicleColor: vehicleData.primaryVehicle.color,
         vinNumber:
+          vehicleData.primaryVehicle.vinNumber ||
           enquiryData.VINNUMBER ||
           vinFromRecord ||
           vinFromDetails ||
           '',
-        vehicleBasePrice: pricing.basePrice,
-        vehicleDiscount: pricing.vehicleDiscount,
-        vehicleNetPrice: pricing.vehicleNetPrice,
+        vehicleBasePrice: vehicleData.totals.basePrice,
+        vehicleDiscount: vehicleData.totals.discount,
+        vehicleNetPrice: vehicleData.totals.netPrice,
         accessoriesTotal: 0,
         accessoriesDiscount: 0,
         accessoriesNetTotal: 0,
@@ -241,24 +397,18 @@ export function useQuotationFormData({
         tradeInValue: 0,
         downpayment: 0,
         netAmountDue: grandTotal,
-        totalDiscountAmount: pricing.vehicleDiscount,
-        discountPercentage: pricing.discountPercentage,
+        totalDiscountAmount: vehicleData.totals.discount,
+        discountPercentage:
+          vehicleData.totals.basePrice > 0 && vehicleData.totals.discount < 0
+            ? parseFloat(
+                ((Math.abs(vehicleData.totals.discount) / vehicleData.totals.basePrice) * 100).toFixed(2)
+              )
+            : 0,
         validUntil: '',
         notes: '',
         termsAndConditions: '',
         internalNotes: '',
-        lineItems: [
-          {
-            lineNumber: 1,
-            itemType: 'Vehicle',
-            itemDescription: `${enquiryData.MAKE} ${enquiryData.MODEL} ${enquiryData.VARIANT || ''}`.trim(),
-            quantity,
-            unitPrice: pricing.basePrice,
-            discountAmount: pricing.vehicleDiscount,
-            discountPercentage: pricing.discountPercentage,
-            netPrice: parseFloat((quantity * pricing.vehicleNetPrice).toFixed(2)),
-          },
-        ],
+        lineItems: vehicleData.lineItems,
       };
 
       onDataLoaded?.(formData);

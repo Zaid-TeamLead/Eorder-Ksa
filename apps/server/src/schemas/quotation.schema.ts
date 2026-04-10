@@ -229,6 +229,14 @@ export const allocateDepositSchema = z.object({
 });
 
 // =====================================================
+// Reserve Vehicle Schema
+// =====================================================
+
+export const reserveVehicleSchema = z.object({
+  reservationNotes: z.string().max(5000).optional(),
+});
+
+// =====================================================
 // Cancel Quotation Schema
 // =====================================================
 
@@ -302,6 +310,7 @@ export type RequestDiscountApprovalInput = z.infer<typeof requestDiscountApprova
 export type ApproveDiscountInput = z.infer<typeof approveDiscountSchema>;
 export type PassToCashierInput = z.infer<typeof passToCashierSchema>;
 export type AllocateDepositInput = z.infer<typeof allocateDepositSchema>;
+export type ReserveVehicleInput = z.infer<typeof reserveVehicleSchema>;
 export type CancelQuotationInput = z.infer<typeof cancelQuotationSchema>;
 export type CreateActivityInput = z.infer<typeof createActivitySchema>;
 export type QuotationFilters = z.infer<typeof quotationFiltersSchema>;

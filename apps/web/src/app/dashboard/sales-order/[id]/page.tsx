@@ -7,7 +7,6 @@ import {
   CalendarCheck2,
   CircleX,
   FilePenLine,
-  Lock,
   Printer,
   Send,
   TriangleAlert,
@@ -52,20 +51,17 @@ export default function SalesOrderDetailsPage() {
   const {
     updateSalesOrder,
     passToVehicleAdmin,
-    reserveVehicle,
     createHandoverBooking,
     recordLostSale,
     cancelSalesOrder,
     isUpdating,
     isPassingToVehicleAdmin,
-    isReservingVehicle,
     isCreatingHandoverBooking,
     isRecordingLostSale,
     isCancelling,
   } = useSalesOrderMutations();
 
   const [isEditNotesOpen, setIsEditNotesOpen] = useState(false);
-  const [isReserveVehicleOpen, setIsReserveVehicleOpen] = useState(false);
   const [isPassToVehicleAdminOpen, setIsPassToVehicleAdminOpen] = useState(false);
   const [isCreateHandoverOpen, setIsCreateHandoverOpen] = useState(false);
   const [isRecordLostOpen, setIsRecordLostOpen] = useState(false);
@@ -73,7 +69,6 @@ export default function SalesOrderDetailsPage() {
 
   const [notesDraft, setNotesDraft] = useState('');
   const [vinDraft, setVinDraft] = useState('');
-  const [reservationNotes, setReservationNotes] = useState('');
   const [vehicleAdminAssignedTo, setVehicleAdminAssignedTo] = useState('');
   const [vehicleAdminNotes, setVehicleAdminNotes] = useState('');
   const [handoverDate, setHandoverDate] = useState('');
@@ -104,13 +99,7 @@ export default function SalesOrderDetailsPage() {
   }
 
   const status = salesOrder.STATUS;
-  const isVehicleReserved = salesOrder.VEHICLE_RESERVED === 'Y';
   const canPrint = status !== 'Cancelled' && status !== 'Lost';
-  const canReserveVehicle =
-    !isVehicleReserved &&
-    status !== 'Cancelled' &&
-    status !== 'Lost' &&
-    !!salesOrder.VIN_NUMBER?.trim();
   const canPassToVehicleAdmin = status === 'Printed' || status === 'PassedToVehicleAdmin';
   const canCreateHandover =
     (status === 'PassedToVehicleAdmin' || status === 'HandoverBooked') &&
@@ -193,14 +182,6 @@ export default function SalesOrderDetailsPage() {
     setVehicleAdminNotes('');
   };
 
-  const handleReserveVehicle = async () => {
-    await reserveVehicle(orderId, {
-      reservationNotes: reservationNotes || undefined,
-    });
-    setIsReserveVehicleOpen(false);
-    setReservationNotes('');
-  };
-
   const handleCreateHandoverBooking = async () => {
     await createHandoverBooking(orderId, {
       handoverDate,
@@ -259,14 +240,6 @@ export default function SalesOrderDetailsPage() {
                 >
                   <Printer className="mr-2 h-4 w-4" />
                   Print
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setIsReserveVehicleOpen(true)}
-                  disabled={!canReserveVehicle}
-                >
-                  <Lock className="mr-2 h-4 w-4" />
-                  Reserve Vehicle
                 </Button>
                 <Button
                   variant="outline"
@@ -373,8 +346,6 @@ export default function SalesOrderDetailsPage() {
             </div>
 
             {(salesOrder.VEHICLE_ADMIN_ASSIGNED_TO ||
-              salesOrder.VEHICLE_RESERVED === 'Y' ||
-              salesOrder.VEHICLE_RESERVED_DATE ||
               salesOrder.PASSED_TO_VA_DATE ||
               salesOrder.HANDOVER_BOOKED === 'Y' ||
               salesOrder.HANDOVER_DATE ||
@@ -383,34 +354,10 @@ export default function SalesOrderDetailsPage() {
               <>
                 <Separator />
                 <div className="grid grid-cols-1 gap-4 text-sm md:grid-cols-2">
-                  {salesOrder.VEHICLE_RESERVED === 'Y' && (
-                    <div>
-                      <p className="text-muted-foreground">Vehicle Reservation</p>
-                      <p className="font-medium">Reserved</p>
-                    </div>
-                  )}
-                  {salesOrder.VEHICLE_RESERVED_DATE && (
-                    <div>
-                      <p className="text-muted-foreground">Vehicle Reserved On</p>
-                      <p className="font-medium">{formatDate(salesOrder.VEHICLE_RESERVED_DATE)}</p>
-                    </div>
-                  )}
-                  {salesOrder.VEHICLE_RESERVED_BY && (
-                    <div>
-                      <p className="text-muted-foreground">Reserved By</p>
-                      <p className="font-medium">{salesOrder.VEHICLE_RESERVED_BY}</p>
-                    </div>
-                  )}
                   {salesOrder.VEHICLE_ADMIN_ASSIGNED_TO && (
                     <div>
                       <p className="text-muted-foreground">Vehicle Admin Assignee</p>
                       <p className="font-medium">{salesOrder.VEHICLE_ADMIN_ASSIGNED_TO}</p>
-                    </div>
-                  )}
-                  {salesOrder.VEHICLE_RESERVATION_NOTES && (
-                    <div>
-                      <p className="text-muted-foreground">Reservation Notes</p>
-                      <p className="font-medium">{salesOrder.VEHICLE_RESERVATION_NOTES}</p>
                     </div>
                   )}
                   {salesOrder.PASSED_TO_VA_DATE && (
@@ -714,35 +661,6 @@ export default function SalesOrderDetailsPage() {
             </Button>
             <Button onClick={() => void handleSaveOrderDetails()} disabled={isUpdating}>
               {isUpdating ? 'Saving...' : 'Save'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isReserveVehicleOpen} onOpenChange={setIsReserveVehicleOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Reserve Vehicle</DialogTitle>
-            <DialogDescription>
-              Reserve VIN {salesOrder.VIN_NUMBER || '-'} for this sales order.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="reserve-vehicle-notes">Reservation Notes</Label>
-            <Textarea
-              id="reserve-vehicle-notes"
-              rows={4}
-              value={reservationNotes}
-              onChange={(e) => setReservationNotes(e.target.value)}
-              placeholder="Optional notes for reservation"
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsReserveVehicleOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => void handleReserveVehicle()} disabled={isReservingVehicle}>
-              {isReservingVehicle ? 'Reserving...' : 'Reserve Vehicle'}
             </Button>
           </DialogFooter>
         </DialogContent>

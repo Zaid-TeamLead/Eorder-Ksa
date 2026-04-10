@@ -8,6 +8,7 @@ import type {
   ApproveDiscountInput,
   PassToCashierInput,
   AllocateDepositInput,
+  ReserveVehicleInput,
   CancelQuotationInput,
   CreateActivityInput,
   DiscountApprovalFilters,
@@ -103,6 +104,10 @@ export interface Quotation {
   PASSED_TO_CASHIER_DATE?: string;
   DEPOSIT_AMOUNT: number;
   DEPOSIT_COLLECTED: string;
+  VEHICLE_RESERVED?: string;
+  VEHICLE_RESERVED_DATE?: string;
+  VEHICLE_RESERVED_BY?: string;
+  VEHICLE_RESERVATION_NOTES?: string;
 
   // Notes
   NOTES?: string;
@@ -1199,6 +1204,62 @@ class QuotationService {
     } catch (error: any) {
       logger.error('Error allocating deposit:', error);
       throw new Error('Failed to allocate deposit: ' + error.message);
+    }
+  }
+
+  /**
+   * Reserve vehicle directly from quotation
+   */
+  async reserveVehicle(
+    quotationId: number,
+    data: ReserveVehicleInput & { reservedBy: string }
+  ): Promise<{ success: boolean }> {
+    try {
+      const quotation = await this.getQuotationOrThrow(quotationId);
+      this.ensureActionAllowed(quotation);
+
+      if (!quotation.VIN_NUMBER || quotation.VIN_NUMBER.trim() === '') {
+        throw new Error('Quotation must have a VIN before reserving vehicle');
+      }
+
+      if (quotation.VEHICLE_RESERVED === 'Y') {
+        throw new Error('Vehicle is already reserved for this quotation');
+      }
+
+      const currentDateTime = this.getCurrentDateTime();
+      const query = `
+        UPDATE "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION"
+        SET "VEHICLE_RESERVED" = 'Y',
+            "VEHICLE_RESERVED_DATE" = ?,
+            "VEHICLE_RESERVED_BY" = ?,
+            "VEHICLE_RESERVATION_NOTES" = ?,
+            "UPDATED_BY" = ?,
+            "UPDATED_DATE" = ?
+        WHERE "SLNO" = ?
+      `;
+
+      await db.execute(query, [
+        currentDateTime,
+        data.reservedBy,
+        data.reservationNotes || null,
+        data.reservedBy,
+        currentDateTime,
+        quotationId,
+      ]);
+
+      await this.logActivity({
+        quotationSlno: quotationId,
+        activityType: 'VehicleReserved',
+        activityDescription: `Vehicle reserved for VIN ${quotation.VIN_NUMBER}`,
+        activityNotes: data.reservationNotes,
+        createdBy: data.reservedBy,
+      });
+
+      logger.info({ quotationId, vin: quotation.VIN_NUMBER }, 'Vehicle reserved for quotation');
+      return { success: true };
+    } catch (error: any) {
+      logger.error('Error reserving vehicle for quotation:', error);
+      throw new Error('Failed to reserve vehicle: ' + error.message);
     }
   }
 

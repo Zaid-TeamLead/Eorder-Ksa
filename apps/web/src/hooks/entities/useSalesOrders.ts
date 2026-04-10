@@ -5,7 +5,7 @@ import type { SalesOrderFilters } from '@/types/salesOrder';
 
 export function useSalesOrders(filters?: SalesOrderFilters) {
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: queryKeys.salesOrders.all,
+    queryKey: queryKeys.salesOrders.list(filters),
     queryFn: () => getAllSalesOrders(filters),
   });
 

@@ -104,6 +104,7 @@ function sanitizeVinDetails(input: unknown): Record<string, unknown> | undefined
   };
 
   const sanitized = {
+    ...source,
     Location: toOptionalString(pick(['Location', 'LOCATION'])),
     VIN: toOptionalString(
       pick(['VIN', 'VINNUMBER', 'vin', 'vinNumber', 'U_Veh_StockID', 'U_VEH_STOCKID'])
@@ -113,18 +114,22 @@ function sanitizeVinDetails(input: unknown): Record<string, unknown> | undefined
     ItemCode: toOptionalString(pick(['ItemCode', 'ITEMCODE', 'ProductCode', 'PRODUCTCODE'])),
     InDate: toOptionalString(pick(['InDate', 'INDATE'])),
     U_Veh_StockID: toNullableString(pick(['U_Veh_StockID', 'U_VEH_STOCKID'])),
-    U_Veh_Brand: toNullableString(pick(['U_Veh_Brand', 'U_VEH_BRAND', 'Brand', 'BRAND'])),
-    U_Veh_Model: toNullableString(pick(['U_Veh_Model', 'U_VEH_MODEL'])),
+    U_Veh_Brand: toNullableString(
+      pick(['U_Veh_Brand', 'U_VEH_BRAND', 'Brand', 'BRAND', 'MAKENAME', 'MAKE', 'Make', 'ItmsGrpNam'])
+    ),
+    U_Veh_Model: toNullableString(
+      pick(['U_Veh_Model', 'U_VEH_MODEL', 'MODEL', 'Model', 'U_Veh_ModelFull', 'U_Veh_ModelDescr'])
+    ),
     U_Veh_Color: toNullableString(pick(['U_Veh_Color', 'U_VEH_COLOR', 'Color', 'COLOR'])),
     U_Veh_Transmutation: toNullableString(
       pick(['U_Veh_Transmutation', 'U_VEH_TRANSMUTATION'])
     ),
     U_Veh_ModelDescr: toNullableString(
-      pick(['U_Veh_ModelDescr', 'U_VEH_MODELDESCR', 'Model Description'])
+      pick(['U_Veh_ModelDescr', 'U_VEH_MODELDESCR', 'Model Description', 'DESCRIPTION', 'Description'])
     ),
     U_Veh_ModelFull: toNullableString(pick(['U_Veh_ModelFull', 'U_VEH_MODELFULL'])),
     U_Veh_EngineNo: toNullableString(pick(['U_Veh_EngineNo', 'U_VEH_ENGINENO'])),
-    U_Veh_MY: toNullableString(pick(['U_Veh_MY', 'U_VEH_MY', 'Model Year', 'YEAR'])),
+    U_Veh_MY: toNullableString(pick(['U_Veh_MY', 'U_VEH_MY', 'Model Year', 'MODELYEAR', 'YEAR', 'Year'])),
     U_Vehicle_MC: toNullableString(pick(['U_Vehicle_MC', 'U_VEHICLE_MC', 'Model Code'])),
     U_Veh_OrderNo: toNullableString(pick(['U_Veh_OrderNo', 'U_VEH_ORDERNO'])),
     U_Veh_DispDate: toNullableString(pick(['U_Veh_DispDate', 'U_VEH_DISPDATE', 'Display Date'])),
@@ -142,11 +147,68 @@ function sanitizeVinDetails(input: unknown): Record<string, unknown> | undefined
   return hasValues ? sanitized : undefined;
 }
 
+function sanitizeSelectedVehicleLines(
+  lines: SalesEnquiryFormSubmission["selectedVehicleLines"]
+): Array<{
+  selectionKey: string;
+  vinValue: string;
+  quantity: number;
+  vin: Record<string, unknown>;
+}> {
+  return (lines || [])
+    .map((line, index) => {
+      const sanitizedVin = sanitizeVinDetails(line?.vin);
+      const vinValue = toOptionalString(line?.vinValue || extractVinFromUnknown(line?.vin)) || "";
+      const quantity = toPositiveNumber(line?.quantity) || 1;
+      const selectionKey =
+        toOptionalString(line?.selectionKey) ||
+        `${vinValue || "NO-VIN"}-${index + 1}`;
+
+      if (!sanitizedVin || !vinValue) {
+        return null;
+      }
+
+      return {
+        selectionKey,
+        vinValue,
+        quantity,
+        vin: sanitizedVin,
+      };
+    })
+    .filter((line): line is NonNullable<typeof line> => Boolean(line));
+}
+
+function buildAggregatedVinDetails(
+  data: SalesEnquiryFormSubmission
+): Record<string, unknown> | undefined {
+  const primaryVinDetails = sanitizeVinDetails(data.vinDetails);
+  const selectedLines = sanitizeSelectedVehicleLines(data.selectedVehicleLines);
+
+  if (selectedLines.length === 0) {
+    return primaryVinDetails;
+  }
+
+  const firstVehicle = selectedLines[0]?.vin;
+  return {
+    ...(primaryVinDetails || firstVehicle || {}),
+    SELECTED_VEHICLE_LINES: selectedLines,
+  };
+}
+
 function transformEnquiryFormData(
   data: SalesEnquiryFormSubmission
 ): CreateEnquiryData {
   const primaryCartItem = data.cartItems?.[0];
+  const selectedLines = sanitizeSelectedVehicleLines(data.selectedVehicleLines);
+  const aggregatedVinDetails = buildAggregatedVinDetails(data);
+  const totalQuantity =
+    selectedLines.length > 0
+      ? selectedLines.reduce((sum, line) => sum + (line.quantity || 0), 0)
+      : undefined;
+  const primarySelectedLine = selectedLines[0];
+  const primarySelectedVehicle = primarySelectedLine?.vin;
   const resolvedVinNumber =
+    primarySelectedLine?.vinValue ||
     data.vinNumber ||
     extractVinFromUnknown(data.vinDetails) ||
     primaryCartItem?.vinNumber ||
@@ -161,16 +223,61 @@ function transformEnquiryFormData(
     workPhone: toOptionalString(data.workPhone),
     mobile: toOptionalString(data.mobile) || '',
     homeEmail: sanitizeEmail(data.homeEmail),
-    make: toOptionalString(data.make || primaryCartItem?.make) || '',
-    model: toOptionalString(data.model || primaryCartItem?.model) || '',
-    variant: toOptionalString(data.variant || primaryCartItem?.variant || primaryCartItem?.itemCode),
-    year: toOptionalString(data.year || primaryCartItem?.year),
-    color: toOptionalString(data.color || primaryCartItem?.color),
-    suppCatNum: toOptionalString(data.suppCatNum),
-    modelCode: toOptionalString(data.modelCode),
-    quantity: toPositiveNumber(data.quantity || primaryCartItem?.quantity),
+    make:
+      toOptionalString(
+        data.make ||
+          pickFromVehicle(primarySelectedVehicle, [
+            'U_Veh_Brand',
+            'U_VEH_BRAND',
+            'Brand',
+            'BRAND',
+            'ItmsGrpNam',
+            'MAKE',
+            'Make',
+          ]) ||
+          primaryCartItem?.make
+      ) || '',
+    model:
+      toOptionalString(
+        data.model ||
+          pickFromVehicle(primarySelectedVehicle, [
+            'U_Veh_ModelDescr',
+            'U_Veh_ModelFull',
+            'U_Veh_Model',
+            'U_VEH_MODEL',
+            'Model Description',
+            'MODEL',
+            'Model',
+          ]) ||
+          primaryCartItem?.model
+      ) || '',
+    variant: toOptionalString(
+      data.variant ||
+        pickFromVehicle(primarySelectedVehicle, ['ItemCode', 'ITEMCODE', 'ProductCode', 'PRODUCTCODE']) ||
+        primaryCartItem?.variant ||
+        primaryCartItem?.itemCode
+    ),
+    year: toOptionalString(
+      data.year ||
+        pickFromVehicle(primarySelectedVehicle, ['U_Veh_MY', 'U_VEH_MY', 'Model Year', 'MODELYEAR', 'YEAR', 'Year']) ||
+        primaryCartItem?.year
+    ),
+    color: toOptionalString(
+      data.color ||
+        pickFromVehicle(primarySelectedVehicle, ['U_Veh_Color', 'U_VEH_COLOR', 'COLOR', 'Color']) ||
+        primaryCartItem?.color
+    ),
+    suppCatNum: toOptionalString(
+      data.suppCatNum ||
+        pickFromVehicle(primarySelectedVehicle, ['SuppCatNum', 'SUPPCATNUM'])
+    ),
+    modelCode: toOptionalString(
+      data.modelCode ||
+        pickFromVehicle(primarySelectedVehicle, ['U_Vehicle_MC', 'U_VEHICLE_MC', 'Model Code', 'MODELCODE'])
+    ),
+    quantity: totalQuantity || toPositiveNumber(data.quantity || primaryCartItem?.quantity),
     vinNumber: toOptionalString(resolvedVinNumber),
-    vinDetails: sanitizeVinDetails(data.vinDetails),
+    vinDetails: aggregatedVinDetails,
     branch: toOptionalString(data.branch),
     budget: toOptionalString(data.budget),
     financing: normalizeEnum(data.financing, ['yes', 'no', 'maybe']),
@@ -316,15 +423,10 @@ export function useEnquiryFormSubmit({
 
         const selectedLines = (data.selectedVehicleLines || []).filter((line) => line?.vin);
         if (selectedLines.length > 0) {
-          for (const line of selectedLines) {
-            const payload = transformEnquiryFormDataForVehicleLine(data, line);
-            logger.info('Creating Enquiry (vehicle line):', payload);
-            await createEnquiry(payload);
-          }
-
-          toast.success(
-            `${selectedLines.length} ${selectedLines.length === 1 ? 'enquiry' : 'enquiries'} created successfully`
-          );
+          const payload = transformEnquiryFormData(data);
+          logger.info('Creating Enquiry (multiple vehicles):', payload);
+          await createEnquiry(payload);
+          toast.success('Enquiry created successfully');
           onSuccess?.();
           return;
         }

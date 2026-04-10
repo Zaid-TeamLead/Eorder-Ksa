@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useCallback, useMemo } from "react";
+import { useEffect, useCallback, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -56,8 +56,9 @@ interface FinanceSchemeDialogProps {
   lenders: Lender[];
   currencies: Currency[];
   salesEmployees: SalesEmployee[];
-  onSubmit: (data: any) => void;
+  onSubmit: (data: any) => Promise<void> | void;
   initialData?: any;
+  isSubmitting?: boolean;
 }
 
 export function FinanceSchemeDialog({
@@ -68,7 +69,9 @@ export function FinanceSchemeDialog({
   salesEmployees,
   onSubmit,
   initialData,
+  isSubmitting = false,
 }: FinanceSchemeDialogProps) {
+  const [submitError, setSubmitError] = useState<string | null>(null);
   // Memoize default values to prevent unnecessary recalculations
   const defaultValues = useMemo(
     () => getFinanceSchemeDefaults(initialData),
@@ -128,7 +131,8 @@ export function FinanceSchemeDialog({
   }, [form, salesEmployees, selectedSaleCode, selectedSalesEmployeeName]);
 
   const handleSubmit = useCallback(
-    (data: FinanceSchemeFormData) => {
+    async (data: FinanceSchemeFormData) => {
+      setSubmitError(null);
       const selectedLender = lenders.find((l) => l.LENDER_CODE === data.lenderCode);
       const lenderName =
         selectedLender?.LENDER_NAME ||
@@ -139,9 +143,18 @@ export function FinanceSchemeDialog({
         lenderName
       );
 
-      onSubmit(apiData);
-      resetForm(); // Reset to clean state
-      onOpenChange(false);
+      try {
+        await onSubmit(apiData);
+        resetForm();
+        onOpenChange(false);
+      } catch (error: any) {
+        setSubmitError(
+          error?.response?.data?.error?.message ||
+            error?.response?.data?.message ||
+            error?.message ||
+            "Failed to save financing scheme"
+        );
+      }
     },
     [lenders, onSubmit, resetForm, onOpenChange]
   );
@@ -401,10 +414,20 @@ export function FinanceSchemeDialog({
             </div>
 
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              {submitError ? (
+                <p className="mr-auto text-sm text-destructive">{submitError}</p>
+              ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={isSubmitting}
+              >
                 Cancel
               </Button>
-              <Button type="submit">OK</Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Saving..." : "OK"}
+              </Button>
             </DialogFooter>
           </form>
         </Form>

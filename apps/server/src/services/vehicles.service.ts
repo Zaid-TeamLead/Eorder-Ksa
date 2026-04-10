@@ -337,6 +337,9 @@ export const getAllVehicleInventory = async (customerCode?: string) => {
         rows: vehicles.length,
         sample: vehicles[0]
           ? {
+              Location: vehicles[0].Location ?? null,
+              WhsName: vehicles[0].WhsName ?? null,
+              WhsCode: vehicles[0].WhsCode ?? null,
               ItemCode: vehicles[0].ItemCode,
               Price: vehicles[0].Price ?? null,
               Discount: vehicles[0].Discount ?? null,

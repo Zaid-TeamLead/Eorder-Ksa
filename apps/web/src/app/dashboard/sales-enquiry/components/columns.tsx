@@ -48,6 +48,41 @@ const priorityColors: Record<string, string> = {
   High: "bg-red-500/10 text-red-600 border-red-500/20",
 };
 
+const normalizeValue = (value: unknown): string => {
+  if (value === undefined || value === null) return "";
+  const normalized = String(value).trim();
+  if (!normalized || normalized === "?") return "";
+  return normalized;
+};
+
+const getVehicleFallbackValue = (enquiry: SalesEnquiry, keys: string[]): string => {
+  const vinDetails =
+    enquiry.VINDETAILS && typeof enquiry.VINDETAILS === "object"
+      ? (enquiry.VINDETAILS as Record<string, unknown>)
+      : null;
+
+  const selectedLines = Array.isArray(vinDetails?.SELECTED_VEHICLE_LINES)
+    ? (vinDetails.SELECTED_VEHICLE_LINES as Array<Record<string, unknown>>)
+    : [];
+  const firstLineVin =
+    selectedLines[0]?.vin && typeof selectedLines[0].vin === "object"
+      ? (selectedLines[0].vin as Record<string, unknown>)
+      : null;
+
+  const sources = [firstLineVin, vinDetails];
+  for (const source of sources) {
+    if (!source) continue;
+    for (const key of keys) {
+      const value = normalizeValue(source[key]);
+      if (value) {
+        return value;
+      }
+    }
+  }
+
+  return "";
+};
+
 // ============================================================================
 // Column Factory Function
 // ============================================================================
@@ -95,14 +130,44 @@ export function createSalesEnquiryColumns({
       accessorKey: "VEHICLE",
       header: "Vehicle",
       cell: ({ row }) => {
-        const make = row.original.MAKENAME || row.original.MAKE;
-        const model = row.original.MODELNAME || row.original.MODEL;
-        const variant = row.original.VARIANTNAME || row.original.VARIANT;
+        const make =
+          row.original.MAKENAME ||
+          row.original.MAKE ||
+          getVehicleFallbackValue(row.original, [
+            "U_Veh_Brand",
+            "U_VEH_BRAND",
+            "Brand",
+            "BRAND",
+            "ItmsGrpNam",
+            "MAKE",
+            "Make",
+          ]);
+        const model =
+          row.original.MODELNAME ||
+          row.original.MODEL ||
+          getVehicleFallbackValue(row.original, [
+            "U_Veh_ModelDescr",
+            "U_Veh_ModelFull",
+            "U_Veh_Model",
+            "U_VEH_MODEL",
+            "Model Description",
+            "MODEL",
+            "Model",
+          ]);
+        const variant =
+          row.original.VARIANTNAME ||
+          row.original.VARIANT ||
+          getVehicleFallbackValue(row.original, [
+            "ItemCode",
+            "ITEMCODE",
+            "ProductCode",
+            "PRODUCTCODE",
+          ]);
 
         return (
           <div className="flex flex-col">
             <span className="font-medium">
-              {make} {model}
+              {make || "N/A"} {model || ""}
             </span>
             {variant && (
               <span className="text-xs text-muted-foreground">{variant}</span>

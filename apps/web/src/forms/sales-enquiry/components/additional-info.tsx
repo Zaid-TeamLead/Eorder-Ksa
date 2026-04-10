@@ -11,11 +11,9 @@ import {
 } from "@/components/ui/form";
 import { cn } from "@/lib/utils";
 import type { SalesEnquiryFormData } from "../schema";
-import { useSession } from "@/lib/auth-client";
 
 export function AdditionalInfo() {
   const form = useFormContext<SalesEnquiryFormData>();
-  const session = useSession();
 
   return (
     <div className="space-y-4">
@@ -33,9 +31,8 @@ export function AdditionalInfo() {
                   placeholder="Salesperson name"
                   className="h-7 text-xs"
                   {...field}
-                  value={field.value || session?.data?.user.name || ""}
+                  value={field.value || ""}
                   onChange={(e) => field.onChange(e.target.value)}
-                  disabled={!!field.value}
                 />
               </FormControl>
               <FormMessage />

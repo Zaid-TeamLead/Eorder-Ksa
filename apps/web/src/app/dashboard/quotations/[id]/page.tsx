@@ -2,11 +2,29 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { ArrowLeft, Send, Wallet, CircleDollarSign, FileText, CircleX } from 'lucide-react';
+import {
+  ArrowLeft,
+  Send,
+  Wallet,
+  CircleDollarSign,
+  FileText,
+  CircleX,
+  Lock,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   Table,
   TableBody,
@@ -19,7 +37,7 @@ import { DeleteConfirmationDialog } from '@/components/shared/delete-confirmatio
 import { useQuotationById } from '@/hooks/entities/useQuotations';
 
 // Shared utilities and components
-import { formatCurrency } from '@/lib/formatters';
+import { formatCurrency, formatDate } from '@/lib/formatters';
 import { LoadingState } from '@/components/shared/loading-state';
 import { QuotationStatusBadge } from '@/components/quotation/status-badge';
 import { ErrorState } from '@/components/shared/error-state';
@@ -30,6 +48,7 @@ import { CancelQuotationDialog } from '@/components/quotation/cancel-quotation-d
 
 // Custom hooks
 import { useQuotationActions } from '@/hooks/quotation/useQuotationActions';
+import { useQuotationMutations } from '@/hooks/entities/useQuotationMutations';
 
 export default function QuotationDetailPage() {
   const params = useParams();
@@ -40,8 +59,11 @@ export default function QuotationDetailPage() {
   const [passToCashierDialogOpen, setPassToCashierDialogOpen] = useState(false);
   const [allocateDepositDialogOpen, setAllocateDepositDialogOpen] = useState(false);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [reserveVehicleDialogOpen, setReserveVehicleDialogOpen] = useState(false);
+  const [reservationNotes, setReservationNotes] = useState('');
 
   const { quotation, isLoading, error, refetch } = useQuotationById(quotationId);
+  const { reserveVehicle, isReservingVehicle } = useQuotationMutations();
 
   // Use custom hook for all actions
   const {
@@ -90,8 +112,21 @@ export default function QuotationDetailPage() {
   const isDepositCollected = quotation.DEPOSIT_COLLECTED === 'Y';
   const canPassToCashier = !isTerminalStatus && !isPassedToCashier;
   const canAllocateDeposit = !isTerminalStatus && isPassedToCashier && !isDepositCollected;
-  const canCreateSalesOrder = !isTerminalStatus;
   const canCancel = !isCancelled && !isSuperseded;
+  const isVehicleReserved = quotation.VEHICLE_RESERVED === 'Y';
+  const canReserveVehicle =
+    !isVehicleReserved &&
+    !isTerminalStatus &&
+    !!quotation.VIN_NUMBER?.trim();
+
+  const handleReserveVehicle = async () => {
+    await reserveVehicle(quotationId, {
+      reservationNotes: reservationNotes || undefined,
+    });
+    setReserveVehicleDialogOpen(false);
+    setReservationNotes('');
+    void refetch();
+  };
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -184,16 +219,65 @@ export default function QuotationDetailPage() {
           <div>
             <p className="text-sm font-medium">Sales Order</p>
             <p className="text-sm text-muted-foreground">
-              Create a provisional sales order from this quotation.
+              Create a provisional sales order from this quotation when needed.
             </p>
           </div>
           <Button
             variant="outline"
             onClick={() => router.push(`/dashboard/sales-order?quotationId=${quotationId}`)}
-            disabled={!canCreateSalesOrder}
+            disabled={isTerminalStatus}
           >
             <FileText className="mr-2 h-4 w-4" />
             Create Sales Order
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="flex items-center justify-between gap-4 py-4">
+          <div className="space-y-2">
+            <div>
+              <p className="text-sm font-medium">Vehicle Reservation</p>
+              <p className="text-sm text-muted-foreground">
+                Reserve the selected VIN directly from this quotation.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
+              <div>
+                <p className="text-muted-foreground">VIN</p>
+                <p className="font-medium">{quotation.VIN_NUMBER || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Reservation Status</p>
+                <p className="font-medium">{isVehicleReserved ? 'Reserved' : 'Not Reserved'}</p>
+              </div>
+              {quotation.VEHICLE_RESERVED_DATE && (
+                <div>
+                  <p className="text-muted-foreground">Reserved On</p>
+                  <p className="font-medium">{formatDate(quotation.VEHICLE_RESERVED_DATE)}</p>
+                </div>
+              )}
+              {quotation.VEHICLE_RESERVED_BY && (
+                <div>
+                  <p className="text-muted-foreground">Reserved By</p>
+                  <p className="font-medium">{quotation.VEHICLE_RESERVED_BY}</p>
+                </div>
+              )}
+              {quotation.VEHICLE_RESERVATION_NOTES && (
+                <div>
+                  <p className="text-muted-foreground">Reservation Notes</p>
+                  <p className="font-medium">{quotation.VEHICLE_RESERVATION_NOTES}</p>
+                </div>
+              )}
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => setReserveVehicleDialogOpen(true)}
+            disabled={!canReserveVehicle}
+          >
+            <Lock className="mr-2 h-4 w-4" />
+            Reserve Vehicle
           </Button>
         </CardContent>
       </Card>
@@ -493,6 +577,35 @@ export default function QuotationDetailPage() {
           await handleCancel({ cancellationReason: reason });
         }}
       />
+
+      <Dialog open={reserveVehicleDialogOpen} onOpenChange={setReserveVehicleDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reserve Vehicle</DialogTitle>
+            <DialogDescription>
+              Reserve VIN {quotation.VIN_NUMBER || '-'} from this quotation.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="quotation-reserve-vehicle-notes">Reservation Notes</Label>
+            <Textarea
+              id="quotation-reserve-vehicle-notes"
+              rows={4}
+              value={reservationNotes}
+              onChange={(e) => setReservationNotes(e.target.value)}
+              placeholder="Optional notes for reservation"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReserveVehicleDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => void handleReserveVehicle()} disabled={isReservingVehicle}>
+              {isReservingVehicle ? 'Reserving...' : 'Reserve Vehicle'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

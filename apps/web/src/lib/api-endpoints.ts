@@ -22,6 +22,7 @@ export const API_ENDPOINTS = {
   QUOTATIONS_BY_ENQUIRY: (enquiryId: number) => `/api/quotations/enquiry/${enquiryId}` as const,
   QUOTATIONS_OPEN_DEPOSITS: '/api/quotations/open-deposits',
   QUOTATION_ALLOCATE_DEPOSIT: (id: string | number) => `/api/quotations/${id}/allocate-deposit`,
+  QUOTATION_RESERVE_VEHICLE: (id: string | number) => `/api/quotations/${id}/reserve-vehicle`,
   QUOTATION_CANCEL: (id: string | number) => `/api/quotations/${id}/cancel`,
 
   // Sales Order endpoints

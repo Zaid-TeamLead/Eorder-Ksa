@@ -499,7 +499,7 @@ export const financingService = {
       const createResult = await callFinancingCreateSp(data, currentDate);
 
       const insertedId = await db.queryOne<{ SLNO: number }>(
-        `SELECT "SLNO" FROM "${FINANCING_TABLE_SCHEMA}"."DMS_ENQUIRY_FINANCING" WHERE "ENQUIRY_SLNO" = ? AND "IS_DELETED" = 'N' ORDER BY "CREATED_DATE" DESC`,
+        `SELECT "SLNO" FROM "${FINANCING_TABLE_SCHEMA}"."DMS_ENQUIRY_FINANCING" WHERE "ENQUIRY_SLNO" = ? AND "IS_DELETED" = 'N' ORDER BY "SLNO" DESC`,
         [data.enquirySlno]
       );
 

@@ -40,6 +40,7 @@ const vinDetailsSchema = z
     Discprice: z.string().nullable().optional(),
     Currency: z.string().nullable().optional(),
   })
+  .passthrough()
   .optional();
 
 // Vehicle Details for Enquiry (extends base)

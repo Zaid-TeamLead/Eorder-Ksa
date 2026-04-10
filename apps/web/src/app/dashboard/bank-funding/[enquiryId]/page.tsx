@@ -30,7 +30,8 @@ export default function BankFundingPage() {
 
   // Use custom hooks for financing schemes
   const { schemes, isLoading: isLoadingSchemes } = useFinancingSchemes(enquiryId);
-  const { createScheme, updateScheme, deleteScheme } = useFinancingMutations(enquiryId);
+  const { createScheme, updateScheme, deleteScheme, isCreating, isUpdating } =
+    useFinancingMutations(enquiryId);
 
   const handleBack = () => {
     router.push("/dashboard/sales-enquiry");
@@ -116,6 +117,7 @@ export default function BankFundingPage() {
             onAddScheme={createScheme}
             onUpdateScheme={updateScheme}
             onDeleteScheme={deleteScheme}
+            isSavingScheme={isCreating || isUpdating}
           />
         </CardContent>
       </Card>

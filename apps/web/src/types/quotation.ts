@@ -92,6 +92,10 @@ export interface Quotation {
   DEPOSIT_COLLECTED: 'Y' | 'N';
   DEPOSIT_COLLECTED_DATE: string | null;
   DEPOSIT_COLLECTED_BY: string | null;
+  VEHICLE_RESERVED: 'Y' | 'N' | null;
+  VEHICLE_RESERVED_DATE: string | null;
+  VEHICLE_RESERVED_BY: string | null;
+  VEHICLE_RESERVATION_NOTES: string | null;
 
   // Ownership & Audit
   SLPCODE: string;
@@ -283,6 +287,10 @@ export interface AllocateDepositData {
   allocationNotes?: string;
 }
 
+export interface ReserveVehicleData {
+  reservationNotes?: string;
+}
+
 export interface CancelQuotationData {
   cancellationReason: string;
 }
@@ -351,12 +359,14 @@ export interface UseQuotationMutationsReturn {
   approveDiscount: (approvalId: number, data: ApproveDiscountData) => Promise<void>;
   passToCashier: (quotationId: number, data: PassToCashierData) => Promise<void>;
   allocateDeposit: (quotationId: number, data: AllocateDepositData) => Promise<void>;
+  reserveVehicle: (quotationId: number, data: ReserveVehicleData) => Promise<void>;
   cancelQuotation: (quotationId: number, data: CancelQuotationData) => Promise<void>;
   isCreating: boolean;
   isUpdating: boolean;
   isDeleting: boolean;
   isSuperseding: boolean;
   isCancelling: boolean;
+  isReservingVehicle: boolean;
 }
 
 export interface UseDiscountApprovalsReturn {

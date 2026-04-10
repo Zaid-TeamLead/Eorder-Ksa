@@ -91,6 +91,43 @@ const getChargeFromEnquiry = (enquiry?: SalesEnquiry | null) => {
   };
 };
 
+const getSelectedVehicleLinesFromEnquiry = (enquiry?: SalesEnquiry | null) => {
+  const vinDetails =
+    enquiry?.VINDETAILS && typeof enquiry.VINDETAILS === "object"
+      ? (enquiry.VINDETAILS as Record<string, unknown>)
+      : null;
+
+  const lines = vinDetails?.SELECTED_VEHICLE_LINES;
+  if (!Array.isArray(lines)) {
+    return [];
+  }
+
+  return lines
+    .map((line, index) => {
+      if (!line || typeof line !== "object") return null;
+
+      const record = line as Record<string, unknown>;
+      const vin = record.vin && typeof record.vin === "object"
+        ? (record.vin as Record<string, unknown>)
+        : undefined;
+      const selectionKey = String(record.selectionKey || "").trim();
+      const vinValue = String(record.vinValue || "").trim();
+      const quantity = Number(record.quantity);
+
+      if (!selectionKey || !vin) {
+        return null;
+      }
+
+      return {
+        selectionKey: selectionKey || `vehicle-line-${index + 1}`,
+        vinValue,
+        quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
+        vin,
+      };
+    })
+    .filter((line): line is NonNullable<typeof line> => Boolean(line));
+};
+
 export default function SalesEnquiry() {
   const searchParams = useSearchParams();
   const action = searchParams.get("action");
@@ -362,6 +399,9 @@ export default function SalesEnquiry() {
                   quantity: modal.selectedEntity.QUANTITY || undefined,
                   vinNumber: modal.selectedEntity.VINNUMBER || "",
                   vinDetails: modal.selectedEntity.VINDETAILS || undefined,
+                  selectedVehicleLines: getSelectedVehicleLinesFromEnquiry(
+                    modal.selectedEntity
+                  ),
                   branch: modal.selectedEntity.BRANCH || "",
                   budget: modal.selectedEntity.BUDGET || "",
                   financing:
