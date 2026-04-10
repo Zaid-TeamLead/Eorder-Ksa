@@ -61,7 +61,7 @@ export default function CreateQuotationPage() {
   });
 
   // Handle form submission
-  const { handleSaveAsDraft, isCreating } = useQuotationFormSubmit({
+  const { handleSaveAndSend, isCreating } = useQuotationFormSubmit({
     isSuperseding,
     supersedeId,
   });
@@ -447,7 +447,7 @@ export default function CreateQuotationPage() {
                 </Button>
                 <Button
                   type="button"
-                  onClick={form.handleSubmit(handleSaveAsDraft)}
+                  onClick={form.handleSubmit(handleSaveAndSend)}
                   disabled={isCreating}
                 >
                   {isCreating ? (

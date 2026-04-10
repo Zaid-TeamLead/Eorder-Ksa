@@ -23,12 +23,42 @@ export function EnquiryDetailsModal({
 }: EnquiryDetailsModalProps) {
   if (!enquiry) return null;
 
+  const normalizeKey = (key: string) =>
+    key.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+
   const normalizeValue = (value: unknown): string => {
     if (value === undefined || value === null) return "";
     const normalized = String(value).trim();
     if (!normalized || normalized === "?") return "";
     return normalized;
   };
+
+  const getObjectValue = (
+    source: Record<string, unknown> | null,
+    keys: string[]
+  ): string => {
+    if (!source) return "";
+
+    const normalizedKeys = new Set(keys.map(normalizeKey));
+    for (const [rawKey, rawValue] of Object.entries(source)) {
+      const value = normalizeValue(rawValue);
+      if (!value) continue;
+
+      if (normalizedKeys.has(normalizeKey(rawKey))) {
+        return value;
+      }
+    }
+
+    return "";
+  };
+
+  const vinDetails =
+    enquiry.VINDETAILS && typeof enquiry.VINDETAILS === "object"
+      ? (enquiry.VINDETAILS as Record<string, unknown>)
+      : null;
+  const selectedLines = Array.isArray(vinDetails?.SELECTED_VEHICLE_LINES)
+    ? (vinDetails.SELECTED_VEHICLE_LINES as Array<Record<string, unknown>>)
+    : [];
 
   const getChargeDetails = () => {
     const fromColumns = {
@@ -41,10 +71,6 @@ export function EnquiryDetailsModal({
       return fromColumns;
     }
 
-    const vinDetails =
-      enquiry.VINDETAILS && typeof enquiry.VINDETAILS === "object"
-        ? (enquiry.VINDETAILS as Record<string, unknown>)
-        : null;
     const charge =
       vinDetails?.CHARGE && typeof vinDetails.CHARGE === "object"
         ? (vinDetails.CHARGE as Record<string, unknown>)
@@ -58,14 +84,6 @@ export function EnquiryDetailsModal({
   };
 
   const getVehicleFallbackValue = (keys: string[]): string => {
-    const vinDetails =
-      enquiry.VINDETAILS && typeof enquiry.VINDETAILS === "object"
-        ? (enquiry.VINDETAILS as Record<string, unknown>)
-        : null;
-
-    const selectedLines = Array.isArray(vinDetails?.SELECTED_VEHICLE_LINES)
-      ? (vinDetails?.SELECTED_VEHICLE_LINES as Array<Record<string, unknown>>)
-      : [];
     const firstLineVin =
       selectedLines[0]?.vin && typeof selectedLines[0].vin === "object"
         ? (selectedLines[0].vin as Record<string, unknown>)
@@ -73,18 +91,225 @@ export function EnquiryDetailsModal({
 
     const sources = [firstLineVin, vinDetails];
     for (const source of sources) {
-      if (!source) continue;
-      for (const key of keys) {
-        const value = source[key];
-        const normalized = normalizeValue(value);
-        if (normalized) {
-          return normalized;
-        }
+      const value = getObjectValue(source, keys);
+      if (value) {
+        return value;
       }
     }
 
     return "";
   };
+
+  const formatVehiclePrice = (value: string, currency: string): string => {
+    if (!value) return "N/A";
+    const parsed = Number(value.replace(/,/g, "").replace(/[^0-9.-]/g, ""));
+    if (!Number.isFinite(parsed)) return value;
+
+    return `${currency || "SAR"} ${parsed.toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  };
+
+  const vehicles =
+    selectedLines.length > 0
+      ? selectedLines.map((line, index) => {
+          const lineVin =
+            line.vin && typeof line.vin === "object"
+              ? (line.vin as Record<string, unknown>)
+              : null;
+          const currency =
+            getObjectValue(lineVin, ["Currency", "CURRENCY", "Curr", "CURR"]) || "SAR";
+          const modelCode =
+            getObjectValue(lineVin, [
+              "U_Vehicle_MC",
+              "U_VEHICLE_MC",
+              "Model Code",
+              "MODELCODE",
+            ]) || "N/A";
+
+          return {
+            id:
+              normalizeValue(line.selectionKey) ||
+              normalizeValue(line.vinValue) ||
+              `${enquiry.SLNO}-${index + 1}`,
+            label: `Vehicle ${index + 1}`,
+            quantity: normalizeValue(line.quantity) || "1",
+            make:
+              getObjectValue(lineVin, [
+                "U_Veh_Brand",
+                "U_VEH_BRAND",
+                "Brand",
+                "BRAND",
+                "ItmsGrpNam",
+                "MAKE",
+                "Make",
+              ]) || "N/A",
+            model:
+              getObjectValue(lineVin, [
+                "U_Veh_ModelDescr",
+                "U_Veh_ModelFull",
+                "U_Veh_Model",
+                "U_VEH_MODEL",
+                "Model Description",
+                "MODEL",
+                "Model",
+              ]) || "N/A",
+            variant:
+              getObjectValue(lineVin, [
+                "ItemCode",
+                "ITEMCODE",
+                "ProductCode",
+                "PRODUCTCODE",
+              ]) || "N/A",
+            year:
+              getObjectValue(lineVin, [
+                "U_Veh_MY",
+                "U_VEH_MY",
+                "Model Year",
+                "MODELYEAR",
+                "YEAR",
+                "Year",
+              ]) || "N/A",
+            color:
+              getObjectValue(lineVin, [
+                "U_Veh_Color",
+                "U_VEH_COLOR",
+                "COLOR",
+                "Color",
+              ]) || "N/A",
+            vin:
+              normalizeValue(line.vinValue) ||
+              getObjectValue(lineVin, [
+                "VIN",
+                "VINNUMBER",
+                "vin",
+                "vinNumber",
+                "U_Veh_StockID",
+                "U_VEH_STOCKID",
+              ]) ||
+              "N/A",
+            modelCode,
+            suppCatNum:
+              getObjectValue(lineVin, ["SuppCatNum", "SUPPCATNUM"]) || modelCode,
+            warehouse:
+              getObjectValue(lineVin, ["WhsName", "WHSNAME", "WhsCode", "WHSCODE"]) || "N/A",
+            location:
+              getObjectValue(lineVin, ["Location", "LOCATION"]) || "N/A",
+            price: formatVehiclePrice(
+              getObjectValue(lineVin, [
+                "Price",
+                "PRICE",
+                "Amount",
+                "AMOUNT",
+                "UnitPrice",
+                "UNITPRICE",
+              ]),
+              currency
+            ),
+          };
+        })
+      : [
+          {
+            id: String(enquiry.SLNO),
+            label: "Vehicle 1",
+            quantity: normalizeValue(enquiry.QUANTITY) || "1",
+            make:
+              enquiry.MAKENAME ||
+              enquiry.MAKE ||
+              getVehicleFallbackValue([
+                "U_Veh_Brand",
+                "U_VEH_BRAND",
+                "Brand",
+                "BRAND",
+                "ItmsGrpNam",
+                "MAKE",
+                "Make",
+              ]) ||
+              "N/A",
+            model:
+              enquiry.MODELNAME ||
+              enquiry.MODEL ||
+              getVehicleFallbackValue([
+                "U_Veh_ModelDescr",
+                "U_Veh_ModelFull",
+                "U_Veh_Model",
+                "U_VEH_MODEL",
+                "Model Description",
+                "MODEL",
+                "Model",
+              ]) ||
+              "N/A",
+            variant:
+              enquiry.VARIANTNAME ||
+              enquiry.VARIANT ||
+              getVehicleFallbackValue([
+                "ItemCode",
+                "ITEMCODE",
+                "ProductCode",
+                "PRODUCTCODE",
+              ]) ||
+              "N/A",
+            year:
+              enquiry.YEAR ||
+              getVehicleFallbackValue([
+                "U_Veh_MY",
+                "U_VEH_MY",
+                "Model Year",
+                "MODELYEAR",
+                "YEAR",
+                "Year",
+              ]) ||
+              "N/A",
+            color:
+              enquiry.COLOR ||
+              getVehicleFallbackValue([
+                "U_Veh_Color",
+                "U_VEH_COLOR",
+                "COLOR",
+                "Color",
+              ]) ||
+              "N/A",
+            vin:
+              enquiry.VINNUMBER ||
+              getVehicleFallbackValue([
+                "VIN",
+                "VINNUMBER",
+                "vin",
+                "vinNumber",
+                "U_Veh_StockID",
+                "U_VEH_STOCKID",
+              ]) ||
+              "N/A",
+            modelCode:
+              enquiry.MODELCODE ||
+              getVehicleFallbackValue([
+                "U_Vehicle_MC",
+                "U_VEHICLE_MC",
+                "Model Code",
+                "MODELCODE",
+              ]) ||
+              "N/A",
+            suppCatNum:
+              enquiry.SUPPCATNUM ||
+              getVehicleFallbackValue(["SuppCatNum", "SUPPCATNUM"]) ||
+              "N/A",
+            warehouse:
+              getVehicleFallbackValue(["WhsName", "WHSNAME", "WhsCode", "WHSCODE"]) || "N/A",
+            location: getVehicleFallbackValue(["Location", "LOCATION"]) || "N/A",
+            price: formatVehiclePrice(
+              getVehicleFallbackValue([
+                "Price",
+                "PRICE",
+                "Amount",
+                "AMOUNT",
+                "UnitPrice",
+                "UNITPRICE",
+              ]),
+              getVehicleFallbackValue(["Currency", "CURRENCY", "Curr", "CURR"]) || "SAR"
+            ),
+          },
+        ];
 
   const charge = getChargeDetails();
 
@@ -169,98 +394,61 @@ export function EnquiryDetailsModal({
           {/* Vehicle Details */}
           <div>
             <h3 className="text-lg font-semibold mb-3">Vehicle Details</h3>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="text-muted-foreground">Make:</span>
-                <p className="font-medium">
-                  {enquiry.MAKENAME ||
-                    enquiry.MAKE ||
-                    getVehicleFallbackValue([
-                      "U_Veh_Brand",
-                      "U_VEH_BRAND",
-                      "Brand",
-                      "BRAND",
-                      "ItmsGrpNam",
-                      "MAKE",
-                      "Make",
-                    ]) ||
-                    "N/A"}
-                </p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Model:</span>
-                <p className="font-medium">
-                  {enquiry.MODELNAME ||
-                    enquiry.MODEL ||
-                    getVehicleFallbackValue([
-                      "U_Veh_ModelDescr",
-                      "U_Veh_ModelFull",
-                      "U_Veh_Model",
-                      "U_VEH_MODEL",
-                      "Model Description",
-                      "MODEL",
-                      "Model",
-                    ]) ||
-                    "N/A"}
-                </p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Variant:</span>
-                <p className="font-medium">
-                  {enquiry.VARIANTNAME ||
-                    enquiry.VARIANT ||
-                    getVehicleFallbackValue([
-                      "ItemCode",
-                      "ITEMCODE",
-                      "ProductCode",
-                      "PRODUCTCODE",
-                    ]) ||
-                    "N/A"}
-                </p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Year:</span>
-                <p className="font-medium">
-                  {enquiry.YEAR ||
-                    getVehicleFallbackValue([
-                      "U_Veh_MY",
-                      "U_VEH_MY",
-                      "Model Year",
-                      "MODELYEAR",
-                      "YEAR",
-                      "Year",
-                    ]) ||
-                    "N/A"}
-                </p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Color:</span>
-                <p className="font-medium">
-                  {enquiry.COLOR ||
-                    getVehicleFallbackValue([
-                      "U_Veh_Color",
-                      "U_VEH_COLOR",
-                      "COLOR",
-                      "Color",
-                    ]) ||
-                    "N/A"}
-                </p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">VIN Number:</span>
-                <p className="font-medium">
-                  {enquiry.VINNUMBER ||
-                    getVehicleFallbackValue([
-                      "VIN",
-                      "VINNUMBER",
-                      "vin",
-                      "vinNumber",
-                      "U_Veh_StockID",
-                      "U_VEH_STOCKID",
-                    ]) ||
-                    "N/A"}
-                </p>
-              </div>
+            <div className="space-y-4">
+              {vehicles.map((vehicle) => (
+                <div key={vehicle.id} className="rounded-lg border p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <h4 className="font-medium">{vehicle.label}</h4>
+                    <Badge variant="outline">Qty {vehicle.quantity}</Badge>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Make:</span>
+                      <p className="font-medium">{vehicle.make}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Model:</span>
+                      <p className="font-medium">{vehicle.model}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Variant:</span>
+                      <p className="font-medium">{vehicle.variant}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Year:</span>
+                      <p className="font-medium">{vehicle.year}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Color:</span>
+                      <p className="font-medium">{vehicle.color}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">VIN Number:</span>
+                      <p className="font-medium">{vehicle.vin}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Model Code:</span>
+                      <p className="font-medium">{vehicle.modelCode}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Supp Cat Num:</span>
+                      <p className="font-medium">{vehicle.suppCatNum}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Warehouse:</span>
+                      <p className="font-medium">{vehicle.warehouse}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Location:</span>
+                      <p className="font-medium">{vehicle.location}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Price:</span>
+                      <p className="font-medium">{vehicle.price}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
