@@ -10,6 +10,45 @@ interface QuotationPrintTemplateProps {
 }
 
 export function QuotationPrintTemplate({ quotation }: QuotationPrintTemplateProps) {
+  const lineItemsSubtotal = (quotation.lineItems || []).reduce(
+    (sum, item) => sum + Number(item.NET_PRICE || 0),
+    0
+  );
+  const totalDiscountAmount = Number(quotation.TOTAL_DISCOUNT_AMOUNT || 0);
+  const lineItemsDiscountAmount = (quotation.lineItems || []).reduce(
+    (sum, item) => sum + Number(item.DISCOUNT_AMOUNT || 0),
+    0
+  );
+  const effectiveDiscountAmount =
+    totalDiscountAmount !== 0 ? totalDiscountAmount : lineItemsDiscountAmount;
+  const effectiveSubtotal =
+    Number(quotation.SUBTOTAL || 0) !== 0
+      ? Number(quotation.SUBTOTAL)
+      : lineItemsSubtotal +
+        Number(quotation.ACCESSORIES_NET_TOTAL || 0) +
+        Number(quotation.WARRANTY_TOTAL || 0) +
+        Number(quotation.INSURANCE_TOTAL || 0);
+  const effectiveTaxAmount =
+    Number(quotation.TAX_AMOUNT || 0) !== 0
+      ? Number(quotation.TAX_AMOUNT)
+      : Number((effectiveSubtotal * (Number(quotation.TAX_RATE || 0) / 100)).toFixed(2));
+  const effectiveGrandTotal =
+    Number(quotation.GRAND_TOTAL || 0) !== 0
+      ? Number(quotation.GRAND_TOTAL)
+      : Number((effectiveSubtotal + effectiveTaxAmount).toFixed(2));
+  const effectiveNetAmountDue =
+    Number(quotation.NET_AMOUNT_DUE || 0) !== 0
+      ? Number(quotation.NET_AMOUNT_DUE)
+      : Math.max(
+          0,
+          Number(
+            (
+              effectiveGrandTotal -
+              Number(quotation.TRADE_IN_VALUE || 0) -
+              Number(quotation.DOWNPAYMENT || 0)
+            ).toFixed(2)
+          )
+        );
 
   return (
     <div className="print-content mx-auto max-w-[210mm] bg-white p-8 text-black">
@@ -142,16 +181,16 @@ export function QuotationPrintTemplate({ quotation }: QuotationPrintTemplateProp
         <div className="w-96 space-y-2 text-sm">
           <div className="flex justify-between">
             <span className="font-medium">Subtotal:</span>
-            <span>{formatCurrency(quotation.SUBTOTAL)}</span>
+            <span>{formatCurrency(effectiveSubtotal)}</span>
           </div>
           <div className="flex justify-between">
             <span className="font-medium">VAT ({quotation.TAX_RATE}%):</span>
-            <span>{formatCurrency(quotation.TAX_AMOUNT)}</span>
+            <span>{formatCurrency(effectiveTaxAmount)}</span>
           </div>
           <Separator className="my-2" />
           <div className="flex justify-between text-lg font-bold">
             <span>Grand Total:</span>
-            <span>{formatCurrency(quotation.GRAND_TOTAL)}</span>
+            <span>{formatCurrency(effectiveGrandTotal)}</span>
           </div>
 
           {(quotation.TRADE_IN_VALUE > 0 || quotation.DOWNPAYMENT > 0) && (
@@ -172,17 +211,17 @@ export function QuotationPrintTemplate({ quotation }: QuotationPrintTemplateProp
               <Separator className="my-2 print:border-gray-400" />
               <div className="flex justify-between text-lg font-bold">
                 <span>Net Amount Due:</span>
-                <span>{formatCurrency(quotation.NET_AMOUNT_DUE)}</span>
+                <span>{formatCurrency(effectiveNetAmountDue)}</span>
               </div>
             </>
           )}
 
-          {quotation.TOTAL_DISCOUNT_AMOUNT < 0 && (
+          {effectiveDiscountAmount < 0 && (
             <div className="mt-4 rounded border border-gray-300 bg-gray-50 p-3 print:bg-gray-50">
               <div className="flex justify-between font-semibold">
                 <span>Total Discount Applied:</span>
                 <span className="text-red-600">
-                  {formatCurrency(Math.abs(quotation.TOTAL_DISCOUNT_AMOUNT))}
+                  {formatCurrency(Math.abs(effectiveDiscountAmount))}
                 </span>
               </div>
               <div className="flex justify-between text-xs text-gray-600">

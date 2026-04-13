@@ -174,6 +174,12 @@ export interface DiscountApproval {
   IS_DELETED: string;
 }
 
+interface AggregatedQuotationLineTotals {
+  QUOTATION_SLNO: number;
+  LINE_SUBTOTAL: number;
+  LINE_DISCOUNT_TOTAL: number;
+}
+
 function extractVinFromUnknown(input: unknown): string {
   if (!input || typeof input !== 'object') return '';
 
@@ -208,6 +214,86 @@ function extractVinFromUnknown(input: unknown): string {
 // =====================================================
 
 class QuotationService {
+  private async getLineItemTotalsMap(
+    quotationIds: number[]
+  ): Promise<Map<number, AggregatedQuotationLineTotals>> {
+    if (quotationIds.length === 0) {
+      return new Map();
+    }
+
+    const placeholders = quotationIds.map(() => '?').join(', ');
+    const query = `
+      SELECT
+        "QUOTATION_SLNO",
+        SUM(COALESCE("NET_PRICE", 0)) AS "LINE_SUBTOTAL",
+        SUM(COALESCE("DISCOUNT_AMOUNT", 0)) AS "LINE_DISCOUNT_TOTAL"
+      FROM "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION_LINE_ITEMS"
+      WHERE "IS_DELETED" = 'N'
+        AND "QUOTATION_SLNO" IN (${placeholders})
+      GROUP BY "QUOTATION_SLNO"
+    `;
+
+    const rows = await db.query<AggregatedQuotationLineTotals>(query, quotationIds);
+    return new Map(rows.map((row) => [Number(row.QUOTATION_SLNO), row]));
+  }
+
+  private async hydrateQuotationHeaderTotals<T extends Quotation>(quotations: T[]): Promise<T[]> {
+    const quotationIds = quotations
+      .map((quotation) => Number(quotation.SLNO))
+      .filter((id) => Number.isFinite(id) && id > 0);
+
+    const lineItemTotalsMap = await this.getLineItemTotalsMap(quotationIds);
+
+    return quotations.map((quotation) => {
+      const lineItemTotals = lineItemTotalsMap.get(Number(quotation.SLNO));
+      if (!lineItemTotals) {
+        return quotation;
+      }
+
+      const derivedSubtotal =
+        Number(lineItemTotals.LINE_SUBTOTAL || 0) +
+        Number(quotation.ACCESSORIES_NET_TOTAL || 0) +
+        Number(quotation.WARRANTY_TOTAL || 0) +
+        Number(quotation.INSURANCE_TOTAL || 0);
+      const derivedTaxAmount = Number(
+        (derivedSubtotal * (Number(quotation.TAX_RATE || 0) / 100)).toFixed(2)
+      );
+      const derivedGrandTotal = Number((derivedSubtotal + derivedTaxAmount).toFixed(2));
+      const derivedNetAmountDue = Math.max(
+        0,
+        Number(
+          (
+            derivedGrandTotal -
+            Number(quotation.TRADE_IN_VALUE || 0) -
+            Number(quotation.DOWNPAYMENT || 0)
+          ).toFixed(2)
+        )
+      );
+
+      return {
+        ...quotation,
+        SUBTOTAL:
+          Number(quotation.SUBTOTAL || 0) !== 0 ? Number(quotation.SUBTOTAL) : derivedSubtotal,
+        TAX_AMOUNT:
+          Number(quotation.TAX_AMOUNT || 0) !== 0
+            ? Number(quotation.TAX_AMOUNT)
+            : derivedTaxAmount,
+        GRAND_TOTAL:
+          Number(quotation.GRAND_TOTAL || 0) !== 0
+            ? Number(quotation.GRAND_TOTAL)
+            : derivedGrandTotal,
+        NET_AMOUNT_DUE:
+          Number(quotation.NET_AMOUNT_DUE || 0) !== 0
+            ? Number(quotation.NET_AMOUNT_DUE)
+            : derivedNetAmountDue,
+        TOTAL_DISCOUNT_AMOUNT:
+          Number(quotation.TOTAL_DISCOUNT_AMOUNT || 0) !== 0
+            ? Number(quotation.TOTAL_DISCOUNT_AMOUNT)
+            : Number(lineItemTotals.LINE_DISCOUNT_TOTAL || 0),
+      };
+    });
+  }
+
   private getCreateQuotationLineSpSql(): string {
     return `CALL "${QUOTATION_DB_SCHEMA}"."${CREATE_QUOTATION_LINE_SP_NAME}"(${Array(18)
       .fill('?')
@@ -523,7 +609,8 @@ class QuotationService {
         ORDER BY "VERSION" DESC, "CREATED_DATE" DESC
       `;
 
-      return await db.query(query, [enquiryId]);
+      const quotations = await db.query<Quotation>(query, [enquiryId]);
+      return await this.hydrateQuotationHeaderTotals(quotations);
     } catch (error: any) {
       logger.error('Error fetching quotations for enquiry:', error);
       throw new Error('Failed to fetch quotations: ' + error.message);
@@ -568,7 +655,8 @@ class QuotationService {
 
       query += ` ORDER BY "CREATED_DATE" DESC`;
 
-      return await db.query(query, params);
+      const quotations = await db.query<Quotation>(query, params);
+      return await this.hydrateQuotationHeaderTotals(quotations);
     } catch (error: any) {
       logger.error('Error fetching all quotations:', error);
       throw new Error('Failed to fetch quotations: ' + error.message);

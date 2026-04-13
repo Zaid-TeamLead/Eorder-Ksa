@@ -76,8 +76,34 @@ export function usePricingCalculations({
   lineItems,
 }: UsePricingCalculationsParams): UsePricingCalculationsReturn {
   return useMemo(() => {
+    const lineItemsTotals = (lineItems || []).reduce(
+      (acc, item) => {
+        const quantity = Number(item.quantity || 0);
+        const unitPrice = Number(item.unitPrice || 0);
+        const discountAmount = Number(item.discountAmount || 0);
+        const netPrice = Number(item.netPrice || 0);
+
+        acc.basePrice += quantity * unitPrice;
+        acc.discount += discountAmount;
+        acc.netPrice += netPrice;
+        return acc;
+      },
+      { basePrice: 0, discount: 0, netPrice: 0 }
+    );
+
+    const hasLineItemPricing = lineItemsTotals.basePrice > 0 || lineItemsTotals.netPrice > 0;
+
+    const effectiveVehicleBasePrice = hasLineItemPricing
+      ? lineItemsTotals.basePrice
+      : vehicleBasePrice;
+    const effectiveVehicleDiscount = hasLineItemPricing
+      ? lineItemsTotals.discount
+      : vehicleDiscount;
+
     // Calculate vehicle net price
-    const vehicleNetPrice = Math.max(0, vehicleBasePrice + vehicleDiscount); // discount is negative
+    const vehicleNetPrice = hasLineItemPricing
+      ? Math.max(0, lineItemsTotals.netPrice)
+      : Math.max(0, vehicleBasePrice + vehicleDiscount); // discount is negative
 
     // Calculate accessories total and discount from line items
     // Note: In the current implementation, accessories are not calculated from line items
@@ -105,12 +131,14 @@ export function usePricingCalculations({
     const netAmountDue = Math.max(0, grandTotal - tradeInValue - downpayment);
 
     // Calculate total discount
-    const totalDiscountAmount = vehicleDiscount + accessoriesDiscountTotal;
+    const totalDiscountAmount = effectiveVehicleDiscount + accessoriesDiscountTotal;
 
     // Calculate discount percentage
     const discountPercentage =
-      subtotal > 0
-        ? parseFloat(((Math.abs(totalDiscountAmount) / subtotal) * 100).toFixed(2))
+      effectiveVehicleBasePrice > 0
+        ? parseFloat(
+            ((Math.abs(totalDiscountAmount) / effectiveVehicleBasePrice) * 100).toFixed(2)
+          )
         : 0;
 
     return {

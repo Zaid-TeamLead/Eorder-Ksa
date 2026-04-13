@@ -97,6 +97,38 @@ export default function QuotationDetailPage() {
     (sum, item) => sum + Number(item.DISCOUNT_AMOUNT || 0),
     0
   );
+  const lineItemsSubtotal = (quotation.lineItems || []).reduce(
+    (sum, item) => sum + Number(item.NET_PRICE || 0),
+    0
+  );
+  const pricingSubtotalFallback =
+    lineItemsSubtotal +
+    Number(quotation.ACCESSORIES_NET_TOTAL || 0) +
+    Number(quotation.WARRANTY_TOTAL || 0) +
+    Number(quotation.INSURANCE_TOTAL || 0);
+  const effectiveSubtotal =
+    Number(quotation.SUBTOTAL || 0) !== 0 ? Number(quotation.SUBTOTAL) : pricingSubtotalFallback;
+  const effectiveTaxAmount =
+    Number(quotation.TAX_AMOUNT || 0) !== 0
+      ? Number(quotation.TAX_AMOUNT)
+      : Number((effectiveSubtotal * (Number(quotation.TAX_RATE || 0) / 100)).toFixed(2));
+  const effectiveGrandTotal =
+    Number(quotation.GRAND_TOTAL || 0) !== 0
+      ? Number(quotation.GRAND_TOTAL)
+      : Number((effectiveSubtotal + effectiveTaxAmount).toFixed(2));
+  const effectiveNetAmountDue =
+    Number(quotation.NET_AMOUNT_DUE || 0) !== 0
+      ? Number(quotation.NET_AMOUNT_DUE)
+      : Math.max(
+          0,
+          Number(
+            (
+              effectiveGrandTotal -
+              Number(quotation.TRADE_IN_VALUE || 0) -
+              Number(quotation.DOWNPAYMENT || 0)
+            ).toFixed(2)
+          )
+        );
   const isCancelled = quotation.STATUS === 'Cancelled';
   const isSuperseded = quotation.STATUS === 'Superseded';
   const isTerminalStatus = isCancelled || isSuperseded;
@@ -426,16 +458,16 @@ export default function QuotationDetailPage() {
           <div className="space-y-4">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Subtotal</span>
-              <span className="font-medium">{formatCurrency(quotation.SUBTOTAL)}</span>
+              <span className="font-medium">{formatCurrency(effectiveSubtotal)}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">VAT ({quotation.TAX_RATE}%)</span>
-              <span className="font-medium">{formatCurrency(quotation.TAX_AMOUNT)}</span>
+              <span className="font-medium">{formatCurrency(effectiveTaxAmount)}</span>
             </div>
             <Separator />
             <div className="flex justify-between text-base">
               <span className="font-semibold">Grand Total</span>
-              <span className="font-bold">{formatCurrency(quotation.GRAND_TOTAL)}</span>
+              <span className="font-bold">{formatCurrency(effectiveGrandTotal)}</span>
             </div>
 
             {(quotation.TRADE_IN_VALUE && Number(quotation.TRADE_IN_VALUE) > 0) && (
@@ -466,19 +498,19 @@ export default function QuotationDetailPage() {
                 <div className="flex justify-between text-base">
                   <span className="font-semibold">Net Amount Due</span>
                   <span className="font-bold text-primary">
-                    {formatCurrency(quotation.NET_AMOUNT_DUE)}
+                    {formatCurrency(effectiveNetAmountDue)}
                   </span>
                 </div>
               </>
             )}
 
-            {quotation.TOTAL_DISCOUNT_AMOUNT && Number(quotation.TOTAL_DISCOUNT_AMOUNT) < 0 && (
+            {effectiveDiscountAmount < 0 && (
               <>
                 <Separator />
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Total Discount</span>
                   <span className="font-medium text-red-600">
-                    {formatCurrency(quotation.TOTAL_DISCOUNT_AMOUNT)}
+                    {formatCurrency(effectiveDiscountAmount)}
                     {quotation.DISCOUNT_PERCENTAGE > 0 && ` (${quotation.DISCOUNT_PERCENTAGE}%)`}
                   </span>
                 </div>
