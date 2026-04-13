@@ -64,6 +64,77 @@ function normalizeChargeRow(row: Record<string, unknown>): Record<string, unknow
   return normalized;
 }
 
+function getVehicleInventoryIdentity(row: Record<string, unknown>): string | null {
+  const vin =
+    row.VIN ??
+    row.VINNUMBER ??
+    row.vin ??
+    row.vinNumber ??
+    row.U_Veh_StockID ??
+    row.U_VEH_STOCKID;
+
+  if (vin !== undefined && vin !== null && String(vin).trim() !== '') {
+    return `VIN:${String(vin).trim().toUpperCase()}`;
+  }
+
+  const itemCode = row.ItemCode ?? row.ITEMCODE;
+  const warehouse = row.WhsCode ?? row.WHSCode ?? row.WHSCODE ?? row.WhsName ?? row.WHSNAME;
+  const inDate = row.InDate ?? row.INDATE;
+
+  if (itemCode !== undefined && itemCode !== null && String(itemCode).trim() !== '') {
+    return [
+      'ITEM',
+      String(itemCode).trim().toUpperCase(),
+      String(warehouse ?? '').trim().toUpperCase(),
+      String(inDate ?? '').trim().toUpperCase(),
+    ].join(':');
+  }
+
+  return null;
+}
+
+function mergeVehicleInventoryRow(
+  current: Record<string, unknown>,
+  incoming: Record<string, unknown>
+): Record<string, unknown> {
+  const merged = { ...current };
+
+  for (const [key, value] of Object.entries(incoming)) {
+    const currentValue = merged[key];
+    if (
+      currentValue === undefined ||
+      currentValue === null ||
+      (typeof currentValue === 'string' && currentValue.trim() === '')
+    ) {
+      merged[key] = value;
+    }
+  }
+
+  return merged;
+}
+
+function dedupeVehicleInventoryRows<T extends Record<string, unknown>>(rows: T[]): T[] {
+  const deduped = new Map<string, T>();
+
+  for (const row of rows) {
+    const identity = getVehicleInventoryIdentity(row);
+    if (!identity) {
+      deduped.set(`ROW:${deduped.size}`, row);
+      continue;
+    }
+
+    const existing = deduped.get(identity);
+    if (!existing) {
+      deduped.set(identity, row);
+      continue;
+    }
+
+    deduped.set(identity, mergeVehicleInventoryRow(existing, row) as T);
+  }
+
+  return Array.from(deduped.values());
+}
+
 function coerceRowsFromProcedureResult(input: unknown): Record<string, unknown>[] {
   if (Array.isArray(input)) {
     return input as Record<string, unknown>[];
@@ -329,29 +400,35 @@ export const getAllTestVehicles = async () => {
 export const getAllVehicleInventory = async (customerCode?: string) => {
   try {
     const normalizedCustomerCode = customerCode?.trim() || '';
-    const vehicles = await db.query(getVehicleSpCallSql(VEHICLE_INVENTORY_SP, 1), [normalizedCustomerCode]);
+    const vehicles = await db.query<Record<string, unknown>>(
+      getVehicleSpCallSql(VEHICLE_INVENTORY_SP, 1),
+      [normalizedCustomerCode]
+    );
+    const dedupedVehicles = dedupeVehicleInventoryRows(vehicles);
 
     logger.info(
       {
         customerCode: normalizedCustomerCode || '(empty)',
         rows: vehicles.length,
-        sample: vehicles[0]
+        dedupedRows: dedupedVehicles.length,
+        sample: dedupedVehicles[0]
           ? {
-              Location: vehicles[0].Location ?? null,
-              WhsName: vehicles[0].WhsName ?? null,
-              WhsCode: vehicles[0].WhsCode ?? null,
-              ItemCode: vehicles[0].ItemCode,
-              Price: vehicles[0].Price ?? null,
-              Discount: vehicles[0].Discount ?? null,
-              Discprice: vehicles[0].Discprice ?? null,
-              Currency: vehicles[0].Currency ?? null,
+              Location: dedupedVehicles[0].Location ?? null,
+              WhsName: dedupedVehicles[0].WhsName ?? null,
+              WhsCode: dedupedVehicles[0].WhsCode ?? null,
+              ItemCode: dedupedVehicles[0].ItemCode,
+              U_Veh_Brand: dedupedVehicles[0].U_Veh_Brand ?? null,
+              Price: dedupedVehicles[0].Price ?? null,
+              Discount: dedupedVehicles[0].Discount ?? null,
+              Discprice: dedupedVehicles[0].Discprice ?? null,
+              Currency: dedupedVehicles[0].Currency ?? null,
             }
           : null,
       },
       'Retrieved vehicle inventory'
     );
 
-    return vehicles;
+    return dedupedVehicles;
   } catch (error) {
     logger.error(error, 'Failed to get all vehicle inventory');
     throw new Error('Failed to get all vehicle inventory');

@@ -142,11 +142,10 @@ export function VehicleSelectionModal({
         "U_VEH_BRAND",
         "BRAND",
         "Brand",
-        "ItmsGrpNam",
         "MAKE",
         "Make",
       ]) ||
-      getValueFromContains(vehicle, ["brand", "make", "itmsgrp", "group"]) ||
+      getValueFromContains(vehicle, ["brand", "make"]) ||
       "ISUZU"
     );
   };

@@ -237,6 +237,8 @@ export default function DashboardPage() {
   const [groupBy, setGroupBy] = useState<string>('brand');
   const [groupMetric, setGroupMetric] = useState<'amount' | 'quantity'>('amount');
   const [selectedMonthKey, setSelectedMonthKey] = useState<string>('all');
+  const [detailFilterColumn, setDetailFilterColumn] = useState<string>('all');
+  const [detailFilterValue, setDetailFilterValue] = useState<string>('all');
 
   const getRowMonthKey = (row: SalespersonDashboardRow): string | null => {
     if (dateColumn) {
@@ -303,6 +305,72 @@ export default function DashboardPage() {
       setSelectedMonthKey('all');
     }
   }, [selectedMonthKey, monthOptions]);
+
+  const detailFilterColumns = useMemo(
+    () =>
+      columns
+        .map((column) => {
+          const values = new Set<string>();
+
+          rows.forEach((row) => {
+            const value = row[column];
+            if (value !== null && value !== undefined && String(value).trim() !== '') {
+              values.add(String(value).trim());
+            }
+          });
+
+          return {
+            key: column,
+            label: toReadableLabel(column),
+            count: values.size,
+          };
+        })
+        .filter((column) => column.count > 1)
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    [columns, rows]
+  );
+
+  useEffect(() => {
+    if (detailFilterColumn === 'all') return;
+    if (!detailFilterColumns.some((column) => column.key === detailFilterColumn)) {
+      setDetailFilterColumn('all');
+    }
+  }, [detailFilterColumn, detailFilterColumns]);
+
+  const detailFilterValueOptions = useMemo(() => {
+    if (detailFilterColumn === 'all') return [];
+
+    const values = new Set<string>();
+    rows.forEach((row) => {
+      const value = row[detailFilterColumn];
+      if (value !== null && value !== undefined && String(value).trim() !== '') {
+        values.add(String(value).trim());
+      }
+    });
+
+    return Array.from(values)
+      .sort((a, b) =>
+        a.localeCompare(b, 'en-US', { numeric: true, sensitivity: 'base' })
+      )
+      .map((value) => ({
+        key: value,
+        label: value,
+      }));
+  }, [detailFilterColumn, rows]);
+
+  useEffect(() => {
+    if (detailFilterColumn === 'all') {
+      if (detailFilterValue !== 'all') {
+        setDetailFilterValue('all');
+      }
+      return;
+    }
+
+    if (detailFilterValue === 'all') return;
+    if (!detailFilterValueOptions.some((item) => item.key === detailFilterValue)) {
+      setDetailFilterValue('all');
+    }
+  }, [detailFilterColumn, detailFilterValue, detailFilterValueOptions]);
 
   const metrics = useMemo(() => {
     const totalQuantity = rows.reduce((total, row) => {
@@ -474,6 +542,26 @@ export default function DashboardPage() {
     mmColumn,
   ]);
 
+  const filteredDetailRows = useMemo(() => {
+    if (detailFilterColumn === 'all' || detailFilterValue === 'all') {
+      return rows;
+    }
+
+    return rows.filter((row) => {
+      const value = row[detailFilterColumn];
+      if (value === null || value === undefined) return false;
+      return String(value).trim() === detailFilterValue;
+    });
+  }, [rows, detailFilterColumn, detailFilterValue]);
+
+  const activeDetailFilterLabel = useMemo(
+    () =>
+      detailFilterColumn === 'all'
+        ? 'All data'
+        : detailFilterColumns.find((column) => column.key === detailFilterColumn)?.label || 'Filter',
+    [detailFilterColumn, detailFilterColumns]
+  );
+
   if (isLoading) {
     return <LoadingState message="Loading dashboard data..." />;
   }
@@ -625,6 +713,45 @@ export default function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Salesperson Performance Details</CardTitle>
+            <CardAction>
+              <div className="flex flex-wrap items-center gap-2">
+                <Select value={detailFilterColumn} onValueChange={setDetailFilterColumn}>
+                  <SelectTrigger className="h-8 w-[160px] text-xs">
+                    <SelectValue placeholder="Filter column" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all" className="text-xs">
+                      All columns
+                    </SelectItem>
+                    {detailFilterColumns.map((column) => (
+                      <SelectItem key={column.key} value={column.key} className="text-xs">
+                        {column.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={detailFilterValue}
+                  onValueChange={setDetailFilterValue}
+                  disabled={detailFilterColumn === 'all'}
+                >
+                  <SelectTrigger className="h-8 w-[180px] text-xs">
+                    <SelectValue placeholder="Filter value" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all" className="text-xs">
+                      All values
+                    </SelectItem>
+                    {detailFilterValueOptions.map((item) => (
+                      <SelectItem key={item.key} value={item.key} className="text-xs">
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardAction>
             {slpCodeFromQuery ? (
               <div className="pt-1">
                 <Badge variant="outline" className="text-[11px]">
@@ -634,9 +761,24 @@ export default function DashboardPage() {
             ) : null}
           </CardHeader>
           <CardContent>
+            <div className="mb-4 flex flex-wrap gap-2">
+              <Badge variant="outline" className="text-[11px]">
+                Filter: {activeDetailFilterLabel}
+              </Badge>
+              <Badge variant="outline" className="text-[11px]">
+                Value: {detailFilterValue === 'all' ? 'All values' : detailFilterValue}
+              </Badge>
+              <Badge variant="outline" className="text-[11px]">
+                Rows: {filteredDetailRows.length} / {rows.length}
+              </Badge>
+            </div>
             {rows.length === 0 ? (
               <div className="rounded-md border border-dashed p-6 text-center text-xs text-muted-foreground">
                 No dashboard data returned.
+              </div>
+            ) : filteredDetailRows.length === 0 ? (
+              <div className="rounded-md border border-dashed p-6 text-center text-xs text-muted-foreground">
+                No dashboard rows match the selected filter.
               </div>
             ) : (
               <div className="overflow-x-auto rounded-md border text-xs">
@@ -651,7 +793,7 @@ export default function DashboardPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {rows.map((row, rowIndex) => (
+                    {filteredDetailRows.map((row, rowIndex) => (
                       <TableRow key={`dashboard-row-${rowIndex}`}>
                         {columns.map((column) => (
                           <TableCell key={`${rowIndex}-${column}`} className="py-2 text-xs">

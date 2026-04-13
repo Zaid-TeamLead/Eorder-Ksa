@@ -38,6 +38,9 @@ export interface Lender {
 export interface SalesEmployee {
   SALES_EMPLOYEE_CODE: string;
   SALES_EMPLOYEE_NAME: string;
+  BRANCH?: string | null;
+  BRANCHNAME?: string | null;
+  [key: string]: unknown;
 }
 
 export interface Currency {
