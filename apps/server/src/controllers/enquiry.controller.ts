@@ -83,7 +83,7 @@ export const getEnquiryStats = async (req: Request, res: Response) => {
 };
 
 export const getSalespersonDashboard = async (_req: Request, res: Response) => {
-  const slpCode = '14';
+  const slpCode = '68';
 
   if (!slpCode) {
     return res.status(400).json({

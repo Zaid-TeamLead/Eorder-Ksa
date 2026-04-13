@@ -229,7 +229,7 @@ export default function SalesEnquiry() {
         `${process.env.NEXT_PUBLIC_SERVER_URL}/api/customers/search`,
         {
           search: query,
-          slpCode: slpCode?.toString() || "",
+          slpCode: "68",
         },
         {
           headers: {

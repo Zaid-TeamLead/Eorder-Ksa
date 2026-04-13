@@ -73,7 +73,7 @@ const CustomerMaster = () => {
     // Search customers
     useEffect(() => {
         const performSearch = async () => {
-            if (!debouncedSearch.trim() || !session?.user?.SlpCode) {
+            if (!debouncedSearch.trim()) {
                 setCustomers([]);
                 setShowResults(false);
                 setSearchError(null);
@@ -85,7 +85,7 @@ const CustomerMaster = () => {
             try {
                 const result = await searchCustomers(
                     debouncedSearch.toString(),
-                    session.user.SlpCode.toString()
+                    "68"
                 );
                 if (Array.isArray(result)) {
                     setCustomers(normalizeCustomers(result));
@@ -110,7 +110,7 @@ const CustomerMaster = () => {
         };
 
         performSearch();
-    }, [debouncedSearch, session?.user?.SlpCode]);
+    }, [debouncedSearch]);
 
     // Fetch customer details when selected
     const { data: addressData, isLoading: isLoadingAddress } = useQuery({
