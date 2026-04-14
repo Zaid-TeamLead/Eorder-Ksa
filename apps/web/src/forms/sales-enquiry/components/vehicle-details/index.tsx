@@ -44,10 +44,13 @@ export function VehicleDetails() {
   const variant = form.watch("variant") || "";
   const selectedVehicleLines = form.watch("selectedVehicleLines") || [];
   const vinDetails = form.watch("vinDetails");
+  const hasSavedSelectedVehicleLines =
+    Array.isArray(selectedVehicleLines) && selectedVehicleLines.length > 0;
+  const shouldAutoFetchVins = Boolean(customerId && variant) && !hasSavedSelectedVehicleLines && !vinDetails;
 
   // Custom hook for VIN fetching
   const { vinNumbers, setVinNumbers, loadingVinNumbers, getVinNumber } =
-    useVinFetcher(customerId, variant);
+    useVinFetcher(customerId, variant, { autoFetch: shouldAutoFetchVins });
 
   // Vehicle selection hook for cross-component communication
   const { listenForSelection, listenForMultipleSelection } = useVehicleSelection();

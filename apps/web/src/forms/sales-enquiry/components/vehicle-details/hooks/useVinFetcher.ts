@@ -12,11 +12,24 @@ import { apiClient } from "@/lib/api-client";
  * - Auto-fetching when customerId/variant changes
  * - Error handling
  */
-export function useVinFetcher(customerId: string, variant: string) {
+interface UseVinFetcherOptions {
+  autoFetch?: boolean;
+}
+
+export function useVinFetcher(
+  customerId: string,
+  variant: string,
+  options: UseVinFetcherOptions = {}
+) {
   const [vinNumbers, setVinNumbers] = useState<any[]>([]);
   const [loadingVinNumbers, setLoadingVinNumbers] = useState(false);
+  const autoFetch = options.autoFetch ?? true;
 
-  const getVinNumber = useCallback(async (customerId: string, ProductCode: string) => {
+  const getVinNumber = useCallback(async (
+    customerId: string,
+    ProductCode: string,
+    config?: { silent?: boolean }
+  ) => {
     try {
       if (!customerId || !ProductCode) {
         setVinNumbers([]);
@@ -46,7 +59,9 @@ export function useVinFetcher(customerId: string, variant: string) {
     } catch (error) {
       logger.error("Error getting vin number:", error);
       setVinNumbers([]);
-      toast.error("Failed to fetch VIN numbers");
+      if (!config?.silent) {
+        toast.error("Failed to fetch VIN numbers");
+      }
       return [];
     } finally {
       setLoadingVinNumbers(false);
@@ -55,12 +70,17 @@ export function useVinFetcher(customerId: string, variant: string) {
 
   // Auto-fetch VIN numbers when customerId and variant are available
   useEffect(() => {
+    if (!autoFetch) {
+      setVinNumbers([]);
+      return;
+    }
+
     if (customerId && variant) {
-      getVinNumber(customerId, variant);
+      getVinNumber(customerId, variant, { silent: true });
     } else {
       setVinNumbers([]);
     }
-  }, [customerId, variant, getVinNumber]);
+  }, [autoFetch, customerId, variant, getVinNumber]);
 
   return {
     vinNumbers,
