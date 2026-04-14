@@ -16,6 +16,25 @@ interface ImmediateTestDriveDefaults {
   variant?: string;
 }
 
+interface QuotationEnquiryPrefill {
+  SLNO: number;
+  CUSTOMERNAME?: string;
+  MOBILE?: string;
+  HOMEEMAIL?: string;
+  ADDRESS?: string;
+  MAKE?: string;
+  MAKENAME?: string;
+  MODEL?: string;
+  MODELNAME?: string;
+  VARIANT?: string;
+  VARIANTNAME?: string;
+  YEAR?: string;
+  COLOR?: string;
+  QUANTITY?: number;
+  VINNUMBER?: string;
+  VINDETAILS?: SalesEnquiry['VINDETAILS'];
+}
+
 export interface UseEnquiryActionsReturn {
   handleTradeInAppraisal: (enquiry: SalesEnquiry) => void;
   handleBankFunding: (enquiry: SalesEnquiry) => void;
@@ -191,7 +210,38 @@ export function useEnquiryActions(): UseEnquiryActionsReturn {
 
   const handleGenerateQuotation = useCallback(
     (enquiry: SalesEnquiry) => {
-      router.push(`/dashboard/quotations/create?enquiryId=${enquiry.SLNO}`);
+      const prefillKey = `quotation-create-enquiry-${enquiry.SLNO}`;
+      const lightweightPrefill: QuotationEnquiryPrefill = {
+        SLNO: enquiry.SLNO,
+        CUSTOMERNAME: enquiry.CUSTOMERNAME,
+        MOBILE: enquiry.MOBILE,
+        HOMEEMAIL: enquiry.HOMEEMAIL,
+        ADDRESS: enquiry.ADDRESS,
+        MAKE: enquiry.MAKE,
+        MAKENAME: enquiry.MAKENAME,
+        MODEL: enquiry.MODEL,
+        MODELNAME: enquiry.MODELNAME,
+        VARIANT: enquiry.VARIANT,
+        VARIANTNAME: enquiry.VARIANTNAME,
+        YEAR: enquiry.YEAR,
+        COLOR: enquiry.COLOR,
+        QUANTITY: enquiry.QUANTITY,
+        VINNUMBER: enquiry.VINNUMBER,
+        VINDETAILS: enquiry.VINDETAILS,
+      };
+
+      try {
+        if (typeof window !== 'undefined') {
+          window.sessionStorage.setItem(prefillKey, JSON.stringify(lightweightPrefill));
+        }
+      } catch {
+        // Ignore storage failures and allow API fallback on the quotation page.
+      }
+
+      const prefillData = encodeURIComponent(JSON.stringify(lightweightPrefill));
+      router.push(
+        `/dashboard/quotations/create?enquiryId=${enquiry.SLNO}&prefillKey=${encodeURIComponent(prefillKey)}&prefillData=${prefillData}`
+      );
     },
     [router]
   );

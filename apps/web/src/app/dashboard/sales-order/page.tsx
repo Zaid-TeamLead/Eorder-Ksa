@@ -11,6 +11,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -38,6 +45,7 @@ import { Badge } from '@/components/ui/badge';
 
 import { useSalesOrders } from '@/hooks/entities/useSalesOrders';
 import { useSalesOrderMutations } from '@/hooks/entities/useSalesOrderMutations';
+import { useQuotations } from '@/hooks/entities/useQuotations';
 import { LoadingState } from '@/components/shared/loading-state';
 import { ErrorState } from '@/components/shared/error-state';
 import { formatCurrency, formatDate } from '@/lib/formatters';
@@ -57,7 +65,22 @@ export default function SalesOrderPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
   const { salesOrders, isLoading, error, refetch } = useSalesOrders();
+  const { quotations, isLoading: isLoadingQuotations } = useQuotations();
   const { createFromQuotation, isCreating } = useSalesOrderMutations();
+
+  const usedQuotationIds = new Set(
+    salesOrders
+      .map((order) => Number(order.QUOTATION_SLNO))
+      .filter((quotationId) => Number.isFinite(quotationId) && quotationId > 0)
+  );
+
+  const availableQuotations = quotations.filter(
+    (quotation) =>
+      quotation.IS_LATEST_VERSION === 'Y' &&
+      quotation.STATUS !== 'Cancelled' &&
+      quotation.STATUS !== 'Superseded' &&
+      !usedQuotationIds.has(Number(quotation.SLNO))
+  );
 
   const form = useForm<CreateSalesOrderFormData>({
     resolver: zodResolver(createSalesOrderSchema) as any,
@@ -187,19 +210,39 @@ export default function SalesOrderPage() {
                 name="quotationSlno"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Quotation ID *</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        type="number"
-                        min="1"
-                        step="1"
-                        placeholder="e.g. 123"
-                        onChange={(e) =>
-                          field.onChange(Number.parseInt(e.target.value, 10) || 0)
-                        }
-                      />
-                    </FormControl>
+                    <FormLabel>Quotation *</FormLabel>
+                    <Select
+                      value={field.value > 0 ? String(field.value) : undefined}
+                      onValueChange={(value) => field.onChange(Number.parseInt(value, 10) || 0)}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue
+                            placeholder={
+                              isLoadingQuotations
+                                ? 'Loading quotations...'
+                                : 'Select a quotation'
+                            }
+                          />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {availableQuotations.length === 0 ? (
+                          <SelectItem value="no-quotations" disabled>
+                            No quotations available
+                          </SelectItem>
+                        ) : (
+                          availableQuotations.map((quotation) => (
+                            <SelectItem
+                              key={quotation.SLNO}
+                              value={String(quotation.SLNO)}
+                            >
+                              {`${quotation.ROOT_QUOTATION_NUMBER || quotation.QUOTATION_NUMBER} - ${quotation.CUSTOMER_NAME || 'No customer'}${quotation.VERSION > 1 ? ` (V${quotation.VERSION})` : ''}`}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}

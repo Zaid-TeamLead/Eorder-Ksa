@@ -256,7 +256,7 @@ router.post(
   validate(reserveVehicleSchema),
   asyncHandler(
     checkResourceOwnership({
-      getResourceById: (id) => quotationService.getQuotationById(Number(id)),
+      getResourceById: (id) => quotationService.getQuotationById(Number(id), { resolveLatest: true }),
       getOwnerId: (quotation) => quotation.SLPCODE,
       getUserId: (req) => req.user?.SlpCode,
       resourceName: 'Quotation',

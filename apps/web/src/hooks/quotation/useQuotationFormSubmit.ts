@@ -24,15 +24,25 @@ export function useQuotationFormSubmit({
   const handleSubmit = useCallback(
     async (data: QuotationFormData, status: 'Draft' | 'Sent') => {
       try {
-        if (isSuperseding && supersedeId && data.supersedeReason) {
+        if (isSuperseding && supersedeId) {
+          const reason = data.supersedeReason?.trim() || '';
+          if (!reason) {
+            toast.error('Reason for new version is required');
+            return;
+          }
+
+          const { supersedeReason: _ignored, ...quotationData } = data;
+
           // Supersede flow - creating new version
           const supersedeData = {
-            parentQuotationSlno: parseInt(supersedeId),
-            reason: data.supersedeReason,
-            ...data,
+            parentQuotationSlno: parseInt(supersedeId, 10),
+            reason,
+            ...quotationData,
             status,
           };
           await supersedeQuotation(supersedeData);
+          router.push(`/dashboard/quotations/${supersedeId}`);
+          return;
         } else {
           // Regular create flow from enquiry
           const quotationData = {
@@ -46,7 +56,6 @@ export function useQuotationFormSubmit({
         router.push('/dashboard/quotations');
       } catch (error) {
         logger.error('Error creating quotation:', error);
-        toast.error('Failed to create quotation');
       }
     },
     [isSuperseding, supersedeId, createQuotation, supersedeQuotation, router]

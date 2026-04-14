@@ -10,6 +10,8 @@ import { logger } from '@/lib/logger';
 interface UseQuotationFormDataParams {
   enquiryId?: string | null;
   supersedeId?: string | null;
+  enquiryPrefillKey?: string | null;
+  enquiryPrefillData?: string | null;
   onDataLoaded?: (data: QuotationFormData) => void;
 }
 
@@ -313,6 +315,8 @@ function buildQuotationVehicleLineItems(enquiryData: SalesEnquiry) {
 export function useQuotationFormData({
   enquiryId,
   supersedeId,
+  enquiryPrefillKey,
+  enquiryPrefillData,
   onDataLoaded,
 }: UseQuotationFormDataParams) {
   const isSuperseding = !!supersedeId;
@@ -333,85 +337,112 @@ export function useQuotationFormData({
       setError(new Error('No enquiry ID or quotation ID provided'));
       toast.error('No enquiry ID or quotation ID provided');
     }
-  }, [enquiryId, supersedeId, isSuperseding]);
+  }, [enquiryId, supersedeId, isSuperseding, enquiryPrefillKey, enquiryPrefillData]);
+
+  const populateFormFromEnquiry = (enquiryData: SalesEnquiry, id: number) => {
+    setEnquiry(enquiryData);
+    const enquiryVinDetails = enquiryData.VINDETAILS as string | Record<string, unknown> | undefined;
+    let vinFromDetails = '';
+    if (typeof enquiryVinDetails === 'string') {
+      try {
+        vinFromDetails = extractVinFromUnknown(JSON.parse(enquiryVinDetails));
+      } catch {
+        vinFromDetails = '';
+      }
+    } else {
+      vinFromDetails = extractVinFromUnknown(enquiryVinDetails);
+    }
+    const enquiryRecord = enquiryData as unknown as Record<string, unknown>;
+    const rawVinNumber = enquiryRecord.vinNumber;
+    const vinFromRecord =
+      rawVinNumber !== undefined && rawVinNumber !== null && String(rawVinNumber).trim() !== ''
+        ? String(rawVinNumber).trim()
+        : '';
+    const vehicleData = buildQuotationVehicleLineItems(enquiryData);
+    const taxRate = 15;
+    const subtotal = vehicleData.totals.netPrice;
+    const taxAmount = parseFloat(((subtotal * taxRate) / 100).toFixed(2));
+    const grandTotal = parseFloat((subtotal + taxAmount).toFixed(2));
+
+    const formData: QuotationFormData = {
+      enquirySlno: id,
+      customerName: enquiryData.CUSTOMERNAME || '',
+      customerMobile: enquiryData.MOBILE || '',
+      customerEmail: sanitizeEmail(enquiryData.HOMEEMAIL),
+      customerAddress: enquiryData.ADDRESS || '',
+      vehicleMake: vehicleData.primaryVehicle.make,
+      vehicleModel: vehicleData.primaryVehicle.model,
+      vehicleVariant: vehicleData.primaryVehicle.variant,
+      vehicleYear: vehicleData.primaryVehicle.year,
+      vehicleColor: vehicleData.primaryVehicle.color,
+      vinNumber:
+        vehicleData.primaryVehicle.vinNumber ||
+        enquiryData.VINNUMBER ||
+        vinFromRecord ||
+        vinFromDetails ||
+        '',
+      vehicleBasePrice: vehicleData.totals.basePrice,
+      vehicleDiscount: vehicleData.totals.discount,
+      vehicleNetPrice: vehicleData.totals.netPrice,
+      accessoriesTotal: 0,
+      accessoriesDiscount: 0,
+      accessoriesNetTotal: 0,
+      warrantyTotal: 0,
+      insuranceTotal: 0,
+      subtotal,
+      taxRate,
+      taxAmount,
+      grandTotal,
+      tradeInValue: 0,
+      downpayment: 0,
+      netAmountDue: grandTotal,
+      totalDiscountAmount: vehicleData.totals.discount,
+      discountPercentage:
+        vehicleData.totals.basePrice > 0 && vehicleData.totals.discount < 0
+          ? parseFloat(
+              ((Math.abs(vehicleData.totals.discount) / vehicleData.totals.basePrice) * 100).toFixed(2)
+            )
+          : 0,
+      validUntil: '',
+      notes: '',
+      termsAndConditions: '',
+      internalNotes: '',
+      lineItems: vehicleData.lineItems,
+    };
+
+    onDataLoaded?.(formData);
+  };
 
   const loadEnquiryData = async (id: number) => {
     try {
       setIsLoadingEnquiry(true);
       setError(null);
-      const enquiryData = await getEnquiryById(id);
-      setEnquiry(enquiryData);
-      const enquiryVinDetails = enquiryData.VINDETAILS as string | Record<string, unknown> | undefined;
-      let vinFromDetails = '';
-      if (typeof enquiryVinDetails === 'string') {
-        try {
-          vinFromDetails = extractVinFromUnknown(JSON.parse(enquiryVinDetails));
-        } catch {
-          vinFromDetails = '';
+      if (enquiryPrefillKey && typeof window !== 'undefined') {
+        const storedPrefill = window.sessionStorage.getItem(enquiryPrefillKey);
+        if (storedPrefill) {
+          try {
+            const parsed = JSON.parse(storedPrefill) as SalesEnquiry;
+            populateFormFromEnquiry(parsed, id);
+            window.sessionStorage.removeItem(enquiryPrefillKey);
+            return;
+          } catch {
+            window.sessionStorage.removeItem(enquiryPrefillKey);
+          }
         }
-      } else {
-        vinFromDetails = extractVinFromUnknown(enquiryVinDetails);
       }
-      const enquiryRecord = enquiryData as unknown as Record<string, unknown>;
-      const rawVinNumber = enquiryRecord.vinNumber;
-      const vinFromRecord =
-        rawVinNumber !== undefined && rawVinNumber !== null && String(rawVinNumber).trim() !== ''
-          ? String(rawVinNumber).trim()
-          : '';
-      const vehicleData = buildQuotationVehicleLineItems(enquiryData);
-      const taxRate = 15;
-      const subtotal = vehicleData.totals.netPrice;
-      const taxAmount = parseFloat(((subtotal * taxRate) / 100).toFixed(2));
-      const grandTotal = parseFloat((subtotal + taxAmount).toFixed(2));
 
-      // Prepare form data from enquiry
-      const formData: QuotationFormData = {
-        enquirySlno: id,
-        customerName: enquiryData.CUSTOMERNAME || '',
-        customerMobile: enquiryData.MOBILE || '',
-        customerEmail: sanitizeEmail(enquiryData.HOMEEMAIL),
-        customerAddress: enquiryData.ADDRESS || '',
-        vehicleMake: vehicleData.primaryVehicle.make,
-        vehicleModel: vehicleData.primaryVehicle.model,
-        vehicleVariant: vehicleData.primaryVehicle.variant,
-        vehicleYear: vehicleData.primaryVehicle.year,
-        vehicleColor: vehicleData.primaryVehicle.color,
-        vinNumber:
-          vehicleData.primaryVehicle.vinNumber ||
-          enquiryData.VINNUMBER ||
-          vinFromRecord ||
-          vinFromDetails ||
-          '',
-        vehicleBasePrice: vehicleData.totals.basePrice,
-        vehicleDiscount: vehicleData.totals.discount,
-        vehicleNetPrice: vehicleData.totals.netPrice,
-        accessoriesTotal: 0,
-        accessoriesDiscount: 0,
-        accessoriesNetTotal: 0,
-        warrantyTotal: 0,
-        insuranceTotal: 0,
-        subtotal,
-        taxRate,
-        taxAmount,
-        grandTotal,
-        tradeInValue: 0,
-        downpayment: 0,
-        netAmountDue: grandTotal,
-        totalDiscountAmount: vehicleData.totals.discount,
-        discountPercentage:
-          vehicleData.totals.basePrice > 0 && vehicleData.totals.discount < 0
-            ? parseFloat(
-                ((Math.abs(vehicleData.totals.discount) / vehicleData.totals.basePrice) * 100).toFixed(2)
-              )
-            : 0,
-        validUntil: '',
-        notes: '',
-        termsAndConditions: '',
-        internalNotes: '',
-        lineItems: vehicleData.lineItems,
-      };
+      if (enquiryPrefillData) {
+        try {
+          const parsed = JSON.parse(decodeURIComponent(enquiryPrefillData)) as SalesEnquiry;
+          populateFormFromEnquiry(parsed, id);
+          return;
+        } catch {
+          // Ignore invalid query prefill and continue with API fallback.
+        }
+      }
 
-      onDataLoaded?.(formData);
+      const enquiryData = await getEnquiryById(id);
+      populateFormFromEnquiry(enquiryData, id);
     } catch (err) {
       logger.error('Error loading enquiry:', err);
       setError(err as Error);

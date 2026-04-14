@@ -99,7 +99,7 @@ export const getAllQuotations = async (req: Request, res: Response) => {
  */
 export const getQuotationById = async (req: Request, res: Response) => {
   const id = Number(req.params.id);
-  const quotation = await quotationService.getQuotationById(id);
+  const quotation = await quotationService.getQuotationById(id, { resolveLatest: true });
 
   if (!quotation) {
     return res.status(404).json({
@@ -148,13 +148,22 @@ export const updateQuotation = async (req: Request, res: Response) => {
  * POST /api/quotations/supersede
  */
 export const supersedeQuotation = async (req: Request, res: Response) => {
+  if (!req.user?.SlpCode) {
+    return res.status(400).json({
+      success: false,
+      message: 'User SlpCode is required to create a new quotation version',
+    });
+  }
+
+  const { slpCode: _ignored, ...bodyData } = req.body;
+
   const supersedeData: SupersedeQuotationInput & {
     createdBy: string;
     slpCode: string;
   } = {
-    ...req.body,
+    ...bodyData,
     createdBy: getAuditUser(req),
-    slpCode: req.body.slpCode || req.user?.SlpCode || '',
+    slpCode: req.user.SlpCode,
   };
 
   const result = await quotationService.supersedeQuotation(supersedeData);

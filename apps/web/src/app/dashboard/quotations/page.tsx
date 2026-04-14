@@ -135,7 +135,7 @@ export default function QuotationsPage() {
                   filteredQuotations.map((quotation) => (
                     <TableRow key={quotation.SLNO}>
                       <TableCell className="font-medium">
-                        {quotation.QUOTATION_NUMBER}
+                        {quotation.ROOT_QUOTATION_NUMBER || quotation.QUOTATION_NUMBER}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
@@ -208,7 +208,8 @@ export default function QuotationsPage() {
                                 onClick={() => {
                                   setQuotationToCancel({
                                     id: quotation.SLNO,
-                                    number: quotation.QUOTATION_NUMBER,
+                                    number:
+                                      quotation.ROOT_QUOTATION_NUMBER || quotation.QUOTATION_NUMBER,
                                   });
                                   setIsCancelDialogOpen(true);
                                 }}

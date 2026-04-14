@@ -233,8 +233,22 @@ export const allocateDepositSchema = z.object({
 // =====================================================
 
 export const reserveVehicleSchema = z.object({
+  reservationFromDate: z.string().max(30).optional(),
+  reservationToDate: z.string().max(30).optional(),
   reservationNotes: z.string().max(5000).optional(),
-});
+}).refine(
+  (data) => {
+    if (!data.reservationFromDate || !data.reservationToDate) {
+      return true;
+    }
+
+    return data.reservationToDate >= data.reservationFromDate;
+  },
+  {
+    message: 'Reservation To date must be on or after Reservation From date',
+    path: ['reservationToDate'],
+  }
+);
 
 // =====================================================
 // Cancel Quotation Schema

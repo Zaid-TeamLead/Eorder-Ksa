@@ -131,7 +131,7 @@ export default function EditQuotationPage() {
       <div className="mb-6">
         <h1 className="text-3xl font-bold">Edit Quotation</h1>
         <p className="text-muted-foreground">
-          {quotation.QUOTATION_NUMBER} - {quotation.CUSTOMER_NAME}
+          {quotation.ROOT_QUOTATION_NUMBER || quotation.QUOTATION_NUMBER} - {quotation.CUSTOMER_NAME}
         </p>
       </div>
 

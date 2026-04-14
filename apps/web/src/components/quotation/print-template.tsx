@@ -10,6 +10,7 @@ interface QuotationPrintTemplateProps {
 }
 
 export function QuotationPrintTemplate({ quotation }: QuotationPrintTemplateProps) {
+  const displayQuotationNumber = quotation.ROOT_QUOTATION_NUMBER || quotation.QUOTATION_NUMBER;
   const lineItemsSubtotal = (quotation.lineItems || []).reduce(
     (sum, item) => sum + Number(item.NET_PRICE || 0),
     0
@@ -21,6 +22,7 @@ export function QuotationPrintTemplate({ quotation }: QuotationPrintTemplateProp
   );
   const effectiveDiscountAmount =
     totalDiscountAmount !== 0 ? totalDiscountAmount : lineItemsDiscountAmount;
+  const effectiveDiscountPercentage = Number(quotation.DISCOUNT_PERCENTAGE || 0);
   const effectiveSubtotal =
     Number(quotation.SUBTOTAL || 0) !== 0
       ? Number(quotation.SUBTOTAL)
@@ -57,7 +59,7 @@ export function QuotationPrintTemplate({ quotation }: QuotationPrintTemplateProp
         <div>
           <h1 className="text-3xl font-bold">QUOTATION</h1>
           <p className="mt-2 text-sm text-gray-600">
-            {quotation.QUOTATION_NUMBER}
+            {displayQuotationNumber}
             {quotation.VERSION > 1 && (
               <Badge variant="outline" className="ml-2 print:border-black">
                 Version {quotation.VERSION}
@@ -226,7 +228,7 @@ export function QuotationPrintTemplate({ quotation }: QuotationPrintTemplateProp
               </div>
               <div className="flex justify-between text-xs text-gray-600">
                 <span>Discount Percentage:</span>
-                <span>{quotation.DISCOUNT_PERCENTAGE.toFixed(2)}%</span>
+                <span>{effectiveDiscountPercentage.toFixed(2)}%</span>
               </div>
             </div>
           )}

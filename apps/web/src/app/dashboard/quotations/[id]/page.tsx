@@ -2,6 +2,7 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { toast } from 'sonner';
 import {
   ArrowLeft,
   Send,
@@ -16,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
@@ -60,10 +62,13 @@ export default function QuotationDetailPage() {
   const [allocateDepositDialogOpen, setAllocateDepositDialogOpen] = useState(false);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [reserveVehicleDialogOpen, setReserveVehicleDialogOpen] = useState(false);
+  const [reservationFromDate, setReservationFromDate] = useState('');
+  const [reservationToDate, setReservationToDate] = useState('');
   const [reservationNotes, setReservationNotes] = useState('');
 
   const { quotation, isLoading, error, refetch } = useQuotationById(quotationId);
   const { reserveVehicle, isReservingVehicle } = useQuotationMutations();
+  const activeQuotationId = Number(quotation?.SLNO || quotationId);
 
   // Use custom hook for all actions
   const {
@@ -93,6 +98,18 @@ export default function QuotationDetailPage() {
   }
 
   const totalDiscountAmount = Number(quotation.TOTAL_DISCOUNT_AMOUNT || 0);
+  const displayQuotationNumber = quotation.ROOT_QUOTATION_NUMBER || quotation.QUOTATION_NUMBER;
+  const storedReservationNotes = quotation.VEHICLE_RESERVATION_NOTES || '';
+  const legacyReservationFromMatch = storedReservationNotes.match(/Reservation From:\s*([^\n\r]+)/i);
+  const legacyReservationToMatch = storedReservationNotes.match(/Reservation To:\s*([^\n\r]+)/i);
+  const displayReservationFrom =
+    quotation.VEHICLE_RESERVATION_FROM_DATE || legacyReservationFromMatch?.[1]?.trim() || '';
+  const displayReservationTo =
+    quotation.VEHICLE_RESERVATION_TO_DATE || legacyReservationToMatch?.[1]?.trim() || '';
+  const displayReservationNotes = storedReservationNotes
+    .replace(/Reservation From:\s*[^\n\r]+/gi, '')
+    .replace(/Reservation To:\s*[^\n\r]+/gi, '')
+    .trim();
   const lineItemsDiscountAmount = (quotation.lineItems || []).reduce(
     (sum, item) => sum + Number(item.DISCOUNT_AMOUNT || 0),
     0
@@ -152,10 +169,19 @@ export default function QuotationDetailPage() {
     !!quotation.VIN_NUMBER?.trim();
 
   const handleReserveVehicle = async () => {
-    await reserveVehicle(quotationId, {
+    if (reservationFromDate && reservationToDate && reservationToDate < reservationFromDate) {
+      toast.error('Reservation To date must be on or after Reservation From date');
+      return;
+    }
+
+    await reserveVehicle(activeQuotationId, {
+      reservationFromDate: reservationFromDate || undefined,
+      reservationToDate: reservationToDate || undefined,
       reservationNotes: reservationNotes || undefined,
     });
     setReserveVehicleDialogOpen(false);
+    setReservationFromDate('');
+    setReservationToDate('');
     setReservationNotes('');
     void refetch();
   };
@@ -169,7 +195,7 @@ export default function QuotationDetailPage() {
         </Button>
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold">Quotation {quotation.QUOTATION_NUMBER}</h1>
+            <h1 className="text-2xl font-bold">Quotation {displayQuotationNumber}</h1>
             {quotation.VERSION > 1 && (
               <Badge variant="outline">Version {quotation.VERSION}</Badge>
             )}
@@ -295,10 +321,22 @@ export default function QuotationDetailPage() {
                   <p className="font-medium">{quotation.VEHICLE_RESERVED_BY}</p>
                 </div>
               )}
-              {quotation.VEHICLE_RESERVATION_NOTES && (
+              {isVehicleReserved && (
+                <div>
+                  <p className="text-muted-foreground">Reserved From</p>
+                  <p className="font-medium">{displayReservationFrom || 'Not set'}</p>
+                </div>
+              )}
+              {isVehicleReserved && (
+                <div>
+                  <p className="text-muted-foreground">Reserved To</p>
+                  <p className="font-medium">{displayReservationTo || 'Not set'}</p>
+                </div>
+              )}
+              {displayReservationNotes && (
                 <div>
                   <p className="text-muted-foreground">Reservation Notes</p>
-                  <p className="font-medium">{quotation.VEHICLE_RESERVATION_NOTES}</p>
+                  <p className="font-medium whitespace-pre-wrap">{displayReservationNotes}</p>
                 </div>
               )}
             </div>
@@ -559,7 +597,7 @@ export default function QuotationDetailPage() {
         onOpenChange={setDeleteDialogOpen}
         onConfirm={() => handleDelete()}
         title="Delete Quotation"
-        description={`Are you sure you want to delete quotation ${quotation.QUOTATION_NUMBER}? This action cannot be undone.`}
+        description={`Are you sure you want to delete quotation ${displayQuotationNumber}? This action cannot be undone.`}
         isDeleting={isDeleting}
       />
 
@@ -603,7 +641,7 @@ export default function QuotationDetailPage() {
       <CancelQuotationDialog
         open={cancelDialogOpen}
         onOpenChange={setCancelDialogOpen}
-        quotationNumber={quotation.QUOTATION_NUMBER}
+        quotationNumber={displayQuotationNumber}
         isCancelling={isCancelling}
         onConfirm={async (reason) => {
           await handleCancel({ cancellationReason: reason });
@@ -618,6 +656,27 @@ export default function QuotationDetailPage() {
               Reserve VIN {quotation.VIN_NUMBER || '-'} from this quotation.
             </DialogDescription>
           </DialogHeader>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="quotation-reserve-vehicle-from-date">Reservation From</Label>
+              <Input
+                id="quotation-reserve-vehicle-from-date"
+                type="date"
+                value={reservationFromDate}
+                onChange={(e) => setReservationFromDate(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="quotation-reserve-vehicle-to-date">Reservation To</Label>
+              <Input
+                id="quotation-reserve-vehicle-to-date"
+                type="date"
+                value={reservationToDate}
+                min={reservationFromDate || undefined}
+                onChange={(e) => setReservationToDate(e.target.value)}
+              />
+            </div>
+          </div>
           <div className="space-y-2">
             <Label htmlFor="quotation-reserve-vehicle-notes">Reservation Notes</Label>
             <Textarea

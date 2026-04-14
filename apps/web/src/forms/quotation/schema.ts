@@ -93,7 +93,7 @@ export const quotationFormSchema = z.object({
   internalNotes: z.string().max(10000).optional(),
 
   // Supersede (for creating new versions)
-  supersedeReason: z.string().min(10, 'Reason must be at least 10 characters').optional(),
+  supersedeReason: z.string().min(1, 'Reason for new version is required').optional(),
 
   // Line Items (at least one required)
   lineItems: z.array(lineItemFormSchema).min(1, 'At least one line item is required'),

@@ -52,6 +52,8 @@ export interface Quotation {
   VERSION: number;
   PARENT_QUOTATION_SLNO?: number;
   IS_LATEST_VERSION: string;
+  ROOT_QUOTATION_SLNO?: number;
+  ROOT_QUOTATION_NUMBER?: string;
 
   // Customer
   CUSTOMER_NAME?: string;
@@ -108,6 +110,8 @@ export interface Quotation {
   VEHICLE_RESERVED_DATE?: string;
   VEHICLE_RESERVED_BY?: string;
   VEHICLE_RESERVATION_NOTES?: string;
+  VEHICLE_RESERVATION_FROM_DATE?: string;
+  VEHICLE_RESERVATION_TO_DATE?: string;
 
   // Notes
   NOTES?: string;
@@ -214,6 +218,90 @@ function extractVinFromUnknown(input: unknown): string {
 // =====================================================
 
 class QuotationService {
+  private buildLegacyReservationNotes(
+    notes?: string,
+    reservationFromDate?: string,
+    reservationToDate?: string
+  ): string | null {
+    const trimmedNotes = notes?.trim() || '';
+    const lines: string[] = [];
+
+    if (trimmedNotes) {
+      lines.push(trimmedNotes);
+    }
+    if (reservationFromDate) {
+      lines.push(`Reservation From: ${reservationFromDate}`);
+    }
+    if (reservationToDate) {
+      lines.push(`Reservation To: ${reservationToDate}`);
+    }
+
+    return lines.length > 0 ? lines.join('\n') : null;
+  }
+
+  private async resolveRootQuotationReference(
+    id: number
+  ): Promise<{ rootId: number; rootQuotationNumber: string | null }> {
+    let currentId = id;
+    let rootQuotationNumber: string | null = null;
+    const visited = new Set<number>();
+
+    while (!visited.has(currentId)) {
+      visited.add(currentId);
+
+      const current = await db.queryOne<{
+        SLNO: number;
+        PARENT_QUOTATION_SLNO?: number | null;
+        QUOTATION_NUMBER?: string | null;
+      }>(
+        `
+          SELECT "SLNO", "PARENT_QUOTATION_SLNO", "QUOTATION_NUMBER"
+          FROM "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION"
+          WHERE "SLNO" = ? AND "IS_DELETED" = 'N'
+        `,
+        [currentId]
+      );
+
+      if (!current) {
+        return { rootId: id, rootQuotationNumber: null };
+      }
+
+      rootQuotationNumber = current.QUOTATION_NUMBER || rootQuotationNumber;
+      const parentId = Number(current.PARENT_QUOTATION_SLNO || 0);
+      if (!Number.isFinite(parentId) || parentId <= 0) {
+        return {
+          rootId: Number(current.SLNO),
+          rootQuotationNumber: current.QUOTATION_NUMBER || rootQuotationNumber,
+        };
+      }
+
+      currentId = parentId;
+    }
+
+    return { rootId: id, rootQuotationNumber };
+  }
+
+  private async hydrateQuotationReferences<T extends Quotation>(quotations: T[]): Promise<T[]> {
+    const cache = new Map<number, { rootId: number; rootQuotationNumber: string | null }>();
+
+    return Promise.all(
+      quotations.map(async (quotation) => {
+        const quotationId = Number(quotation.SLNO);
+
+        if (!cache.has(quotationId)) {
+          cache.set(quotationId, await this.resolveRootQuotationReference(quotationId));
+        }
+
+        const reference = cache.get(quotationId)!;
+        return {
+          ...quotation,
+          ROOT_QUOTATION_SLNO: reference.rootId,
+          ROOT_QUOTATION_NUMBER: reference.rootQuotationNumber || quotation.QUOTATION_NUMBER,
+        };
+      })
+    );
+  }
+
   private async getLineItemTotalsMap(
     quotationIds: number[]
   ): Promise<Map<number, AggregatedQuotationLineTotals>> {
@@ -235,6 +323,34 @@ class QuotationService {
 
     const rows = await db.query<AggregatedQuotationLineTotals>(query, quotationIds);
     return new Map(rows.map((row) => [Number(row.QUOTATION_SLNO), row]));
+  }
+
+  private async resolveLatestQuotationId(id: number): Promise<number> {
+    let currentId = id;
+    const visited = new Set<number>();
+
+    while (!visited.has(currentId)) {
+      visited.add(currentId);
+
+      const nextVersion = await db.queryOne<{ SLNO: number }>(
+        `
+          SELECT "SLNO"
+          FROM "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION"
+          WHERE "PARENT_QUOTATION_SLNO" = ? AND "IS_DELETED" = 'N'
+          ORDER BY "VERSION" DESC, "CREATED_DATE" DESC
+          LIMIT 1
+        `,
+        [currentId]
+      );
+
+      if (!nextVersion?.SLNO) {
+        return currentId;
+      }
+
+      currentId = Number(nextVersion.SLNO);
+    }
+
+    return id;
   }
 
   private async hydrateQuotationHeaderTotals<T extends Quotation>(quotations: T[]): Promise<T[]> {
@@ -333,6 +449,117 @@ class QuotationService {
       actor,
       currentDateTime,
     ]);
+  }
+
+  private async createQuotationViaStoredProcedure(
+    data: CreateQuotationInput & { createdBy: string; slpCode: string },
+    options?: {
+      quotationNumber?: string;
+      branch?: string | null;
+    }
+  ): Promise<{ quotationId: number; quotationNumber: string; currentDateTime: string }> {
+    const currentDateTime = this.getCurrentDateTime();
+    const quotationNumber = options?.quotationNumber || (await this.generateQuotationNumber());
+    let resolvedVinNumber = data.vinNumber || null;
+
+    if (!resolvedVinNumber && data.enquirySlno) {
+      const enquiry = await db.queryOne<{
+        VINNUMBER?: string | null;
+        VINDETAILS?: string | null;
+      }>(
+        `
+          SELECT "VINNUMBER", "VINDETAILS"
+          FROM "${QUOTATION_DB_SCHEMA}"."DMS_SALESENQUIRY"
+          WHERE "SLNO" = ?
+        `,
+        [data.enquirySlno]
+      );
+
+      if (enquiry) {
+        resolvedVinNumber = enquiry.VINNUMBER || null;
+
+        if (!resolvedVinNumber && enquiry.VINDETAILS) {
+          try {
+            const vinDetails = JSON.parse(enquiry.VINDETAILS) as unknown;
+            resolvedVinNumber = extractVinFromUnknown(vinDetails) || null;
+          } catch {
+            // Ignore invalid VINDETAILS JSON and keep VIN null.
+          }
+        }
+      }
+    }
+
+    const discountCheck = await this.checkDiscountLimit(data.totalDiscountAmount, data.createdBy);
+
+    const createMasterParameters = [
+      data.enquirySlno,
+      quotationNumber,
+      data.customerName || null,
+      data.customerMobile || null,
+      data.customerEmail || null,
+      data.customerAddress || null,
+      data.vehicleMake || null,
+      data.vehicleModel || null,
+      data.vehicleVariant || null,
+      data.vehicleYear || null,
+      data.vehicleColor || null,
+      resolvedVinNumber,
+      data.vehicleBasePrice,
+      data.vehicleDiscount,
+      data.vehicleNetPrice,
+      data.accessoriesTotal,
+      data.accessoriesDiscount,
+      data.accessoriesNetTotal,
+      data.warrantyTotal,
+      data.insuranceTotal,
+      data.subtotal,
+      data.taxRate,
+      data.taxAmount,
+      data.grandTotal,
+      data.tradeInValue,
+      data.tradeInAppraisalSlno || null,
+      data.financingSchemeSlno || null,
+      data.downpayment,
+      data.netAmountDue,
+      data.totalDiscountAmount,
+      data.discountPercentage,
+      discountCheck.requiresApproval ? 'Y' : 'N',
+      discountCheck.requiresApproval ? 'Pending' : null,
+      data.status || 'Draft',
+      data.validUntil || null,
+      data.notes || null,
+      data.termsAndConditions || null,
+      data.internalNotes || null,
+      data.createdBy,
+      data.slpCode,
+      options?.branch ?? null,
+      data.createdBy,
+      currentDateTime,
+    ];
+
+    const createQuotationSp = `CALL "${QUOTATION_DB_SCHEMA}"."${CREATE_QUOTATION_SP_NAME}"(${createMasterParameters
+      .map(() => '?')
+      .join(', ')})`;
+    await db.query(createQuotationSp, createMasterParameters);
+
+    const idQuery = `
+      SELECT "SLNO" FROM "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION"
+      WHERE "QUOTATION_NUMBER" = ?
+    `;
+    const idResult = await db.query(idQuery, [quotationNumber]);
+    const quotationId = idResult[0]?.SLNO;
+
+    if (!quotationId) {
+      throw new Error(
+        `Stored procedure created quotation but no SLNO found for quotation number: ${quotationNumber}`
+      );
+    }
+
+    for (const item of data.lineItems) {
+      await this.insertQuotationLineItemViaSp(quotationId, item, data.createdBy, currentDateTime);
+    }
+
+    return { quotationId, quotationNumber, currentDateTime };
   }
 
   /**
@@ -452,114 +679,7 @@ class QuotationService {
     data: CreateQuotationInput & { createdBy: string; slpCode: string }
   ): Promise<{ success: boolean; id: number; quotationNumber: string }> {
     try {
-      const currentDateTime = this.getCurrentDateTime();
-      const quotationNumber = await this.generateQuotationNumber();
-      let resolvedVinNumber = data.vinNumber || null;
-
-      // Fallback: if VIN not provided from UI, source it from enquiry record.
-      if (!resolvedVinNumber && data.enquirySlno) {
-        const enquiry = await db.queryOne<{
-          VINNUMBER?: string | null;
-          VINDETAILS?: string | null;
-        }>(
-          `
-          SELECT "VINNUMBER", "VINDETAILS"
-          FROM "${QUOTATION_DB_SCHEMA}"."DMS_SALESENQUIRY"
-          WHERE "SLNO" = ?
-        `,
-          [data.enquirySlno]
-        );
-
-        if (enquiry) {
-          resolvedVinNumber = enquiry.VINNUMBER || null;
-
-          if (!resolvedVinNumber && enquiry.VINDETAILS) {
-            try {
-              const vinDetails = JSON.parse(enquiry.VINDETAILS) as unknown;
-              resolvedVinNumber = extractVinFromUnknown(vinDetails) || null;
-            } catch {
-              // Ignore JSON parsing issues and continue with null VIN
-            }
-          }
-        }
-      }
-
-      // Check if discount requires approval
-      const discountCheck = await this.checkDiscountLimit(data.totalDiscountAmount, data.createdBy);
-
-      const createMasterParameters = [
-        data.enquirySlno,
-        quotationNumber,
-        data.customerName || null,
-        data.customerMobile || null,
-        data.customerEmail || null,
-        data.customerAddress || null,
-        data.vehicleMake || null,
-        data.vehicleModel || null,
-        data.vehicleVariant || null,
-        data.vehicleYear || null,
-        data.vehicleColor || null,
-        resolvedVinNumber,
-        data.vehicleBasePrice,
-        data.vehicleDiscount,
-        data.vehicleNetPrice,
-        data.accessoriesTotal,
-        data.accessoriesDiscount,
-        data.accessoriesNetTotal,
-        data.warrantyTotal,
-        data.insuranceTotal,
-        data.subtotal,
-        data.taxRate,
-        data.taxAmount,
-        data.grandTotal,
-        data.tradeInValue,
-        data.tradeInAppraisalSlno || null,
-        data.financingSchemeSlno || null,
-        data.downpayment,
-        data.netAmountDue,
-        data.totalDiscountAmount,
-        data.discountPercentage,
-        discountCheck.requiresApproval ? 'Y' : 'N',
-        discountCheck.requiresApproval ? 'Pending' : null,
-        data.status || 'Draft',
-        data.validUntil || null,
-        data.notes || null,
-        data.termsAndConditions || null,
-        data.internalNotes || null,
-        data.createdBy,
-        data.slpCode,
-        null, // Branch - can be added later
-        data.createdBy,
-        currentDateTime,
-      ];
-
-      const createQuotationSp = `CALL "${QUOTATION_DB_SCHEMA}"."${CREATE_QUOTATION_SP_NAME}"(${createMasterParameters
-        .map(() => '?')
-        .join(', ')})`;
-      await db.query(createQuotationSp, createMasterParameters);
-
-      // Get inserted quotation ID
-      const idQuery = `
-        SELECT "SLNO" FROM "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION"
-        WHERE "QUOTATION_NUMBER" = ?
-      `;
-      const idResult = await db.query(idQuery, [quotationNumber]);
-      const quotationId = idResult[0]?.SLNO;
-
-      if (!quotationId) {
-        throw new Error(
-          `Stored procedure created quotation but no SLNO found for quotation number: ${quotationNumber}`
-        );
-      }
-
-      for (const item of data.lineItems) {
-        await this.insertQuotationLineItemViaSp(
-          quotationId,
-          item,
-          data.createdBy,
-          currentDateTime
-        );
-      }
+      const { quotationId, quotationNumber } = await this.createQuotationViaStoredProcedure(data);
 
       logger.info({ quotationId, quotationNumber }, 'Quotation created successfully');
 
@@ -573,8 +693,13 @@ class QuotationService {
   /**
    * Get quotation by ID with line items
    */
-  async getQuotationById(id: number): Promise<(Quotation & { lineItems: QuotationLineItem[] }) | null> {
+  async getQuotationById(
+    id: number,
+    options?: { resolveLatest?: boolean }
+  ): Promise<(Quotation & { lineItems: QuotationLineItem[] }) | null> {
     try {
+      const targetId = options?.resolveLatest ? await this.resolveLatestQuotationId(id) : id;
+
       const quotationQuery = `
         SELECT * FROM "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION"
         WHERE "SLNO" = ? AND "IS_DELETED" = 'N'
@@ -586,12 +711,16 @@ class QuotationService {
         ORDER BY "LINE_NUMBER"
       `;
 
-      const quotation = await db.queryOne(quotationQuery, [id]);
+      const quotation = await db.queryOne(quotationQuery, [targetId]);
       if (!quotation) return null;
 
-      const lineItems = await db.query(lineItemsQuery, [id]);
+      const lineItems = await db.query(lineItemsQuery, [targetId]);
 
-      return { ...quotation, lineItems };
+      const [quotationWithReference] = await this.hydrateQuotationReferences([
+        { ...quotation, lineItems } as Quotation & { lineItems: QuotationLineItem[] },
+      ]);
+
+      return quotationWithReference || null;
     } catch (error: any) {
       logger.error('Error fetching quotation:', error);
       throw new Error('Failed to fetch quotation: ' + error.message);
@@ -610,7 +739,8 @@ class QuotationService {
       `;
 
       const quotations = await db.query<Quotation>(query, [enquiryId]);
-      return await this.hydrateQuotationHeaderTotals(quotations);
+      const hydratedTotals = await this.hydrateQuotationHeaderTotals(quotations);
+      return await this.hydrateQuotationReferences(hydratedTotals);
     } catch (error: any) {
       logger.error('Error fetching quotations for enquiry:', error);
       throw new Error('Failed to fetch quotations: ' + error.message);
@@ -656,7 +786,8 @@ class QuotationService {
       query += ` ORDER BY "CREATED_DATE" DESC`;
 
       const quotations = await db.query<Quotation>(query, params);
-      return await this.hydrateQuotationHeaderTotals(quotations);
+      const hydratedTotals = await this.hydrateQuotationHeaderTotals(quotations);
+      return await this.hydrateQuotationReferences(hydratedTotals);
     } catch (error: any) {
       logger.error('Error fetching all quotations:', error);
       throw new Error('Failed to fetch quotations: ' + error.message);
@@ -867,130 +998,111 @@ class QuotationService {
     data: SupersedeQuotationInput & { createdBy: string; slpCode: string }
   ): Promise<{ success: boolean; id: number; quotationNumber: string }> {
     try {
-      // 1. Mark parent quotation as not latest and superseded
+      const resolvedParentId = await this.resolveLatestQuotationId(data.parentQuotationSlno);
+      const parent = await this.getQuotationById(resolvedParentId);
+      if (!parent) {
+        throw new Error('Parent quotation not found');
+      }
+
+      if (parent.STATUS === 'Cancelled') {
+        throw new Error('Cancelled quotation cannot be superseded');
+      }
+
+      if (parent.IS_LATEST_VERSION === 'N' || parent.STATUS === 'Superseded') {
+        throw new Error('Only the latest quotation version can be superseded');
+      }
+
+      const newVersion = Number(parent.VERSION || 1) + 1;
+      const lineItemsToInsert: CreateQuotationInput['lineItems'] = data.lineItems?.length
+        ? data.lineItems
+        : (parent.lineItems || []).map((item) => ({
+            lineNumber: Number(item.LINE_NUMBER) || 1,
+            itemType:
+              (item.ITEM_TYPE as
+                | 'Vehicle'
+                | 'Accessory'
+                | 'Warranty'
+                | 'Insurance'
+                | 'ServicePackage'
+                | 'Other') || 'Vehicle',
+            itemCode: item.ITEM_CODE || undefined,
+            itemDescription: item.ITEM_DESCRIPTION || '',
+            itemCategory: item.ITEM_CATEGORY || undefined,
+            quantity: Number(item.QUANTITY) || 1,
+            unitPrice: Number(item.UNIT_PRICE) || 0,
+            discountAmount: Number(item.DISCOUNT_AMOUNT) || 0,
+            discountPercentage: Number(item.DISCOUNT_PERCENTAGE) || 0,
+            netPrice: Number(item.NET_PRICE) || 0,
+            taxIncluded: (item.TAX_INCLUDED === 'Y' ? 'Y' : 'N') as 'Y' | 'N',
+            manufacturer: item.MANUFACTURER || undefined,
+            partNumber: item.PART_NUMBER || undefined,
+            warrantyPeriod: item.WARRANTY_PERIOD || undefined,
+            notes: item.NOTES || undefined,
+          }));
+
+      const createPayload: CreateQuotationInput & { createdBy: string; slpCode: string } = {
+        enquirySlno: Number(parent.ENQUIRY_SLNO),
+        customerName: data.customerName || parent.CUSTOMER_NAME || '',
+        customerMobile: data.customerMobile || parent.CUSTOMER_MOBILE || '',
+        customerEmail: data.customerEmail || parent.CUSTOMER_EMAIL || '',
+        customerAddress: data.customerAddress || parent.CUSTOMER_ADDRESS || '',
+        vehicleMake: data.vehicleMake || parent.VEHICLE_MAKE || '',
+        vehicleModel: data.vehicleModel || parent.VEHICLE_MODEL || '',
+        vehicleVariant: data.vehicleVariant || parent.VEHICLE_VARIANT || '',
+        vehicleYear: data.vehicleYear || parent.VEHICLE_YEAR || '',
+        vehicleColor: data.vehicleColor || parent.VEHICLE_COLOR || '',
+        vinNumber: data.vinNumber || parent.VIN_NUMBER || '',
+        vehicleBasePrice: data.vehicleBasePrice,
+        vehicleDiscount: data.vehicleDiscount,
+        vehicleNetPrice: data.vehicleNetPrice,
+        accessoriesTotal: data.accessoriesTotal,
+        accessoriesDiscount: data.accessoriesDiscount,
+        accessoriesNetTotal: data.accessoriesNetTotal,
+        warrantyTotal: data.warrantyTotal,
+        insuranceTotal: data.insuranceTotal,
+        subtotal: data.subtotal,
+        taxRate: data.taxRate,
+        taxAmount: data.taxAmount,
+        grandTotal: data.grandTotal,
+        tradeInValue: data.tradeInValue,
+        tradeInAppraisalSlno: data.tradeInAppraisalSlno,
+        financingSchemeSlno: data.financingSchemeSlno,
+        downpayment: data.downpayment,
+        netAmountDue: data.netAmountDue,
+        totalDiscountAmount: data.totalDiscountAmount,
+        discountPercentage: data.discountPercentage,
+        validUntil: data.validUntil,
+        notes: data.notes,
+        termsAndConditions: data.termsAndConditions,
+        internalNotes: data.internalNotes,
+        status: data.status || 'Draft',
+        lineItems: lineItemsToInsert,
+        createdBy: data.createdBy,
+        slpCode: data.slpCode,
+      };
+
+      const { quotationId, quotationNumber } = await this.createQuotationViaStoredProcedure(
+        createPayload,
+        { branch: parent.BRANCH || null }
+      );
+
+      const updateNewVersionQuery = `
+        UPDATE "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION"
+        SET "VERSION" = ?, "PARENT_QUOTATION_SLNO" = ?, "IS_LATEST_VERSION" = 'Y'
+        WHERE "SLNO" = ?
+      `;
+      await db.execute(updateNewVersionQuery, [newVersion, resolvedParentId, quotationId]);
+
       const updateParentQuery = `
         UPDATE "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION"
         SET "IS_LATEST_VERSION" = 'N', "STATUS" = 'Superseded'
         WHERE "SLNO" = ?
       `;
-      await db.execute(updateParentQuery, [data.parentQuotationSlno]);
-
-      // 2. Get parent quotation details
-      const parent = await this.getQuotationById(data.parentQuotationSlno);
-      if (!parent) {
-        throw new Error('Parent quotation not found');
-      }
-
-      // 3. Create new quotation with incremented version
-      const newVersion = parent.VERSION + 1;
-      const quotationNumber = await this.generateQuotationNumber();
-      const currentDateTime = this.getCurrentDateTime();
-
-      // Check if discount requires approval
-      const discountCheck = await this.checkDiscountLimit(data.totalDiscountAmount, data.createdBy);
-
-      const quotationQuery = `
-        INSERT INTO "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION" (
-          "ENQUIRY_SLNO", "QUOTATION_NUMBER", "VERSION", "PARENT_QUOTATION_SLNO", "IS_LATEST_VERSION",
-          "CUSTOMER_NAME", "CUSTOMER_MOBILE", "CUSTOMER_EMAIL", "CUSTOMER_ADDRESS",
-          "VEHICLE_MAKE", "VEHICLE_MODEL", "VEHICLE_VARIANT", "VEHICLE_YEAR",
-          "VEHICLE_COLOR", "VIN_NUMBER",
-          "VEHICLE_BASE_PRICE", "VEHICLE_DISCOUNT", "VEHICLE_NET_PRICE",
-          "ACCESSORIES_TOTAL", "ACCESSORIES_DISCOUNT", "ACCESSORIES_NET_TOTAL",
-          "WARRANTY_TOTAL", "INSURANCE_TOTAL",
-          "SUBTOTAL", "TAX_RATE", "TAX_AMOUNT", "GRAND_TOTAL",
-          "TRADE_IN_VALUE", "TRADE_IN_APPRAISAL_SLNO", "FINANCING_SCHEME_SLNO",
-          "DOWNPAYMENT", "NET_AMOUNT_DUE",
-          "TOTAL_DISCOUNT_AMOUNT", "DISCOUNT_PERCENTAGE",
-          "REQUIRES_APPROVAL", "DISCOUNT_APPROVAL_STATUS",
-          "STATUS", "VALID_UNTIL", "NOTES", "TERMS_AND_CONDITIONS", "INTERNAL_NOTES",
-          "SALESPERSON", "SLPCODE", "BRANCH",
-          "CREATED_BY", "CREATED_DATE", "IS_DELETED"
-        ) VALUES (
-          ?, ?, ?, ?, 'Y',
-          ?, ?, ?, ?,
-          ?, ?, ?, ?,
-          ?, ?,
-          ?, ?, ?,
-          ?, ?, ?,
-          ?, ?,
-          ?, ?, ?, ?,
-          ?, ?, ?,
-          ?, ?,
-          ?, ?,
-          ?, ?,
-          'Draft', ?, ?, ?, ?,
-          ?, ?, ?,
-          ?, ?, 'N'
-        )
-      `;
-
-      await db.execute(quotationQuery, [
-        parent.ENQUIRY_SLNO,
-        quotationNumber,
-        newVersion,
-        data.parentQuotationSlno,
-        data.customerName || parent.CUSTOMER_NAME,
-        data.customerMobile || parent.CUSTOMER_MOBILE,
-        data.customerEmail || parent.CUSTOMER_EMAIL,
-        data.customerAddress || parent.CUSTOMER_ADDRESS,
-        data.vehicleMake || parent.VEHICLE_MAKE,
-        data.vehicleModel || parent.VEHICLE_MODEL,
-        data.vehicleVariant || parent.VEHICLE_VARIANT,
-        data.vehicleYear || parent.VEHICLE_YEAR,
-        data.vehicleColor || parent.VEHICLE_COLOR,
-        data.vinNumber || parent.VIN_NUMBER,
-        data.vehicleBasePrice,
-        data.vehicleDiscount,
-        data.vehicleNetPrice,
-        data.accessoriesTotal,
-        data.accessoriesDiscount,
-        data.accessoriesNetTotal,
-        data.warrantyTotal,
-        data.insuranceTotal,
-        data.subtotal,
-        data.taxRate,
-        data.taxAmount,
-        data.grandTotal,
-        data.tradeInValue,
-        data.tradeInAppraisalSlno || null,
-        data.financingSchemeSlno || null,
-        data.downpayment,
-        data.netAmountDue,
-        data.totalDiscountAmount,
-        data.discountPercentage,
-        discountCheck.requiresApproval ? 'Y' : 'N',
-        discountCheck.requiresApproval ? 'Pending' : null,
-        data.validUntil || null,
-        data.notes || null,
-        data.termsAndConditions || null,
-        data.internalNotes || null,
-        data.createdBy,
-        data.slpCode,
-        parent.BRANCH,
-        data.createdBy,
-        currentDateTime,
-      ]);
-
-      // Get new quotation ID
-      const idQuery = `SELECT "SLNO" FROM "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION" WHERE "QUOTATION_NUMBER" = ?`;
-      const idResult = await db.query(idQuery, [quotationNumber]);
-      const quotationId = idResult[0].SLNO;
-
-      // Copy line items from parent or use new ones via stored procedure
-      const lineItemsToInsert = data.lineItems || parent.lineItems || [];
-      for (const item of lineItemsToInsert) {
-        await this.insertQuotationLineItemViaSp(
-          quotationId,
-          item,
-          data.createdBy,
-          currentDateTime
-        );
-      }
+      await db.execute(updateParentQuery, [resolvedParentId]);
 
       // Log activity on parent quotation
       await this.logActivity({
-        quotationSlno: data.parentQuotationSlno,
+        quotationSlno: resolvedParentId,
         activityType: 'Superseded',
         activityDescription: `Superseded by ${quotationNumber}. Reason: ${data.reason}`,
         createdBy: data.createdBy,
@@ -1303,7 +1415,8 @@ class QuotationService {
     data: ReserveVehicleInput & { reservedBy: string }
   ): Promise<{ success: boolean }> {
     try {
-      const quotation = await this.getQuotationOrThrow(quotationId);
+      const resolvedQuotationId = await this.resolveLatestQuotationId(quotationId);
+      const quotation = await this.getQuotationOrThrow(resolvedQuotationId);
       this.ensureActionAllowed(quotation);
 
       if (!quotation.VIN_NUMBER || quotation.VIN_NUMBER.trim() === '') {
@@ -1320,30 +1433,85 @@ class QuotationService {
         SET "VEHICLE_RESERVED" = 'Y',
             "VEHICLE_RESERVED_DATE" = ?,
             "VEHICLE_RESERVED_BY" = ?,
+            "VEHICLE_RESERVATION_FROM_DATE" = ?,
+            "VEHICLE_RESERVATION_TO_DATE" = ?,
             "VEHICLE_RESERVATION_NOTES" = ?,
             "UPDATED_BY" = ?,
             "UPDATED_DATE" = ?
         WHERE "SLNO" = ?
       `;
 
-      await db.execute(query, [
-        currentDateTime,
-        data.reservedBy,
-        data.reservationNotes || null,
-        data.reservedBy,
-        currentDateTime,
-        quotationId,
-      ]);
+      try {
+        await db.execute(query, [
+          currentDateTime,
+          data.reservedBy,
+          data.reservationFromDate || null,
+          data.reservationToDate || null,
+          data.reservationNotes || null,
+          data.reservedBy,
+          currentDateTime,
+          resolvedQuotationId,
+        ]);
+      } catch (error: any) {
+        const message = String(error?.message || '');
+        const missingReservationRangeColumns =
+          message.includes('invalid column name: VEHICLE_RESERVATION_FROM_DATE') ||
+          message.includes('invalid column name: VEHICLE_RESERVATION_TO_DATE');
+
+        if (!missingReservationRangeColumns) {
+          throw error;
+        }
+
+        logger.warn(
+          {
+            resolvedQuotationId,
+            reservationFromDate: data.reservationFromDate || null,
+            reservationToDate: data.reservationToDate || null,
+          },
+          'Reservation date range columns are missing; falling back to legacy quotation reservation update'
+        );
+
+        const fallbackQuery = `
+          UPDATE "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION"
+          SET "VEHICLE_RESERVED" = 'Y',
+              "VEHICLE_RESERVED_DATE" = ?,
+              "VEHICLE_RESERVED_BY" = ?,
+              "VEHICLE_RESERVATION_NOTES" = ?,
+              "UPDATED_BY" = ?,
+              "UPDATED_DATE" = ?
+          WHERE "SLNO" = ?
+        `;
+
+        await db.execute(fallbackQuery, [
+          currentDateTime,
+          data.reservedBy,
+          this.buildLegacyReservationNotes(
+            data.reservationNotes,
+            data.reservationFromDate,
+            data.reservationToDate
+          ),
+          data.reservedBy,
+          currentDateTime,
+          resolvedQuotationId,
+        ]);
+      }
 
       await this.logActivity({
-        quotationSlno: quotationId,
+        quotationSlno: resolvedQuotationId,
         activityType: 'VehicleReserved',
         activityDescription: `Vehicle reserved for VIN ${quotation.VIN_NUMBER}`,
         activityNotes: data.reservationNotes,
         createdBy: data.reservedBy,
       });
 
-      logger.info({ quotationId, vin: quotation.VIN_NUMBER }, 'Vehicle reserved for quotation');
+      logger.info(
+        {
+          requestedQuotationId: quotationId,
+          resolvedQuotationId,
+          vin: quotation.VIN_NUMBER,
+        },
+        'Vehicle reserved for quotation'
+      );
       return { success: true };
     } catch (error: any) {
       logger.error('Error reserving vehicle for quotation:', error);

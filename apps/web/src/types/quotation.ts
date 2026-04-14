@@ -10,6 +10,8 @@ export interface Quotation {
   SLNO: number;
   ENQUIRY_SLNO: number;
   QUOTATION_NUMBER: string;
+  ROOT_QUOTATION_SLNO?: number | null;
+  ROOT_QUOTATION_NUMBER?: string | null;
   VERSION: number;
   PARENT_QUOTATION_SLNO: number | null;
   IS_LATEST_VERSION: 'Y' | 'N';
@@ -95,6 +97,8 @@ export interface Quotation {
   VEHICLE_RESERVED: 'Y' | 'N' | null;
   VEHICLE_RESERVED_DATE: string | null;
   VEHICLE_RESERVED_BY: string | null;
+  VEHICLE_RESERVATION_FROM_DATE?: string | null;
+  VEHICLE_RESERVATION_TO_DATE?: string | null;
   VEHICLE_RESERVATION_NOTES: string | null;
 
   // Ownership & Audit
@@ -288,6 +292,8 @@ export interface AllocateDepositData {
 }
 
 export interface ReserveVehicleData {
+  reservationFromDate?: string;
+  reservationToDate?: string;
   reservationNotes?: string;
 }
 

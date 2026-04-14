@@ -38,6 +38,8 @@ export default function CreateQuotationPage() {
   const router = useRouter();
   const enquiryId = searchParams.get('enquiryId');
   const supersedeId = searchParams.get('supersede');
+  const enquiryPrefillKey = searchParams.get('prefillKey');
+  const enquiryPrefillData = searchParams.get('prefillData');
   const [isCheckingExistingQuotation, setIsCheckingExistingQuotation] = useState(
     Boolean(enquiryId) && !supersedeId
   );
@@ -57,6 +59,8 @@ export default function CreateQuotationPage() {
   } = useQuotationFormData({
     enquiryId,
     supersedeId,
+    enquiryPrefillKey,
+    enquiryPrefillData,
     onDataLoaded: (data) => form.reset(data),
   });
 
@@ -89,7 +93,9 @@ export default function CreateQuotationPage() {
 
         if (quotations.length > 0) {
           const existingQuotation = quotations[0];
-          toast.info(`Quotation ${existingQuotation.QUOTATION_NUMBER} already exists for this enquiry`);
+          toast.info(
+            `Quotation ${existingQuotation.ROOT_QUOTATION_NUMBER || existingQuotation.QUOTATION_NUMBER} already exists for this enquiry`
+          );
           router.replace(`/dashboard/quotations/${existingQuotation.SLNO}`);
           return;
         }
@@ -145,7 +151,7 @@ export default function CreateQuotationPage() {
           </h1>
           <p className="text-muted-foreground">
             {isSuperseding && parentQuotation
-              ? `Creating new version of ${parentQuotation.QUOTATION_NUMBER}`
+              ? `Creating new version of ${parentQuotation.ROOT_QUOTATION_NUMBER || parentQuotation.QUOTATION_NUMBER}`
               : enquiry && `For Enquiry: ${enquiry.CUSTOMERNAME} - ${enquiry.MAKE} ${enquiry.MODEL}`}
           </p>
         </div>
@@ -339,7 +345,7 @@ export default function CreateQuotationPage() {
                         <Textarea
                           {...field}
                           rows={3}
-                          placeholder="Explain why you're creating a new version (minimum 10 characters)..."
+                          placeholder="Explain why you're creating a new version..."
                         />
                       </FormControl>
                       <FormDescription>

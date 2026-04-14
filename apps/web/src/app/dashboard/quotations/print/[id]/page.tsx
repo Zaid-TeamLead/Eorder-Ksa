@@ -62,7 +62,7 @@ export default function PrintQuotationPage({ params }: PrintQuotationPageProps) 
 
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">
-              {quotation.QUOTATION_NUMBER}
+              {quotation.ROOT_QUOTATION_NUMBER || quotation.QUOTATION_NUMBER}
               {quotation.VERSION > 1 && ` (Version ${quotation.VERSION})`}
             </span>
           </div>
