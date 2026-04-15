@@ -174,16 +174,20 @@ export default function QuotationDetailPage() {
       return;
     }
 
-    await reserveVehicle(activeQuotationId, {
-      reservationFromDate: reservationFromDate || undefined,
-      reservationToDate: reservationToDate || undefined,
-      reservationNotes: reservationNotes || undefined,
-    });
-    setReserveVehicleDialogOpen(false);
-    setReservationFromDate('');
-    setReservationToDate('');
-    setReservationNotes('');
-    void refetch();
+    try {
+      await reserveVehicle(activeQuotationId, {
+        reservationFromDate: reservationFromDate || undefined,
+        reservationToDate: reservationToDate || undefined,
+        reservationNotes: reservationNotes || undefined,
+      });
+      setReserveVehicleDialogOpen(false);
+      setReservationFromDate('');
+      setReservationToDate('');
+      setReservationNotes('');
+      void refetch();
+    } catch {
+      // Error toast is already handled by the mutation layer.
+    }
   };
 
   return (

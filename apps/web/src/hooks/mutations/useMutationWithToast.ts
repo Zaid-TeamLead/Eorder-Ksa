@@ -28,6 +28,15 @@ import type { UseMutationOptions } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { MutationWithToastConfig } from "@/types/common";
 
+function getApiErrorMessage(error: any): string {
+  return (
+    error?.response?.data?.error?.message ||
+    error?.response?.data?.message ||
+    error?.message ||
+    "An error occurred"
+  );
+}
+
 export function useMutationWithToast<TData, TVariables>({
   mutationFn,
   successMessage,
@@ -61,7 +70,7 @@ export function useMutationWithToast<TData, TVariables>({
         toast.error(errorMessage);
       } else {
         // Default error message
-        toast.error(error?.response?.data?.message || "An error occurred");
+        toast.error(getApiErrorMessage(error));
       }
 
       // Call custom onError handler if provided

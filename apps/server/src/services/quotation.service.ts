@@ -1,5 +1,6 @@
 import { db } from './database.service.js';
 import { logger } from '../utils/logger.js';
+import { AppError, ConflictError } from '../types/errors.js';
 import type {
   CreateQuotationInput,
   UpdateQuotationInput,
@@ -13,6 +14,12 @@ import type {
   CreateActivityInput,
   DiscountApprovalFilters,
 } from '../schemas/quotation.schema.js';
+import {
+  buildVehicleReservationConflictMessage,
+  extractReservationDateFromNotes,
+  findActiveVehicleReservation,
+  isVehicleReservationActive,
+} from '../utils/vehicle-reservation.js';
 
 const QUOTATION_DB_SCHEMA = (() => {
   const raw = process.env.QUOTATION_DB_SCHEMA || 'BI_NEGT_KSAISUZU';
@@ -1423,8 +1430,33 @@ class QuotationService {
         throw new Error('Quotation must have a VIN before reserving vehicle');
       }
 
-      if (quotation.VEHICLE_RESERVED === 'Y') {
-        throw new Error('Vehicle is already reserved for this quotation');
+      const existingReservationForCurrentQuotation = isVehicleReservationActive(
+        quotation.VEHICLE_RESERVED,
+        quotation.VEHICLE_RESERVATION_TO_DATE ||
+          extractReservationDateFromNotes(
+            quotation.VEHICLE_RESERVATION_NOTES,
+            'Reservation To'
+          )
+      );
+
+      if (existingReservationForCurrentQuotation) {
+        throw new ConflictError('Vehicle is already reserved for this quotation');
+      }
+
+      const conflictingReservation = await findActiveVehicleReservation({
+        vinNumber: quotation.VIN_NUMBER,
+        quotationSchema: QUOTATION_DB_SCHEMA,
+        salesOrderSchema: process.env.SALES_ORDER_DB_SCHEMA?.trim().toUpperCase() || QUOTATION_DB_SCHEMA,
+        excludeQuotationId: resolvedQuotationId,
+      });
+
+      if (conflictingReservation) {
+        throw new ConflictError(
+          buildVehicleReservationConflictMessage(
+            quotation.VIN_NUMBER,
+            conflictingReservation
+          )
+        );
       }
 
       const currentDateTime = this.getCurrentDateTime();
@@ -1515,6 +1547,9 @@ class QuotationService {
       return { success: true };
     } catch (error: any) {
       logger.error('Error reserving vehicle for quotation:', error);
+      if (error instanceof AppError) {
+        throw error;
+      }
       throw new Error('Failed to reserve vehicle: ' + error.message);
     }
   }

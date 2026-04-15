@@ -1,5 +1,6 @@
 import { db } from './database.service.js';
 import { logger } from '../utils/logger.js';
+import { AppError, ConflictError } from '../types/errors.js';
 import type {
   CancelSalesOrderInput,
   CreateSalesOrderFromQuotationInput,
@@ -10,12 +11,27 @@ import type {
   SalesOrderFilters,
   UpdateSalesOrderInput,
 } from '../schemas/salesOrder.schema.js';
+import {
+  buildVehicleReservationConflictMessage,
+  extractReservationDateFromNotes,
+  findActiveVehicleReservation,
+  isVehicleReservationActive,
+} from '../utils/vehicle-reservation.js';
 
 const SALES_ORDER_DB_SCHEMA = (() => {
   const raw = process.env.SALES_ORDER_DB_SCHEMA || 'BI_NEGT_KSAISUZU';
   const normalized = raw.trim().toUpperCase();
   if (!/^[A-Z0-9_]+$/.test(normalized)) {
     throw new Error(`Invalid SALES_ORDER_DB_SCHEMA identifier: ${raw}`);
+  }
+  return normalized;
+})();
+
+const QUOTATION_DB_SCHEMA = (() => {
+  const raw = process.env.QUOTATION_DB_SCHEMA || SALES_ORDER_DB_SCHEMA;
+  const normalized = raw.trim().toUpperCase();
+  if (!/^[A-Z0-9_]+$/.test(normalized)) {
+    throw new Error(`Invalid QUOTATION_DB_SCHEMA identifier: ${raw}`);
   }
   return normalized;
 })();
@@ -560,8 +576,26 @@ class SalesOrderService {
         throw new Error('Sales order must have a VIN before reserving vehicle');
       }
 
-      if (order.VEHICLE_RESERVED === 'Y') {
-        throw new Error('Vehicle is already reserved for this sales order');
+      const existingReservationForCurrentOrder = isVehicleReservationActive(
+        order.VEHICLE_RESERVED,
+        extractReservationDateFromNotes(order.VEHICLE_RESERVATION_NOTES, 'Reservation To')
+      );
+
+      if (existingReservationForCurrentOrder) {
+        throw new ConflictError('Vehicle is already reserved for this sales order');
+      }
+
+      const conflictingReservation = await findActiveVehicleReservation({
+        vinNumber: order.VIN_NUMBER,
+        quotationSchema: QUOTATION_DB_SCHEMA,
+        salesOrderSchema: SALES_ORDER_DB_SCHEMA,
+        excludeSalesOrderId: id,
+      });
+
+      if (conflictingReservation) {
+        throw new ConflictError(
+          buildVehicleReservationConflictMessage(order.VIN_NUMBER, conflictingReservation)
+        );
       }
 
       const currentDateTime = this.getCurrentDateTime();
@@ -589,6 +623,9 @@ class SalesOrderService {
       return { success: true };
     } catch (error: any) {
       logger.error('Error reserving vehicle for sales order:', error);
+      if (error instanceof AppError) {
+        throw error;
+      }
       throw new Error('Failed to reserve vehicle: ' + error.message);
     }
   }
