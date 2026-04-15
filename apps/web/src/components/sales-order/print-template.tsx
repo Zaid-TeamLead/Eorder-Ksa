@@ -23,6 +23,56 @@ export function SalesOrderPrintTemplate({
     return Number.isNaN(numericValue) ? String(value) : formatCurrency(numericValue);
   };
 
+  const toNumber = (value: unknown) => {
+    const numericValue = Number(value);
+    return Number.isFinite(numericValue) ? numericValue : 0;
+  };
+
+  const lineItemsDiscountTotal = lineItems.reduce(
+    (sum, item) => sum + toNumber(item.DISCOUNT_AMOUNT),
+    0
+  );
+  const lineItemsNetTotal = lineItems.reduce(
+    (sum, item) => sum + toNumber(item.NET_PRICE),
+    0
+  );
+  const chargePrice = toNumber(enquiry?.CHARGEPRICE);
+  const vehicleBasePrice = toNumber(quotation?.VEHICLE_BASE_PRICE);
+  const rawVehicleDiscount = toNumber(quotation?.VEHICLE_DISCOUNT);
+  const effectiveVehicleDiscount =
+    rawVehicleDiscount !== 0 ? rawVehicleDiscount : lineItemsDiscountTotal;
+  const effectiveLineItemDiscounts =
+    lineItemsDiscountTotal !== 0 && lineItemsDiscountTotal !== effectiveVehicleDiscount
+      ? lineItemsDiscountTotal
+      : null;
+  const vehicleNetPrice =
+    toNumber(quotation?.VEHICLE_NET_PRICE) ||
+    Math.max(0, vehicleBasePrice + effectiveVehicleDiscount);
+  const accessoriesTotal = toNumber(quotation?.ACCESSORIES_TOTAL);
+  const accessoriesDiscount = toNumber(quotation?.ACCESSORIES_DISCOUNT);
+  const accessoriesNetTotal =
+    toNumber(quotation?.ACCESSORIES_NET_TOTAL) ||
+    Math.max(0, accessoriesTotal + accessoriesDiscount);
+  const warrantyTotal = toNumber(quotation?.WARRANTY_TOTAL);
+  const insuranceTotal = toNumber(quotation?.INSURANCE_TOTAL);
+  const subtotal =
+    toNumber(quotation?.SUBTOTAL) ||
+    lineItemsNetTotal + accessoriesNetTotal + warrantyTotal + insuranceTotal + chargePrice;
+  const taxAmount = toNumber(quotation?.TAX_AMOUNT);
+  const tradeInValue = toNumber(quotation?.TRADE_IN_VALUE);
+  const downpayment = toNumber(quotation?.DOWNPAYMENT);
+  const requestedDeposit = toNumber(quotation?.DEPOSIT_AMOUNT);
+  const totalDiscountApplied =
+    toNumber(quotation?.TOTAL_DISCOUNT_AMOUNT) ||
+    (lineItemsDiscountTotal !== 0 ? lineItemsDiscountTotal : effectiveVehicleDiscount) +
+      accessoriesDiscount;
+  const grandTotal = toNumber(quotation?.GRAND_TOTAL) || toNumber(salesOrder.GRAND_TOTAL);
+  const netAmountDue =
+    toNumber(quotation?.NET_AMOUNT_DUE) ||
+    Math.max(0, grandTotal - tradeInValue - downpayment);
+  const depositCollected = String(quotation?.DEPOSIT_COLLECTED || '').trim() === 'Y';
+  const remainingAfterDeposit = Math.max(0, netAmountDue - requestedDeposit);
+
   return (
     <div className="print-content mx-auto max-w-[210mm] bg-white p-8 text-black">
       <div className="mb-8 flex items-start justify-between">
@@ -128,37 +178,73 @@ export function SalesOrderPrintTemplate({
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
             <p className="font-medium">Vehicle Base Price:</p>
-            <p className="text-gray-700">
-              {formatOptionalCurrency(quotation?.VEHICLE_BASE_PRICE)}
-            </p>
+            <p className="text-gray-700">{formatOptionalCurrency(vehicleBasePrice)}</p>
           </div>
           <div>
             <p className="font-medium">Vehicle Discount:</p>
-            <p className="text-gray-700">
-              {formatOptionalCurrency(quotation?.VEHICLE_DISCOUNT)}
-            </p>
+            <p className="text-gray-700">{formatOptionalCurrency(effectiveVehicleDiscount)}</p>
+          </div>
+          <div>
+            <p className="font-medium">Vehicle Net Price:</p>
+            <p className="text-gray-700">{formatOptionalCurrency(vehicleNetPrice)}</p>
+          </div>
+          <div>
+            <p className="font-medium">Accessories Total:</p>
+            <p className="text-gray-700">{formatOptionalCurrency(accessoriesTotal)}</p>
+          </div>
+          <div>
+            <p className="font-medium">Accessories Discount:</p>
+            <p className="text-gray-700">{formatOptionalCurrency(accessoriesDiscount)}</p>
           </div>
           <div>
             <p className="font-medium">Accessories Net Total:</p>
-            <p className="text-gray-700">
-              {formatOptionalCurrency(quotation?.ACCESSORIES_NET_TOTAL)}
-            </p>
+            <p className="text-gray-700">{formatOptionalCurrency(accessoriesNetTotal)}</p>
+          </div>
+          {effectiveLineItemDiscounts !== null && (
+            <div>
+              <p className="font-medium">Line Item Discounts:</p>
+              <p className="text-gray-700">{formatOptionalCurrency(effectiveLineItemDiscounts)}</p>
+            </div>
+          )}
+          <div>
+            <p className="font-medium">Total Discount Applied:</p>
+            <p className="text-gray-700">{formatOptionalCurrency(totalDiscountApplied)}</p>
           </div>
           <div>
             <p className="font-medium">Tax Amount:</p>
-            <p className="text-gray-700">{formatOptionalCurrency(quotation?.TAX_AMOUNT)}</p>
+            <p className="text-gray-700">{formatOptionalCurrency(taxAmount)}</p>
+          </div>
+          <div>
+            <p className="font-medium">Trade-In Value:</p>
+            <p className="text-gray-700">{formatOptionalCurrency(tradeInValue)}</p>
           </div>
           <div>
             <p className="font-medium">Downpayment:</p>
-            <p className="text-gray-700">{formatOptionalCurrency(quotation?.DOWNPAYMENT)}</p>
+            <p className="text-gray-700">{formatOptionalCurrency(downpayment)}</p>
+          </div>
+          <div>
+            <p className="font-medium">Deposit Requested / Applied:</p>
+            <p className="text-gray-700">{formatOptionalCurrency(requestedDeposit)}</p>
+          </div>
+          <div>
+            <p className="font-medium">Deposit Status:</p>
+            <p className="text-gray-700">{depositCollected ? 'Collected' : 'Not Collected'}</p>
           </div>
           <div>
             <p className="font-medium">Net Amount Due:</p>
-            <p className="text-gray-700">{formatOptionalCurrency(quotation?.NET_AMOUNT_DUE)}</p>
+            <p className="text-gray-700">{formatOptionalCurrency(netAmountDue)}</p>
+          </div>
+          <div>
+            <p className="font-medium">Remaining After Deposit:</p>
+            <p className="text-gray-700">{formatOptionalCurrency(remainingAfterDeposit)}</p>
+          </div>
+          <div>
+            <p className="font-medium">Subtotal:</p>
+            <p className="text-gray-700">{formatOptionalCurrency(subtotal)}</p>
           </div>
           <div className="col-span-2 mt-2 flex justify-between text-lg font-bold">
             <span>Grand Total:</span>
-            <span>{formatOptionalCurrency(quotation?.GRAND_TOTAL ?? salesOrder.GRAND_TOTAL)}</span>
+            <span>{formatOptionalCurrency(grandTotal)}</span>
           </div>
         </div>
       </div>
@@ -199,6 +285,10 @@ export function SalesOrderPrintTemplate({
                       <p className="font-medium">Discount</p>
                       <p className="text-gray-700">
                         {formatOptionalCurrency(item.DISCOUNT_AMOUNT)}
+                        {item.DISCOUNT_PERCENTAGE !== undefined &&
+                        item.DISCOUNT_PERCENTAGE !== null
+                          ? ` (${item.DISCOUNT_PERCENTAGE}%)`
+                          : ''}
                       </p>
                     </div>
                     <div>

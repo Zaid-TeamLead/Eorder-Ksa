@@ -38,6 +38,15 @@ export interface VehicleInventory {
   U_Veh_DispDate: string | null;
   U_Veh_IC: string | null;
   AgeinDays: number;
+  RESERVED_STATUS?: string | null;
+  RESERVED_SOURCE_TYPE?: string | null;
+  RESERVED_SOURCE_ID?: number | null;
+  RESERVED_SOURCE_NUMBER?: string | null;
+  RESERVED_BY?: string | null;
+  RESERVED_ON?: string | null;
+  RESERVED_FROM?: string | null;
+  RESERVED_TO?: string | null;
+  RESERVED_NOTES?: string | null;
 }
 
 export interface VehicleChargeItem {

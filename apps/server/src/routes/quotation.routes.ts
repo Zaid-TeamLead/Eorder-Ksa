@@ -49,6 +49,19 @@ import {
 
 const router: ExpressRouter = Router();
 
+function getQuotationOwnershipCandidates(req: Parameters<typeof enforceOwnershipFilter>[0] extends (req: infer T) => any ? T : never): string[] {
+  const emailUserId = req.user?.email?.split('@')[0]?.trim();
+  const normalizedNameId = req.user?.name?.replace(/^User\s+/i, '').trim();
+
+  return Array.from(
+    new Set(
+      [req.user?.SlpCode, emailUserId, normalizedNameId]
+        .map((value) => String(value || '').trim())
+        .filter(Boolean)
+    )
+  );
+}
+
 // ============================================================================
 // Quotation CRUD Routes
 // ============================================================================
@@ -149,7 +162,7 @@ router.put(
     checkResourceOwnership({
       getResourceById: (id) => quotationService.getQuotationById(Number(id)),
       getOwnerId: (quotation) => quotation.SLPCODE,
-      getUserId: (req) => req.user?.SlpCode,
+      getUserId: (req) => getQuotationOwnershipCandidates(req),
       resourceName: 'Quotation',
       allowUnassigned: false,
     })
@@ -168,7 +181,7 @@ router.delete(
     checkResourceOwnership({
       getResourceById: (id) => quotationService.getQuotationById(Number(id)),
       getOwnerId: (quotation) => quotation.SLPCODE,
-      getUserId: (req) => req.user?.SlpCode,
+      getUserId: (req) => getQuotationOwnershipCandidates(req),
       resourceName: 'Quotation',
       allowUnassigned: false,
     })
@@ -192,7 +205,7 @@ router.post(
     checkResourceOwnership({
       getResourceById: (id) => quotationService.getQuotationById(Number(id)),
       getOwnerId: (quotation) => quotation.SLPCODE,
-      getUserId: (req) => req.user?.SlpCode,
+      getUserId: (req) => getQuotationOwnershipCandidates(req),
       resourceName: 'Quotation',
       allowUnassigned: false,
     })
@@ -227,7 +240,7 @@ router.post(
     checkResourceOwnership({
       getResourceById: (id) => quotationService.getQuotationById(Number(id)),
       getOwnerId: (quotation) => quotation.SLPCODE,
-      getUserId: (req) => req.user?.SlpCode,
+      getUserId: (req) => getQuotationOwnershipCandidates(req),
       resourceName: 'Quotation',
       allowUnassigned: false,
     })
@@ -258,7 +271,7 @@ router.post(
     checkResourceOwnership({
       getResourceById: (id) => quotationService.getQuotationById(Number(id), { resolveLatest: true }),
       getOwnerId: (quotation) => quotation.SLPCODE,
-      getUserId: (req) => req.user?.SlpCode,
+      getUserId: (req) => getQuotationOwnershipCandidates(req),
       resourceName: 'Quotation',
       allowUnassigned: false,
     })
@@ -278,7 +291,7 @@ router.post(
     checkResourceOwnership({
       getResourceById: (id) => quotationService.getQuotationById(Number(id)),
       getOwnerId: (quotation) => quotation.SLPCODE,
-      getUserId: (req) => req.user?.SlpCode,
+      getUserId: (req) => getQuotationOwnershipCandidates(req),
       resourceName: 'Quotation',
       allowUnassigned: false,
     })
@@ -302,7 +315,7 @@ router.post(
     checkResourceOwnership({
       getResourceById: (id) => quotationService.getQuotationById(Number(id)),
       getOwnerId: (quotation) => quotation.SLPCODE,
-      getUserId: (req) => req.user?.SlpCode,
+      getUserId: (req) => getQuotationOwnershipCandidates(req),
       resourceName: 'Quotation',
       allowUnassigned: false,
     })
@@ -321,7 +334,7 @@ router.get(
     checkResourceOwnership({
       getResourceById: (id) => quotationService.getQuotationById(Number(id)),
       getOwnerId: (quotation) => quotation.SLPCODE,
-      getUserId: (req) => req.user?.SlpCode,
+      getUserId: (req) => getQuotationOwnershipCandidates(req),
       resourceName: 'Quotation',
       allowUnassigned: false,
     })

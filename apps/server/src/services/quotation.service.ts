@@ -48,6 +48,15 @@ const CREATE_QUOTATION_LINE_SP_NAME = (() => {
   return normalized;
 })();
 
+async function getNextDiscountApprovalId(): Promise<number> {
+  const row = await db.queryOne<{ NEXT_SLNO: number }>(
+    `SELECT COALESCE(MAX("SLNO"), 0) + 1 AS "NEXT_SLNO"
+     FROM "${QUOTATION_DB_SCHEMA}"."DMS_DISCOUNT_APPROVAL"`
+  );
+
+  return row?.NEXT_SLNO ?? 1;
+}
+
 // =====================================================
 // Interfaces
 // =====================================================
@@ -1138,26 +1147,29 @@ class QuotationService {
   async requestDiscountApproval(
     quotationId: number,
     data: RequestDiscountApprovalInput & { requestedBy: string; slpCode: string }
-  ): Promise<{ success: boolean; id: number }> {
+    ): Promise<{ success: boolean; id: number }> {
     try {
       const currentDateTime = this.getCurrentDateTime();
       const quotation = await this.getQuotationOrThrow(quotationId);
       this.ensureActionAllowed(quotation);
+      const nextApprovalId = await getNextDiscountApprovalId();
 
       // Get user's discount limit
       const limitCheck = await this.checkDiscountLimit(data.discountAmount, data.requestedBy);
 
       const query = `
         INSERT INTO "${QUOTATION_DB_SCHEMA}"."DMS_DISCOUNT_APPROVAL" (
+          "SLNO",
           "QUOTATION_SLNO", "REQUEST_TYPE", "DISCOUNT_AMOUNT", "DISCOUNT_PERCENTAGE",
           "JUSTIFICATION", "REQUESTED_BY", "REQUESTED_BY_SLPCODE",
           "USER_DISCOUNT_LIMIT", "AMOUNT_OVER_LIMIT",
           "STATUS", "ASSIGNED_TO", "REQUESTED_DATE",
           "CREATED_BY", "CREATED_DATE", "IS_DELETED"
-        ) VALUES (?, 'Discount', ?, ?, ?, ?, ?, ?, ?, 'Pending', ?, ?, ?, ?, 'N')
+        ) VALUES (?, ?, 'Discount', ?, ?, ?, ?, ?, ?, ?, 'Pending', ?, ?, ?, ?, 'N')
       `;
 
       await db.execute(query, [
+        nextApprovalId,
         quotationId,
         data.discountAmount,
         data.discountPercentage,
@@ -1171,14 +1183,6 @@ class QuotationService {
         data.requestedBy,
         currentDateTime,
       ]);
-
-      // Get inserted ID
-      const idQuery = `
-        SELECT "SLNO" FROM "${QUOTATION_DB_SCHEMA}"."DMS_DISCOUNT_APPROVAL"
-        WHERE "QUOTATION_SLNO" = ?
-        ORDER BY "SLNO" DESC LIMIT 1
-      `;
-      const result = await db.query(idQuery, [quotationId]);
 
       // Update quotation to reflect pending approval
       const updateQuery = `
@@ -1196,9 +1200,9 @@ class QuotationService {
         createdBy: data.requestedBy,
       });
 
-      logger.info({ quotationId, approvalId: result[0].SLNO }, 'Discount approval requested');
+      logger.info({ quotationId, approvalId: nextApprovalId }, 'Discount approval requested');
 
-      return { success: true, id: result[0].SLNO };
+      return { success: true, id: nextApprovalId };
     } catch (error: any) {
       logger.error('Error requesting discount approval:', error);
       throw new Error('Failed to request discount approval: ' + error.message);

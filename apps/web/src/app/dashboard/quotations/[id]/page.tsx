@@ -153,10 +153,13 @@ export default function QuotationDetailPage() {
   const effectiveDiscountAmount =
     totalDiscountAmount !== 0 ? totalDiscountAmount : lineItemsDiscountAmount;
   const discountPercentage = Number(quotation.DISCOUNT_PERCENTAGE || 0);
+  const discountApprovalStatus = String(quotation.DISCOUNT_APPROVAL_STATUS || '').trim();
+  const hasPendingApprovalRequest = discountApprovalStatus === 'Pending';
+  const hasApprovedDiscountRequest = discountApprovalStatus === 'Approved';
   const canRequestApproval =
     !isTerminalStatus &&
-    effectiveDiscountAmount < 0 &&
-    quotation.DISCOUNT_APPROVAL_STATUS !== 'Approved';
+    !hasPendingApprovalRequest &&
+    !hasApprovedDiscountRequest;
   const isPassedToCashier = quotation.PASSED_TO_CASHIER === 'Y';
   const isDepositCollected = quotation.DEPOSIT_COLLECTED === 'Y';
   const canPassToCashier = !isTerminalStatus && !isPassedToCashier;
@@ -218,18 +221,38 @@ export default function QuotationDetailPage() {
         )}
       </div>
 
-      {canRequestApproval && (
+      {!isTerminalStatus && (
         <Card>
           <CardContent className="flex items-center justify-between gap-4 py-4">
             <div>
-              <p className="text-sm font-medium">Discount Approval Required</p>
-              <p className="text-sm text-muted-foreground">
-                Discount {formatCurrency(effectiveDiscountAmount)} ({discountPercentage.toFixed(2)}%)
-              </p>
+              <p className="text-sm font-medium">Additional Discount Request</p>
+              {effectiveDiscountAmount < 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Send discount {formatCurrency(effectiveDiscountAmount)} ({discountPercentage.toFixed(2)}%)
+                  {' '}to sales manager or supervisor for approval.
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Add a discount to this quotation first, then send the request for approval.
+                </p>
+              )}
+              {hasPendingApprovalRequest && (
+                <p className="mt-1 text-sm text-amber-600">
+                  Approval request already sent and is pending review.
+                </p>
+              )}
+              {hasApprovedDiscountRequest && (
+                <p className="mt-1 text-sm text-green-600">
+                  Discount request already approved.
+                </p>
+              )}
             </div>
-            <Button onClick={() => setRequestApprovalDialogOpen(true)}>
+            <Button
+              onClick={() => setRequestApprovalDialogOpen(true)}
+              disabled={!canRequestApproval}
+            >
               <Send className="mr-2 h-4 w-4" />
-              Request Approval
+              Request Additional Discount
             </Button>
           </CardContent>
         </Card>
@@ -605,13 +628,14 @@ export default function QuotationDetailPage() {
         isDeleting={isDeleting}
       />
 
-      {canRequestApproval && (
+      {!isTerminalStatus && (
         <RequestDiscountApprovalDialog
           open={requestApprovalDialogOpen}
           onOpenChange={setRequestApprovalDialogOpen}
           quotationId={quotationId}
           discountAmount={effectiveDiscountAmount}
           discountPercentage={discountPercentage}
+          quotationSubtotal={effectiveSubtotal}
           onSuccess={() => {
             void refetch();
           }}

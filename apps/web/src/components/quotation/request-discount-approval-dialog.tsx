@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useEffect, useState } from 'react';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2 } from 'lucide-react';
 import {
@@ -34,6 +34,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { useQuotationMutations } from '@/hooks/entities/useQuotationMutations';
+import { useSalesEmployees } from '@/hooks/entities/useSalesEmployees';
 import { discountApprovalRequestFormSchema, type DiscountApprovalRequestFormData } from '@/forms/quotation/schema';
 import { logger } from '@/lib/logger';
 
@@ -43,16 +44,10 @@ interface RequestDiscountApprovalDialogProps {
   quotationId: number;
   discountAmount: number;
   discountPercentage: number;
+  quotationSubtotal?: number;
   userDiscountLimit?: number;
   onSuccess?: () => void;
 }
-
-// Mock managers list - in production, this would come from an API
-const managers = [
-  { value: 'john.doe', label: 'John Doe - Sales Manager' },
-  { value: 'jane.smith', label: 'Jane Smith - Regional Manager' },
-  { value: 'michael.brown', label: 'Michael Brown - Director' },
-];
 
 export function RequestDiscountApprovalDialog({
   open,
@@ -60,11 +55,14 @@ export function RequestDiscountApprovalDialog({
   quotationId,
   discountAmount,
   discountPercentage,
+  quotationSubtotal = 0,
   userDiscountLimit = 0,
   onSuccess,
 }: RequestDiscountApprovalDialogProps) {
   const { requestApproval } = useQuotationMutations();
+  const { salesEmployees, isLoading: isLoadingSalesEmployees } = useSalesEmployees();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [lastEditedField, setLastEditedField] = useState<'amount' | 'percentage'>('amount');
 
   const form = useForm<DiscountApprovalRequestFormData>({
     resolver: zodResolver(discountApprovalRequestFormSchema),
@@ -76,8 +74,68 @@ export function RequestDiscountApprovalDialog({
     },
   });
 
-  const amountOverLimit = Math.abs(discountAmount) - userDiscountLimit;
+  const watchedDiscountAmount = useWatch({
+    control: form.control,
+    name: 'discountAmount',
+  });
+  const watchedDiscountPercentage = useWatch({
+    control: form.control,
+    name: 'discountPercentage',
+  });
+
+  const normalizedDiscountAmount = Number(watchedDiscountAmount || 0);
+  const normalizedDiscountPercentage = Number(watchedDiscountPercentage || 0);
+  const absoluteDiscountAmount = Math.abs(normalizedDiscountAmount);
+  const amountOverLimit = absoluteDiscountAmount - userDiscountLimit;
   const isOverLimit = amountOverLimit > 0;
+  const normalizedQuotationSubtotal = Number(quotationSubtotal || 0);
+
+  useEffect(() => {
+    form.reset({
+      discountAmount,
+      discountPercentage,
+      justification: '',
+      assignedTo: '',
+    });
+    setLastEditedField('amount');
+  }, [discountAmount, discountPercentage, form, open]);
+
+  useEffect(() => {
+    if (!open || normalizedQuotationSubtotal <= 0) {
+      return;
+    }
+
+    if (lastEditedField === 'amount') {
+      const nextPercentage = Number(
+        ((absoluteDiscountAmount / normalizedQuotationSubtotal) * 100).toFixed(2)
+      );
+      if (Math.abs(nextPercentage - normalizedDiscountPercentage) > 0.009) {
+        form.setValue('discountPercentage', nextPercentage, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+      }
+      return;
+    }
+
+    const nextAmount = -Number(
+      ((normalizedQuotationSubtotal * normalizedDiscountPercentage) / 100).toFixed(2)
+    );
+    if (Math.abs(nextAmount - normalizedDiscountAmount) > 0.009) {
+      form.setValue('discountAmount', nextAmount, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+    }
+  }, [
+    absoluteDiscountAmount,
+    form,
+    lastEditedField,
+    normalizedDiscountAmount,
+    normalizedDiscountPercentage,
+    normalizedQuotationSubtotal,
+    open,
+  ]);
 
   const handleSubmit = async (data: DiscountApprovalRequestFormData) => {
     setIsSubmitting(true);
@@ -112,12 +170,12 @@ export function RequestDiscountApprovalDialog({
                 <div>
                   <p className="text-muted-foreground">Discount Amount:</p>
                   <p className="text-lg font-bold text-destructive">
-                    SAR {Math.abs(discountAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    SAR {absoluteDiscountAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Discount Percentage:</p>
-                  <p className="text-lg font-bold">{discountPercentage.toFixed(2)}%</p>
+                  <p className="text-lg font-bold">{normalizedDiscountPercentage.toFixed(2)}%</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Your Discount Limit:</p>
@@ -146,6 +204,65 @@ export function RequestDiscountApprovalDialog({
 
             {/* Form Fields */}
             <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="discountAmount"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Requested Discount Amount *</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={Math.abs(Number(field.value || 0))}
+                          onChange={(event) => {
+                            const nextValue = Number(event.target.value || 0);
+                            setLastEditedField('amount');
+                            field.onChange(nextValue === 0 ? 0 : -Math.abs(nextValue));
+                          }}
+                          placeholder="Enter discount amount"
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Enter the requested discount amount in SAR.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="discountPercentage"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Requested Discount Percentage *</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          value={Number(field.value || 0)}
+                          onChange={(event) => {
+                            const nextValue = Number(event.target.value || 0);
+                            setLastEditedField('percentage');
+                            field.onChange(nextValue);
+                          }}
+                          placeholder="Enter discount percentage"
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        The amount updates automatically from the quotation subtotal.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
               <FormField
                 control={form.control}
                 name="justification"
@@ -173,32 +290,46 @@ export function RequestDiscountApprovalDialog({
                 name="assignedTo"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Assign To Manager *</FormLabel>
+                    <FormLabel>Assign To Manager / Supervisor *</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select a manager to review this request" />
+                          <SelectValue
+                            placeholder={
+                              isLoadingSalesEmployees
+                                ? 'Loading sales employees...'
+                                : 'Select sales employee'
+                            }
+                          />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {managers.map((manager) => (
-                          <SelectItem key={manager.value} value={manager.value}>
-                            {manager.label}
+                        {salesEmployees.length > 0 ? (
+                          salesEmployees.map((employee) => {
+                            const assignedValue = `${employee.SALES_EMPLOYEE_CODE} - ${employee.SALES_EMPLOYEE_NAME}`;
+                            return (
+                              <SelectItem
+                                key={`${employee.SALES_EMPLOYEE_CODE}-${employee.SALES_EMPLOYEE_NAME}`}
+                                value={assignedValue}
+                              >
+                                {assignedValue}
+                              </SelectItem>
+                            );
+                          })
+                        ) : (
+                          <SelectItem value="__no-sales-employees__" disabled>
+                            No sales employees found
                           </SelectItem>
-                        ))}
+                        )}
                       </SelectContent>
                     </Select>
                     <FormDescription>
-                      Choose the appropriate manager based on the discount amount
+                      Uses the same sales employee list as Pass Enquiry to Cashier for Deposit.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-
-              {/* Hidden fields (auto-populated) */}
-              <Input type="hidden" {...form.register('discountAmount')} />
-              <Input type="hidden" {...form.register('discountPercentage')} />
             </div>
 
             <DialogFooter>

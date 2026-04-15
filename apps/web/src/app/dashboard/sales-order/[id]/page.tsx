@@ -117,6 +117,20 @@ export default function SalesOrderDetailsPage() {
     return Number.isNaN(numericValue) ? String(value) : formatCurrency(numericValue);
   };
 
+  const toNumber = (value: unknown) => {
+    const numericValue = Number(value);
+    return Number.isFinite(numericValue) ? numericValue : 0;
+  };
+
+  const lineItemsDiscountTotal = lineItems.reduce(
+    (sum, item) => sum + toNumber(item.DISCOUNT_AMOUNT),
+    0
+  );
+  const effectiveVehicleDiscount =
+    toNumber(quotation?.VEHICLE_DISCOUNT) !== 0
+      ? toNumber(quotation?.VEHICLE_DISCOUNT)
+      : lineItemsDiscountTotal;
+
   const customerDetails = [
     { label: 'Customer ID', value: enquiry?.CUSTOMERID || 'N/A' },
     { label: 'Email', value: salesOrder.CUSTOMER_EMAIL || 'N/A' },
@@ -137,7 +151,7 @@ export default function SalesOrderDetailsPage() {
 
   const pricingDetails = [
     { label: 'Vehicle Base Price', value: formatOptionalCurrency(quotation?.VEHICLE_BASE_PRICE) },
-    { label: 'Vehicle Discount', value: formatOptionalCurrency(quotation?.VEHICLE_DISCOUNT) },
+    { label: 'Vehicle Discount', value: formatOptionalCurrency(effectiveVehicleDiscount) },
     { label: 'Vehicle Net Price', value: formatOptionalCurrency(quotation?.VEHICLE_NET_PRICE) },
     { label: 'Accessories Total', value: formatOptionalCurrency(quotation?.ACCESSORIES_TOTAL) },
     { label: 'Accessories Discount', value: formatOptionalCurrency(quotation?.ACCESSORIES_DISCOUNT) },

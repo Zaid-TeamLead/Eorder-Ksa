@@ -1,6 +1,9 @@
 import { logger } from '@/utils/logger';
 import { db } from './database.service';
 import { validateUserId } from '@/utils/db-helpers';
+import {
+  findActiveVehicleReservations,
+} from '@/utils/vehicle-reservation';
 
 const VEHICLE_DB_SCHEMA = (() => {
   const raw = process.env.VEHICLE_DB_SCHEMA || 'BI_NEGT_KSAISUZU';
@@ -16,6 +19,23 @@ const VEHICLE_VIN_SP = process.env.VEHICLE_VIN_SP || 'DMS_KSA_100014';
 const VEHICLE_INVENTORY_SP = process.env.VEHICLE_INVENTORY_SP || 'DMS_KSA_100016';
 const VEHICLE_CHARGE_SEARCH_SP = process.env.VEHICLE_CHARGE_SEARCH_SP || 'DMS_KSA_100025';
 const VEHICLE_FALLBACK_SCHEMA = 'BI_NEGT_KSA';
+const QUOTATION_DB_SCHEMA = (() => {
+  const raw = process.env.QUOTATION_DB_SCHEMA || VEHICLE_DB_SCHEMA;
+  const normalized = raw.trim().toUpperCase();
+  if (!/^[A-Z0-9_]+$/.test(normalized)) {
+    throw new Error(`Invalid QUOTATION_DB_SCHEMA identifier: ${raw}`);
+  }
+  return normalized;
+})();
+
+const SALES_ORDER_DB_SCHEMA = (() => {
+  const raw = process.env.SALES_ORDER_DB_SCHEMA || VEHICLE_DB_SCHEMA;
+  const normalized = raw.trim().toUpperCase();
+  if (!/^[A-Z0-9_]+$/.test(normalized)) {
+    throw new Error(`Invalid SALES_ORDER_DB_SCHEMA identifier: ${raw}`);
+  }
+  return normalized;
+})();
 
 function normalizeProcedureName(name: string): string {
   const normalized = name.trim().toUpperCase();
@@ -133,6 +153,18 @@ function dedupeVehicleInventoryRows<T extends Record<string, unknown>>(rows: T[]
   }
 
   return Array.from(deduped.values());
+}
+
+function extractVehicleInventoryVin(row: Record<string, unknown>): string {
+  const vin =
+    row.VIN ??
+    row.VINNUMBER ??
+    row.vin ??
+    row.vinNumber ??
+    row.U_Veh_StockID ??
+    row.U_VEH_STOCKID;
+
+  return vin !== undefined && vin !== null ? String(vin).trim() : '';
 }
 
 function coerceRowsFromProcedureResult(input: unknown): Record<string, unknown>[] {
@@ -405,30 +437,58 @@ export const getAllVehicleInventory = async (customerCode?: string) => {
       [normalizedCustomerCode]
     );
     const dedupedVehicles = dedupeVehicleInventoryRows(vehicles);
+    const reservationMap = await findActiveVehicleReservations({
+      vinNumbers: dedupedVehicles.map(extractVehicleInventoryVin),
+      quotationSchema: QUOTATION_DB_SCHEMA,
+      salesOrderSchema: SALES_ORDER_DB_SCHEMA,
+    });
+    const enrichedVehicles = dedupedVehicles.map((vehicle) => {
+      const vin = extractVehicleInventoryVin(vehicle);
+      const activeReservation = vin ? reservationMap.get(vin) : null;
+
+      if (!activeReservation) {
+        return vehicle;
+      }
+
+      return {
+        ...vehicle,
+        RESERVED_STATUS: 'Reserved',
+        RESERVED_SOURCE_TYPE: activeReservation.sourceType,
+        RESERVED_SOURCE_ID: activeReservation.sourceId,
+        RESERVED_SOURCE_NUMBER: activeReservation.sourceNumber,
+        RESERVED_BY: activeReservation.reservedBy,
+        RESERVED_ON: activeReservation.reservedOn,
+        RESERVED_FROM: activeReservation.reservedFrom,
+        RESERVED_TO: activeReservation.reservedTo,
+        RESERVED_NOTES: activeReservation.notes,
+      };
+    });
 
     logger.info(
       {
         customerCode: normalizedCustomerCode || '(empty)',
         rows: vehicles.length,
         dedupedRows: dedupedVehicles.length,
-        sample: dedupedVehicles[0]
+        sample: enrichedVehicles[0]
           ? {
-              Location: dedupedVehicles[0].Location ?? null,
-              WhsName: dedupedVehicles[0].WhsName ?? null,
-              WhsCode: dedupedVehicles[0].WhsCode ?? null,
-              ItemCode: dedupedVehicles[0].ItemCode,
-              U_Veh_Brand: dedupedVehicles[0].U_Veh_Brand ?? null,
-              Price: dedupedVehicles[0].Price ?? null,
-              Discount: dedupedVehicles[0].Discount ?? null,
-              Discprice: dedupedVehicles[0].Discprice ?? null,
-              Currency: dedupedVehicles[0].Currency ?? null,
+              Location: enrichedVehicles[0].Location ?? null,
+              WhsName: enrichedVehicles[0].WhsName ?? null,
+              WhsCode: enrichedVehicles[0].WhsCode ?? null,
+              ItemCode: enrichedVehicles[0].ItemCode,
+              U_Veh_Brand: enrichedVehicles[0].U_Veh_Brand ?? null,
+              Price: enrichedVehicles[0].Price ?? null,
+              Discount: enrichedVehicles[0].Discount ?? null,
+              Discprice: enrichedVehicles[0].Discprice ?? null,
+              Currency: enrichedVehicles[0].Currency ?? null,
+              RESERVED_STATUS: enrichedVehicles[0].RESERVED_STATUS ?? null,
+              RESERVED_TO: enrichedVehicles[0].RESERVED_TO ?? null,
             }
           : null,
       },
       'Retrieved vehicle inventory'
     );
 
-    return dedupedVehicles;
+    return enrichedVehicles;
   } catch (error) {
     logger.error(error, 'Failed to get all vehicle inventory');
     throw new Error('Failed to get all vehicle inventory');

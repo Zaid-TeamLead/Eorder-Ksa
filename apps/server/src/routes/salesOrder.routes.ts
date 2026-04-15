@@ -1,4 +1,4 @@
-import { Router, type Router as ExpressRouter } from 'express';
+import { Router, type Router as ExpressRouter, type Request } from 'express';
 import { asyncHandler } from '../utils/async-handler.js';
 import { validate } from '../middleware/validator.js';
 import {
@@ -31,6 +31,19 @@ import { salesOrderService } from '../services/salesOrder.service.js';
 
 const router: ExpressRouter = Router();
 
+function getSalesOrderOwnershipCandidates(req: Request): string[] {
+  const emailUserId = req.user?.email?.split('@')[0]?.trim();
+  const normalizedNameId = req.user?.name?.replace(/^User\s+/i, '').trim();
+
+  return Array.from(
+    new Set(
+      [req.user?.SlpCode, emailUserId, normalizedNameId]
+        .map((value) => String(value || '').trim())
+        .filter(Boolean)
+    )
+  );
+}
+
 /**
  * POST /api/sales-orders/from-quotation
  * Create sales order from an existing quotation
@@ -62,7 +75,7 @@ router.get(
     checkResourceOwnership({
       getResourceById: (id) => salesOrderService.getSalesOrderById(Number(id)),
       getOwnerId: (order) => order.SLPCODE,
-      getUserId: (req) => req.user?.SlpCode,
+      getUserId: (req) => getSalesOrderOwnershipCandidates(req),
       resourceName: 'Sales Order',
       allowUnassigned: false,
     })
@@ -82,7 +95,7 @@ router.patch(
     checkResourceOwnership({
       getResourceById: (id) => salesOrderService.getSalesOrderById(Number(id)),
       getOwnerId: (order) => order.SLPCODE,
-      getUserId: (req) => req.user?.SlpCode,
+      getUserId: (req) => getSalesOrderOwnershipCandidates(req),
       resourceName: 'Sales Order',
       allowUnassigned: false,
     })
@@ -101,7 +114,7 @@ router.post(
     checkResourceOwnership({
       getResourceById: (id) => salesOrderService.getSalesOrderById(Number(id)),
       getOwnerId: (order) => order.SLPCODE,
-      getUserId: (req) => req.user?.SlpCode,
+      getUserId: (req) => getSalesOrderOwnershipCandidates(req),
       resourceName: 'Sales Order',
       allowUnassigned: false,
     })
@@ -121,7 +134,7 @@ router.post(
     checkResourceOwnership({
       getResourceById: (id) => salesOrderService.getSalesOrderById(Number(id)),
       getOwnerId: (order) => order.SLPCODE,
-      getUserId: (req) => req.user?.SlpCode,
+      getUserId: (req) => getSalesOrderOwnershipCandidates(req),
       resourceName: 'Sales Order',
       allowUnassigned: false,
     })
@@ -141,7 +154,7 @@ router.post(
     checkResourceOwnership({
       getResourceById: (id) => salesOrderService.getSalesOrderById(Number(id)),
       getOwnerId: (order) => order.SLPCODE,
-      getUserId: (req) => req.user?.SlpCode,
+      getUserId: (req) => getSalesOrderOwnershipCandidates(req),
       resourceName: 'Sales Order',
       allowUnassigned: false,
     })
@@ -161,7 +174,7 @@ router.post(
     checkResourceOwnership({
       getResourceById: (id) => salesOrderService.getSalesOrderById(Number(id)),
       getOwnerId: (order) => order.SLPCODE,
-      getUserId: (req) => req.user?.SlpCode,
+      getUserId: (req) => getSalesOrderOwnershipCandidates(req),
       resourceName: 'Sales Order',
       allowUnassigned: false,
     })
@@ -181,7 +194,7 @@ router.post(
     checkResourceOwnership({
       getResourceById: (id) => salesOrderService.getSalesOrderById(Number(id)),
       getOwnerId: (order) => order.SLPCODE,
-      getUserId: (req) => req.user?.SlpCode,
+      getUserId: (req) => getSalesOrderOwnershipCandidates(req),
       resourceName: 'Sales Order',
       allowUnassigned: false,
     })

@@ -29,7 +29,7 @@ export interface ResourceOwnershipConfig<T = any> {
    * @param req Express request with authenticated user
    * @returns User identifier
    */
-  getUserId: (req: Request) => string | undefined;
+  getUserId: (req: Request) => string | string[] | undefined;
 
   /**
    * Resource name for error messages
@@ -97,8 +97,15 @@ export function checkResourceOwnership<T>(config: ResourceOwnershipConfig<T>) {
       }
 
       // Check ownership (convert both to strings for comparison to handle type mismatches)
-      const ownerIdStr = String(ownerId);
-      const userIdStr = String(userId);
+      const ownerIdStr = String(ownerId).trim();
+      const userIdCandidates = Array.isArray(userId) ? userId : [userId];
+      const normalizedUserIdCandidates = Array.from(
+        new Set(
+          userIdCandidates
+            .map((value) => (value === undefined || value === null ? '' : String(value).trim()))
+            .filter(Boolean)
+        )
+      );
 
       // Debug logging
       console.log('Authorization check:', {
@@ -107,15 +114,15 @@ export function checkResourceOwnership<T>(config: ResourceOwnershipConfig<T>) {
         ownerIdType: typeof ownerId,
         ownerIdStr,
         userId,
-        userIdType: typeof userId,
-        userIdStr,
-        match: ownerIdStr === userIdStr,
+        userIdType: Array.isArray(userId) ? 'array' : typeof userId,
+        userIdCandidates: normalizedUserIdCandidates,
+        match: normalizedUserIdCandidates.includes(ownerIdStr),
       });
 
-      if (ownerIdStr !== userIdStr) {
+      if (!normalizedUserIdCandidates.includes(ownerIdStr)) {
         throw new AuthorizationError(
           `You can only access your own ${config.resourceName.toLowerCase()}s. ` +
-            `This ${config.resourceName.toLowerCase()} belongs to: ${ownerId} (you are: ${userId})`
+            `This ${config.resourceName.toLowerCase()} belongs to: ${ownerId} (you are: ${normalizedUserIdCandidates.join(', ') || 'unknown'})`
         );
       }
 

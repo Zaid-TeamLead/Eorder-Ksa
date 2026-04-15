@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { IconSearch, IconCheck, IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
 import type { VehicleInventory } from "@/services/vehicles";
 import { ButtonLoading } from "@/components/shared/button-loading";
+import { toast } from "sonner";
 
 interface VehicleSelectionModalProps {
   open: boolean;
@@ -44,6 +45,11 @@ interface IndexedVehicle {
   warehouse: string;
   stockId: string;
   age: number;
+  reservationStatus: string;
+  reservedBy: string;
+  reservedTo: string;
+  reservationMessage: string;
+  isReserved: boolean;
   searchIndex: string;
 }
 
@@ -290,6 +296,26 @@ export function VehicleSelectionModal({
     return { text: "Available", className: "bg-green-500/10 text-green-600 border-green-500/20" };
   };
 
+  const getReservationMessage = (vehicle: VehicleInventory) => {
+    const sourceType = String(vehicle.RESERVED_SOURCE_TYPE || "").trim();
+    const sourceNumber = String(vehicle.RESERVED_SOURCE_NUMBER || "").trim();
+    const reservedBy = String(vehicle.RESERVED_BY || "").trim();
+    const reservedTo = String(vehicle.RESERVED_TO || "").trim();
+
+    const parts = ["This vehicle is already reserved"];
+    if (sourceType && sourceNumber) {
+      parts.push(`on ${sourceType} ${sourceNumber}`);
+    }
+    if (reservedBy) {
+      parts.push(`by ${reservedBy}`);
+    }
+    if (reservedTo) {
+      parts.push(`until ${reservedTo}`);
+    }
+
+    return `${parts.join(" ")}.`;
+  };
+
   const indexedVehicles = useMemo<IndexedVehicle[]>(() => {
     return vehicles.map((vehicle, index) => {
       const vin = getVehicleVin(vehicle) || "N/A";
@@ -334,6 +360,10 @@ export function VehicleSelectionModal({
       const warehouse = getVehicleWarehouse(vehicle) || "N/A";
       const stockId = getVehicleStockId(vehicle) || "N/A";
       const age = Number(vehicle.AgeinDays ?? 0);
+      const isReserved = String(vehicle.RESERVED_STATUS || "").trim().toLowerCase() === "reserved";
+      const reservedBy = String(vehicle.RESERVED_BY || "").trim();
+      const reservedTo = String(vehicle.RESERVED_TO || "").trim();
+      const reservationMessage = isReserved ? getReservationMessage(vehicle) : "";
       const id = [
         vin,
         itemCode,
@@ -374,11 +404,20 @@ export function VehicleSelectionModal({
           priceRaw,
           discountedRaw,
           discountRaw,
-          warehouse,
-          stockId,
-        ]
+        warehouse,
+        stockId,
+        vehicle.RESERVED_STATUS || "",
+        vehicle.RESERVED_SOURCE_NUMBER || "",
+        reservedBy,
+        reservedTo,
+      ]
           .join(" ")
           .toLowerCase(),
+        reservationStatus: String(vehicle.RESERVED_STATUS || "").trim(),
+        reservedBy,
+        reservedTo,
+        reservationMessage,
+        isReserved,
       };
     });
   }, [vehicles]);
@@ -575,6 +614,12 @@ export function VehicleSelectionModal({
 
   const handleSelect = () => {
     if (selectedVehicles.length > 0) {
+      const reservedVehicles = selectedVehicles.filter((vehicle) => vehicle.isReserved);
+      if (reservedVehicles.length > 0) {
+        toast.error(reservedVehicles[0].reservationMessage);
+        return;
+      }
+
       const selectedRawVehicles = selectedVehicles.map((vehicle) => vehicle.raw);
 
       // Single selection should use single-select handler to avoid duplicate handling paths.
@@ -602,6 +647,11 @@ export function VehicleSelectionModal({
   };
 
   const toggleVehicleSelection = useCallback((vehicleData: IndexedVehicle) => {
+    if (vehicleData.isReserved) {
+      toast.error(vehicleData.reservationMessage);
+      return;
+    }
+
     setSelectedVehicle(vehicleData);
     setSelectedVehicleIds((current) => {
       const next = new Set(current);
@@ -801,12 +851,24 @@ export function VehicleSelectionModal({
                   <tbody>
                   {displayedVehicles.map((vehicleData) => {
                     const isSelected = selectedVehicleIds.has(vehicleData.id);
-                    const status = getVehicleStatus(vehicleData.age);
+                    const status = vehicleData.isReserved
+                      ? {
+                          text: vehicleData.reservedTo
+                            ? `Reserved until ${vehicleData.reservedTo}`
+                            : "Reserved",
+                          className:
+                            "bg-red-500/10 text-red-600 border-red-500/20",
+                        }
+                      : getVehicleStatus(vehicleData.age);
                     return (
                       <tr
                         key={vehicleData.id}
                         className={`cursor-pointer border-b text-xs ${
-                          isSelected ? "bg-primary/5 ring-1 ring-primary/30" : "hover:bg-muted/50"
+                          vehicleData.isReserved
+                            ? "bg-red-50/60 text-muted-foreground"
+                            : isSelected
+                              ? "bg-primary/5 ring-1 ring-primary/30"
+                              : "hover:bg-muted/50"
                         }`}
                         onClick={() => toggleVehicleSelection(vehicleData)}
                       >
@@ -834,6 +896,7 @@ export function VehicleSelectionModal({
                           <Badge
                             variant="outline"
                             className={`${status.className} text-[10px]`}
+                            title={vehicleData.reservationMessage || undefined}
                           >
                             {status.text}
                           </Badge>

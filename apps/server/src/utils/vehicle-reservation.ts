@@ -19,6 +19,12 @@ interface ReservationLookupParams {
   excludeSalesOrderId?: number;
 }
 
+interface ReservationBatchLookupParams {
+  vinNumbers: string[];
+  quotationSchema: string;
+  salesOrderSchema: string;
+}
+
 interface ReservationRow {
   SOURCE_TYPE: 'Quotation' | 'SalesOrder';
   SOURCE_ID: number;
@@ -208,6 +214,157 @@ async function querySalesOrderReservations(
     .filter((row): row is VehicleReservationConflict => Boolean(row));
 }
 
+function buildInClausePlaceholders(count: number): string {
+  return Array(count).fill('?').join(', ');
+}
+
+async function queryQuotationReservationsForVins(
+  schema: string,
+  vinNumbers: string[]
+): Promise<Array<VehicleReservationConflict & { vinNumber: string }>> {
+  if (vinNumbers.length === 0) {
+    return [];
+  }
+
+  const placeholders = buildInClausePlaceholders(vinNumbers.length);
+  const queryWithDateRange = `
+    SELECT
+      "VIN_NUMBER" AS "VIN_NUMBER",
+      'Quotation' AS "SOURCE_TYPE",
+      "SLNO" AS "SOURCE_ID",
+      "QUOTATION_NUMBER" AS "SOURCE_NUMBER",
+      "VEHICLE_RESERVED",
+      "VEHICLE_RESERVED_BY",
+      "VEHICLE_RESERVED_DATE",
+      "VEHICLE_RESERVATION_FROM_DATE",
+      "VEHICLE_RESERVATION_TO_DATE",
+      "VEHICLE_RESERVATION_NOTES"
+    FROM "${schema}"."DMS_QUOTATION"
+    WHERE "VIN_NUMBER" IN (${placeholders})
+      AND "IS_DELETED" = 'N'
+      AND "STATUS" NOT IN ('Cancelled', 'Superseded')
+  `;
+
+  const mapRows = (
+    rows: Array<ReservationRow & { VIN_NUMBER?: string | null }>
+  ) =>
+    rows
+      .map((row) => {
+        const mapped = mapReservationConflict(row);
+        const vinNumber = String(row.VIN_NUMBER || '').trim();
+        if (!mapped || !vinNumber) {
+          return null;
+        }
+
+        return {
+          ...mapped,
+          vinNumber,
+        };
+      })
+      .filter(
+        (
+          row
+        ): row is VehicleReservationConflict & {
+          vinNumber: string;
+        } => Boolean(row)
+      );
+
+  try {
+    const rows = await db.query<ReservationRow & { VIN_NUMBER?: string | null }>(
+      queryWithDateRange,
+      vinNumbers
+    );
+    return mapRows(rows);
+  } catch (error: any) {
+    const message = String(error?.message || '');
+    const missingRangeColumns =
+      message.includes('invalid column name: VEHICLE_RESERVATION_FROM_DATE') ||
+      message.includes('invalid column name: VEHICLE_RESERVATION_TO_DATE');
+
+    if (!missingRangeColumns) {
+      throw error;
+    }
+
+    const fallbackQuery = `
+      SELECT
+        "VIN_NUMBER" AS "VIN_NUMBER",
+        'Quotation' AS "SOURCE_TYPE",
+        "SLNO" AS "SOURCE_ID",
+        "QUOTATION_NUMBER" AS "SOURCE_NUMBER",
+        "VEHICLE_RESERVED",
+        "VEHICLE_RESERVED_BY",
+        "VEHICLE_RESERVED_DATE",
+        NULL AS "VEHICLE_RESERVATION_FROM_DATE",
+        NULL AS "VEHICLE_RESERVATION_TO_DATE",
+        "VEHICLE_RESERVATION_NOTES"
+      FROM "${schema}"."DMS_QUOTATION"
+      WHERE "VIN_NUMBER" IN (${placeholders})
+        AND "IS_DELETED" = 'N'
+        AND "STATUS" NOT IN ('Cancelled', 'Superseded')
+    `;
+
+    const rows = await db.query<ReservationRow & { VIN_NUMBER?: string | null }>(
+      fallbackQuery,
+      vinNumbers
+    );
+    return mapRows(rows);
+  }
+}
+
+async function querySalesOrderReservationsForVins(
+  schema: string,
+  vinNumbers: string[]
+): Promise<Array<VehicleReservationConflict & { vinNumber: string }>> {
+  if (vinNumbers.length === 0) {
+    return [];
+  }
+
+  const placeholders = buildInClausePlaceholders(vinNumbers.length);
+  const query = `
+    SELECT
+      "VIN_NUMBER" AS "VIN_NUMBER",
+      'SalesOrder' AS "SOURCE_TYPE",
+      "SLNO" AS "SOURCE_ID",
+      "SALES_ORDER_NUMBER" AS "SOURCE_NUMBER",
+      "VEHICLE_RESERVED",
+      "VEHICLE_RESERVED_BY",
+      "VEHICLE_RESERVED_DATE",
+      NULL AS "VEHICLE_RESERVATION_FROM_DATE",
+      NULL AS "VEHICLE_RESERVATION_TO_DATE",
+      "VEHICLE_RESERVATION_NOTES"
+    FROM "${schema}"."DMS_SALES_ORDER"
+    WHERE "VIN_NUMBER" IN (${placeholders})
+      AND "IS_DELETED" = 'N'
+      AND "STATUS" NOT IN ('Cancelled', 'Lost')
+  `;
+
+  const rows = await db.query<ReservationRow & { VIN_NUMBER?: string | null }>(
+    query,
+    vinNumbers
+  );
+
+  return rows
+    .map((row) => {
+      const mapped = mapReservationConflict(row);
+      const vinNumber = String(row.VIN_NUMBER || '').trim();
+      if (!mapped || !vinNumber) {
+        return null;
+      }
+
+      return {
+        ...mapped,
+        vinNumber,
+      };
+    })
+    .filter(
+      (
+        row
+      ): row is VehicleReservationConflict & {
+        vinNumber: string;
+      } => Boolean(row)
+    );
+}
+
 export async function findActiveVehicleReservation(
   params: ReservationLookupParams
 ): Promise<VehicleReservationConflict | null> {
@@ -232,6 +389,45 @@ export async function findActiveVehicleReservation(
   });
 
   return allReservations[0] || null;
+}
+
+export async function findActiveVehicleReservations(
+  params: ReservationBatchLookupParams
+): Promise<Map<string, VehicleReservationConflict>> {
+  const vinNumbers = Array.from(
+    new Set(
+      params.vinNumbers
+        .map((vinNumber) => String(vinNumber || '').trim())
+        .filter(Boolean)
+    )
+  );
+
+  if (vinNumbers.length === 0) {
+    return new Map();
+  }
+
+  const [quotationReservations, salesOrderReservations] = await Promise.all([
+    queryQuotationReservationsForVins(params.quotationSchema, vinNumbers),
+    querySalesOrderReservationsForVins(params.salesOrderSchema, vinNumbers),
+  ]);
+
+  const reservationsByVin = new Map<string, VehicleReservationConflict>();
+
+  for (const reservation of [...quotationReservations, ...salesOrderReservations]) {
+    const existing = reservationsByVin.get(reservation.vinNumber);
+    if (!existing) {
+      reservationsByVin.set(reservation.vinNumber, reservation);
+      continue;
+    }
+
+    const existingTime = new Date(existing.reservedOn || 0).getTime();
+    const incomingTime = new Date(reservation.reservedOn || 0).getTime();
+    if (incomingTime > existingTime) {
+      reservationsByVin.set(reservation.vinNumber, reservation);
+    }
+  }
+
+  return reservationsByVin;
 }
 
 export function buildVehicleReservationConflictMessage(
