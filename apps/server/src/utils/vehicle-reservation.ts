@@ -119,26 +119,30 @@ async function queryQuotationReservations(
     params.push(excludeQuotationId);
   }
 
-  const queryWithDateRange = `
+  const queryWithDateRangeFromLineItems = `
     SELECT
+      QL."VIN_NUMBER" AS "VIN_NUMBER",
       'Quotation' AS "SOURCE_TYPE",
-      "SLNO" AS "SOURCE_ID",
-      "QUOTATION_NUMBER" AS "SOURCE_NUMBER",
-      "VEHICLE_RESERVED",
-      "VEHICLE_RESERVED_BY",
-      "VEHICLE_RESERVED_DATE",
-      "VEHICLE_RESERVATION_FROM_DATE",
-      "VEHICLE_RESERVATION_TO_DATE",
-      "VEHICLE_RESERVATION_NOTES"
-    FROM "${schema}"."DMS_QUOTATION"
-    WHERE "VIN_NUMBER" = ?
-      AND "IS_DELETED" = 'N'
-      AND "STATUS" NOT IN ('Cancelled', 'Superseded')
+      Q."SLNO" AS "SOURCE_ID",
+      Q."QUOTATION_NUMBER" AS "SOURCE_NUMBER",
+      Q."VEHICLE_RESERVED",
+      Q."VEHICLE_RESERVED_BY",
+      Q."VEHICLE_RESERVED_DATE",
+      Q."VEHICLE_RESERVATION_FROM_DATE",
+      Q."VEHICLE_RESERVATION_TO_DATE",
+      Q."VEHICLE_RESERVATION_NOTES"
+    FROM "${schema}"."DMS_QUOTATION" Q
+    INNER JOIN "${schema}"."DMS_QUOTATION_LINE_ITEMS" QL
+      ON Q."SLNO" = QL."QUOTATION_SLNO"
+    WHERE QL."VIN_NUMBER" = ?
+      AND Q."IS_DELETED" = 'N'
+      AND QL."IS_DELETED" = 'N'
+      AND Q."STATUS" NOT IN ('Cancelled', 'Superseded')
       ${excludeClause}
   `;
 
   try {
-    const rows = await db.query<ReservationRow>(queryWithDateRange, params);
+    const rows = await db.query<ReservationRow>(queryWithDateRangeFromLineItems, params);
     return rows
       .map(mapReservationConflict)
       .filter((row): row is VehicleReservationConflict => Boolean(row));
@@ -147,12 +151,16 @@ async function queryQuotationReservations(
     const missingRangeColumns =
       message.includes('invalid column name: VEHICLE_RESERVATION_FROM_DATE') ||
       message.includes('invalid column name: VEHICLE_RESERVATION_TO_DATE');
+    const missingLineItemColumns =
+      message.includes('invalid column name: VIN_NUMBER') ||
+      message.includes('invalid table name: DMS_QUOTATION_LINE_ITEMS');
 
-    if (!missingRangeColumns) {
+    if (!missingRangeColumns && !missingLineItemColumns) {
       throw error;
     }
 
-    const fallbackQuery = `
+    const fallbackQuery = missingLineItemColumns
+      ? `
       SELECT
         'Quotation' AS "SOURCE_TYPE",
         "SLNO" AS "SOURCE_ID",
@@ -167,6 +175,27 @@ async function queryQuotationReservations(
       WHERE "VIN_NUMBER" = ?
         AND "IS_DELETED" = 'N'
         AND "STATUS" NOT IN ('Cancelled', 'Superseded')
+        ${excludeClause}
+    `
+      : `
+      SELECT
+        QL."VIN_NUMBER" AS "VIN_NUMBER",
+        'Quotation' AS "SOURCE_TYPE",
+        Q."SLNO" AS "SOURCE_ID",
+        Q."QUOTATION_NUMBER" AS "SOURCE_NUMBER",
+        Q."VEHICLE_RESERVED",
+        Q."VEHICLE_RESERVED_BY",
+        Q."VEHICLE_RESERVED_DATE",
+        NULL AS "VEHICLE_RESERVATION_FROM_DATE",
+        NULL AS "VEHICLE_RESERVATION_TO_DATE",
+        Q."VEHICLE_RESERVATION_NOTES"
+      FROM "${schema}"."DMS_QUOTATION" Q
+      INNER JOIN "${schema}"."DMS_QUOTATION_LINE_ITEMS" QL
+        ON Q."SLNO" = QL."QUOTATION_SLNO"
+      WHERE QL."VIN_NUMBER" = ?
+        AND Q."IS_DELETED" = 'N'
+        AND QL."IS_DELETED" = 'N'
+        AND Q."STATUS" NOT IN ('Cancelled', 'Superseded')
         ${excludeClause}
     `;
 
@@ -192,19 +221,24 @@ async function querySalesOrderReservations(
 
   const query = `
     SELECT
+      LI."VIN_NUMBER" AS "VIN_NUMBER",
       'SalesOrder' AS "SOURCE_TYPE",
-      "SLNO" AS "SOURCE_ID",
-      "SALES_ORDER_NUMBER" AS "SOURCE_NUMBER",
-      "VEHICLE_RESERVED",
-      "VEHICLE_RESERVED_BY",
-      "VEHICLE_RESERVED_DATE",
+      SO."SLNO" AS "SOURCE_ID",
+      SO."QUOTATION_NUMBER" AS "SOURCE_NUMBER",
+      SO."VEHICLE_RESERVED",
+      SO."VEHICLE_RESERVED_BY",
+      SO."VEHICLE_RESERVED_DATE",
       NULL AS "VEHICLE_RESERVATION_FROM_DATE",
       NULL AS "VEHICLE_RESERVATION_TO_DATE",
-      "VEHICLE_RESERVATION_NOTES"
-    FROM "${schema}"."DMS_SALES_ORDER"
-    WHERE "VIN_NUMBER" = ?
-      AND "IS_DELETED" = 'N'
-      AND "STATUS" NOT IN ('Cancelled', 'Lost')
+      SO."VEHICLE_RESERVATION_NOTES"
+    FROM "${schema}"."DMS_QUOTATION" SO
+    INNER JOIN "${schema}"."DMS_QUOTATION_LINE_ITEMS" LI
+      ON SO."SLNO" = LI."QUOTATION_SLNO"
+    WHERE LI."VIN_NUMBER" = ?
+      AND SO."DOC_TYPE" = 'SO'
+      AND SO."IS_DELETED" = 'N'
+      AND LI."IS_DELETED" = 'N'
+      AND SO."STATUS" NOT IN ('Cancelled', 'Lost')
       ${excludeClause}
   `;
 
@@ -229,20 +263,23 @@ async function queryQuotationReservationsForVins(
   const placeholders = buildInClausePlaceholders(vinNumbers.length);
   const queryWithDateRange = `
     SELECT
-      "VIN_NUMBER" AS "VIN_NUMBER",
+      QL."VIN_NUMBER" AS "VIN_NUMBER",
       'Quotation' AS "SOURCE_TYPE",
-      "SLNO" AS "SOURCE_ID",
-      "QUOTATION_NUMBER" AS "SOURCE_NUMBER",
-      "VEHICLE_RESERVED",
-      "VEHICLE_RESERVED_BY",
-      "VEHICLE_RESERVED_DATE",
-      "VEHICLE_RESERVATION_FROM_DATE",
-      "VEHICLE_RESERVATION_TO_DATE",
-      "VEHICLE_RESERVATION_NOTES"
-    FROM "${schema}"."DMS_QUOTATION"
-    WHERE "VIN_NUMBER" IN (${placeholders})
-      AND "IS_DELETED" = 'N'
-      AND "STATUS" NOT IN ('Cancelled', 'Superseded')
+      Q."SLNO" AS "SOURCE_ID",
+      Q."QUOTATION_NUMBER" AS "SOURCE_NUMBER",
+      Q."VEHICLE_RESERVED",
+      Q."VEHICLE_RESERVED_BY",
+      Q."VEHICLE_RESERVED_DATE",
+      Q."VEHICLE_RESERVATION_FROM_DATE",
+      Q."VEHICLE_RESERVATION_TO_DATE",
+      Q."VEHICLE_RESERVATION_NOTES"
+    FROM "${schema}"."DMS_QUOTATION" Q
+    INNER JOIN "${schema}"."DMS_QUOTATION_LINE_ITEMS" QL
+      ON Q."SLNO" = QL."QUOTATION_SLNO"
+    WHERE QL."VIN_NUMBER" IN (${placeholders})
+      AND Q."IS_DELETED" = 'N'
+      AND QL."IS_DELETED" = 'N'
+      AND Q."STATUS" NOT IN ('Cancelled', 'Superseded')
   `;
 
   const mapRows = (
@@ -281,11 +318,16 @@ async function queryQuotationReservationsForVins(
       message.includes('invalid column name: VEHICLE_RESERVATION_FROM_DATE') ||
       message.includes('invalid column name: VEHICLE_RESERVATION_TO_DATE');
 
-    if (!missingRangeColumns) {
+    const missingLineItemColumns =
+      message.includes('invalid column name: VIN_NUMBER') ||
+      message.includes('invalid table name: DMS_QUOTATION_LINE_ITEMS');
+
+    if (!missingRangeColumns && !missingLineItemColumns) {
       throw error;
     }
 
-    const fallbackQuery = `
+    const fallbackQuery = missingLineItemColumns
+      ? `
       SELECT
         "VIN_NUMBER" AS "VIN_NUMBER",
         'Quotation' AS "SOURCE_TYPE",
@@ -301,6 +343,26 @@ async function queryQuotationReservationsForVins(
       WHERE "VIN_NUMBER" IN (${placeholders})
         AND "IS_DELETED" = 'N'
         AND "STATUS" NOT IN ('Cancelled', 'Superseded')
+    `
+      : `
+      SELECT
+        QL."VIN_NUMBER" AS "VIN_NUMBER",
+        'Quotation' AS "SOURCE_TYPE",
+        Q."SLNO" AS "SOURCE_ID",
+        Q."QUOTATION_NUMBER" AS "SOURCE_NUMBER",
+        Q."VEHICLE_RESERVED",
+        Q."VEHICLE_RESERVED_BY",
+        Q."VEHICLE_RESERVED_DATE",
+        NULL AS "VEHICLE_RESERVATION_FROM_DATE",
+        NULL AS "VEHICLE_RESERVATION_TO_DATE",
+        Q."VEHICLE_RESERVATION_NOTES"
+      FROM "${schema}"."DMS_QUOTATION" Q
+      INNER JOIN "${schema}"."DMS_QUOTATION_LINE_ITEMS" QL
+        ON Q."SLNO" = QL."QUOTATION_SLNO"
+      WHERE QL."VIN_NUMBER" IN (${placeholders})
+        AND Q."IS_DELETED" = 'N'
+        AND QL."IS_DELETED" = 'N'
+        AND Q."STATUS" NOT IN ('Cancelled', 'Superseded')
     `;
 
     const rows = await db.query<ReservationRow & { VIN_NUMBER?: string | null }>(
@@ -322,20 +384,24 @@ async function querySalesOrderReservationsForVins(
   const placeholders = buildInClausePlaceholders(vinNumbers.length);
   const query = `
     SELECT
-      "VIN_NUMBER" AS "VIN_NUMBER",
+      LI."VIN_NUMBER" AS "VIN_NUMBER",
       'SalesOrder' AS "SOURCE_TYPE",
-      "SLNO" AS "SOURCE_ID",
-      "SALES_ORDER_NUMBER" AS "SOURCE_NUMBER",
-      "VEHICLE_RESERVED",
-      "VEHICLE_RESERVED_BY",
-      "VEHICLE_RESERVED_DATE",
+      SO."SLNO" AS "SOURCE_ID",
+      SO."QUOTATION_NUMBER" AS "SOURCE_NUMBER",
+      SO."VEHICLE_RESERVED",
+      SO."VEHICLE_RESERVED_BY",
+      SO."VEHICLE_RESERVED_DATE",
       NULL AS "VEHICLE_RESERVATION_FROM_DATE",
       NULL AS "VEHICLE_RESERVATION_TO_DATE",
-      "VEHICLE_RESERVATION_NOTES"
-    FROM "${schema}"."DMS_SALES_ORDER"
-    WHERE "VIN_NUMBER" IN (${placeholders})
-      AND "IS_DELETED" = 'N'
-      AND "STATUS" NOT IN ('Cancelled', 'Lost')
+      SO."VEHICLE_RESERVATION_NOTES"
+    FROM "${schema}"."DMS_QUOTATION" SO
+    INNER JOIN "${schema}"."DMS_QUOTATION_LINE_ITEMS" LI
+      ON SO."SLNO" = LI."QUOTATION_SLNO"
+    WHERE LI."VIN_NUMBER" IN (${placeholders})
+      AND SO."DOC_TYPE" = 'SO'
+      AND SO."IS_DELETED" = 'N'
+      AND LI."IS_DELETED" = 'N'
+      AND SO."STATUS" NOT IN ('Cancelled', 'Lost')
   `;
 
   const rows = await db.query<ReservationRow & { VIN_NUMBER?: string | null }>(

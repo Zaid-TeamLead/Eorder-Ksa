@@ -23,6 +23,8 @@ import {
   cancelQuotation,
   logActivity,
   getQuotationActivities,
+  postQuotationToSapReport,
+  confirmQuotationToSalesOrder,
 } from '../controllers/quotation.controller.js';
 import { validate } from '../middleware/validator.js';
 import { asyncHandler } from '../utils/async-handler.js';
@@ -198,6 +200,21 @@ router.delete(
  * Request discount approval from manager
  */
 router.post(
+  '/:id/post-to-sap-report',
+  validate(getQuotationByIdSchema, 'params'),
+  asyncHandler(
+    checkResourceOwnership({
+      getResourceById: (id) => quotationService.getQuotationById(Number(id), { resolveLatest: true }),
+      getOwnerId: (quotation) => quotation.SLPCODE,
+      getUserId: (req) => getQuotationOwnershipCandidates(req),
+      resourceName: 'Quotation',
+      allowUnassigned: false,
+    })
+  ),
+  asyncHandler(postQuotationToSapReport)
+);
+
+router.post(
   '/:id/request-approval',
   validate(getQuotationByIdSchema, 'params'),
   validate(requestDiscountApprovalSchema),
@@ -340,6 +357,16 @@ router.get(
     })
   ),
   asyncHandler(getQuotationActivities)
+);
+
+/**
+ * POST /api/quotations/:id/confirm-to-sales-order
+ * Convert quotation to sales order via SAP Convert Sales Documents API
+ */
+router.post(
+  '/:id/confirm-to-sales-order',
+  validate(getQuotationByIdSchema, 'params'),
+  asyncHandler(confirmQuotationToSalesOrder)
 );
 
 export default router;

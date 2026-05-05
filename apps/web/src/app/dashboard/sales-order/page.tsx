@@ -61,6 +61,7 @@ export default function SalesOrderPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const quotationIdParam = searchParams.get('quotationId');
+  const quotationNumberParam = searchParams.get('quotationNumber');
   const hasConsumedQuotationParam = useRef(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
@@ -89,6 +90,15 @@ export default function SalesOrderPage() {
       notes: '',
     },
   });
+  const selectedQuotationId = form.watch('quotationSlno');
+  const selectedQuotation = quotations.find(
+    (quotation) => Number(quotation.SLNO) === Number(selectedQuotationId)
+  );
+  const selectedQuotationNumber =
+    selectedQuotation?.ROOT_QUOTATION_NUMBER ||
+    selectedQuotation?.QUOTATION_NUMBER ||
+    quotationNumberParam ||
+    '';
 
   useEffect(() => {
     if (!quotationIdParam || hasConsumedQuotationParam.current) return;
@@ -202,6 +212,12 @@ export default function SalesOrderPage() {
               Create a provisional sales order from an existing quotation.
             </DialogDescription>
           </DialogHeader>
+          {selectedQuotationNumber && (
+            <div className="rounded-md border bg-muted/30 px-3 py-2 text-sm">
+              <span className="text-muted-foreground">Quotation: </span>
+              <span className="font-medium">{selectedQuotationNumber}</span>
+            </div>
+          )}
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">

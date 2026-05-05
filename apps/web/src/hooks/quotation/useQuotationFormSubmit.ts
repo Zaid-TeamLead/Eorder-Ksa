@@ -40,7 +40,12 @@ export function useQuotationFormSubmit({
             ...quotationData,
             status,
           };
-          await supersedeQuotation(supersedeData);
+          const result = await supersedeQuotation(supersedeData);
+          if (result.sapPosting?.status === 'Failed') {
+            toast.warning(
+              result.sapPosting.errorMessage || 'Quotation version saved locally, but SAP posting failed'
+            );
+          }
           router.push(`/dashboard/quotations/${supersedeId}`);
           return;
         } else {
@@ -49,7 +54,12 @@ export function useQuotationFormSubmit({
             ...data,
             status,
           };
-          await createQuotation(quotationData);
+          const result = await createQuotation(quotationData);
+          if (result.sapPosting?.status === 'Failed') {
+            toast.warning(
+              result.sapPosting.errorMessage || 'Quotation saved locally, but SAP posting failed'
+            );
+          }
         }
 
         // Redirect to quotations list

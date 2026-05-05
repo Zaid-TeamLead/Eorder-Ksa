@@ -10,3 +10,4 @@ export function healthCheckController(_req: Request, res: Response) {
     uptime: process.uptime(),
   });
 }
+

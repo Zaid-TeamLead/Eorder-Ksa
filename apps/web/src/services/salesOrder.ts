@@ -25,7 +25,19 @@ export const getSalesOrderById = async (id: number): Promise<SalesOrder> => {
 
 export const createSalesOrderFromQuotation = async (
   data: CreateSalesOrderFromQuotationData
-): Promise<{ success: boolean; id: number; salesOrderNumber: string }> => {
+): Promise<{
+  success: boolean;
+  id: number;
+  salesOrderNumber: string;
+  sapPosting?: {
+    status: 'Posted' | 'Queued' | 'Failed';
+    integrationLogId?: number;
+    reportUrl?: string;
+    referenceNumber?: string;
+    referenceSource?: 'docEntry' | 'stagingSlno';
+    errorMessage?: string;
+  };
+}> => {
   return apiClient.post(API_ENDPOINTS.SALES_ORDER_FROM_QUOTATION, data);
 };
 

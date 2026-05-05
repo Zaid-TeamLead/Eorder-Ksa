@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import { sendSuccess } from '../utils/api-response.js';
 import { getAuditUser } from '../utils/user-context.js';
 import { salesOrderService } from '../services/salesOrder.service.js';
+import { sapOrderIntegrationService } from '../services/sapOrderIntegration.service.js';
 import type {
   CancelSalesOrderInput,
   CreateHandoverBookingInput,
@@ -24,7 +25,53 @@ export const createSalesOrderFromQuotation = async (
     ...req.body,
     createdBy: getAuditUser(req),
   });
-  sendSuccess(res, result, 201);
+
+  let sapPosting: {
+    status: 'Posted' | 'Queued' | 'Failed';
+    integrationLogId?: number;
+    reportUrl?: string;
+    referenceNumber?: string;
+    referenceSource?: 'docEntry' | 'stagingSlno';
+    errorMessage?: string;
+  } | undefined;
+
+  try {
+    const createdOrder = await salesOrderService.getSalesOrderById(result.id);
+    const existingSapDocEntry = String(createdOrder?.SAPDOCENTRY || '').trim();
+    const existingSapStatus = String(createdOrder?.SAPSTATUS || '').trim().toLowerCase();
+
+    if (existingSapDocEntry && existingSapStatus === 'success') {
+      sapPosting = {
+        status: 'Posted',
+        referenceNumber: existingSapDocEntry,
+        referenceSource: 'docEntry',
+      };
+    } else {
+      const postingResult = await sapOrderIntegrationService.postSalesOrderToSap(result.id, {
+        userId: req.user?.userId,
+        email: req.user?.email,
+        name: req.user?.name,
+        SlpCode: req.user?.SlpCode,
+      });
+
+      sapPosting = {
+        status:
+          postingResult.referenceSource === 'docEntry' ? 'Posted' : 'Queued',
+        integrationLogId: postingResult.integrationLogId,
+        reportUrl: postingResult.reportUrl,
+        referenceNumber: postingResult.referenceNumber,
+        referenceSource: postingResult.referenceSource,
+      };
+    }
+  } catch (error: any) {
+    console.error('Sales order SAP posting failed after local create:', error);
+    sapPosting = {
+      status: 'Failed',
+      errorMessage: error?.message || 'Failed to post sales order to SAP',
+    };
+  }
+
+  sendSuccess(res, { ...result, sapPosting }, 201);
 };
 
 /**

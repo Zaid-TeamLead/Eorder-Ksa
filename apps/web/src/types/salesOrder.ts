@@ -18,6 +18,10 @@ export interface SalesOrder {
   CUSTOMER_NAME?: string | null;
   CUSTOMER_MOBILE?: string | null;
   CUSTOMER_EMAIL?: string | null;
+  SAPDOCNUM?: string | null;
+  SAPDOCENTRY?: string | null;
+  SAPREFENTRY?: string | null;
+  SAPSTATUS?: string | null;
   VEHICLE_MAKE?: string | null;
   VEHICLE_MODEL?: string | null;
   VEHICLE_VARIANT?: string | null;
@@ -64,6 +68,10 @@ export interface SalesOrder {
 
 export interface SalesOrderQuotation {
   [key: string]: any;
+  SAPDOCNUM?: string | null;
+  SAPDOCENTRY?: string | null;
+  SAPREFENTRY?: string | null;
+  SAPSTATUS?: string | null;
   CUSTOMER_ADDRESS?: string | null;
   VEHICLE_YEAR?: string | null;
   VEHICLE_COLOR?: string | null;

@@ -19,6 +19,29 @@ const envSchema = z.object({
     .string()
     .min(32, "JWT_REFRESH_SECRET must be at least 32 characters"),
   EXTERNAL_API_URL: z.string().url().default("http://localhost:3000"),
+  SO_SQ_API_URL: z.string().url().default("https://sq.neweast.cloud/postdms/"),
+  DMS_SALES_QUOTATION_API_URL: z
+    .string()
+    .url()
+    .default("https://sq.neweast.cloud/api/Values/CreateDMSSalesQuotation"),
+  DMS_SALES_ORDER_API_URL: z
+    .string()
+    .url()
+    .default("https://sq.neweast.cloud/api/Values/CreateDMSSalesORder"),
+  // Legacy sales-order-only ASP endpoint kept optional during transition.
+  SO_SQ_REPORT_URL: z.string().url().default("https://bi.neweast.cloud/reportsisuzu.aspx"),
+  SO_SQ_FROM_DATE: z.string().default("2024-01-01"),
+  SO_SQ_LOTP: z.string().default("QD"),
+  SO_SQ_COMPANY: z.string().optional(),
+  DMS_QUEUE_USER_ID: z.string().optional(),
+  SO_SQ_COMPANY_BI: z.string().default("LLC"),
+  SO_SQ_ORDER_SOURCE: z.string().default("DMS-EORDER"),
+  SO_SQ_DEFAULT_TAX_CODE: z.string().default(""),
+  SO_SQ_DEFAULT_UOM: z.string().default("PCS"),
+  CONVERT_SALES_DOC_API_URL: z.string().url().default("http://20.74.153.184:9669"),
+  CONVERT_SALES_DOC_COMPANY_DB: z.string().default("NEKSAISUZU"),
+  CONVERT_SALES_DOC_OPTION: z.enum(["P", "F"]).default("P"),
+  CONVERT_SALES_DOC_BASE_REF: z.enum(["DocEntry", "DocNum"]).default("DocNum"),
   LOG_LEVEL: z
     .enum(["fatal", "error", "warn", "info", "debug", "trace"])
     .default("info"),

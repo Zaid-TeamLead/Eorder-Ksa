@@ -228,6 +228,7 @@ export async function verifyOtp(
 
     // Generate access token
     const accessTokenPayload: TokenPayload = {
+      userId: userIdFromApi,
       email: user.email,
       name: user.name,
       role: user.role,

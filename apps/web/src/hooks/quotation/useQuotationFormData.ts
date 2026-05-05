@@ -163,6 +163,10 @@ function getVehicleField(vehicleInput: unknown, keys: string[]): string {
   return '';
 }
 
+function getVehicleWarehouse(vehicleInput: unknown): string {
+  return getVehicleField(vehicleInput, ['WhsCode', 'WHSCODE', 'WhsName', 'WHSNAME', 'Warehouse', 'warehouse']);
+}
+
 function getSelectedVehicleLines(vinDetailsInput: unknown) {
   const vinDetails = normalizeVinDetails(vinDetailsInput);
   const lines = vinDetails.SELECTED_VEHICLE_LINES;
@@ -175,16 +179,15 @@ function getSelectedVehicleLines(vinDetailsInput: unknown) {
     .map((line) => {
       if (!line || typeof line !== 'object') return null;
       const record = line as Record<string, unknown>;
-      const vin =
-        record.vin && typeof record.vin === 'object'
-          ? (record.vin as Record<string, unknown>)
-          : null;
-      if (!vin) return null;
+      const vin = normalizeVinDetails(record.vin);
+      const fallbackVin = normalizeVinDetails(record);
+      const resolvedVin = Object.keys(vin).length > 0 ? vin : fallbackVin;
+      if (Object.keys(resolvedVin).length === 0) return null;
 
       const quantity = Number(record.quantity);
       return {
-        vin,
-        vinValue: toOptionalString(record.vinValue) || extractVinFromUnknown(vin),
+        vin: resolvedVin,
+        vinValue: toOptionalString(record.vinValue) || extractVinFromUnknown(resolvedVin),
         quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
       };
     })
@@ -215,6 +218,7 @@ function buildQuotationVehicleLineItems(enquiryData: SalesEnquiry) {
           itemType: 'Vehicle' as const,
           itemCode: enquiryData.VARIANT || '',
           itemDescription: `${enquiryData.MAKE || ''} ${enquiryData.MODEL || ''} ${enquiryData.VARIANT || ''}`.trim(),
+          whsCode: getVehicleWarehouse(enquiryVinDetails),
           quantity,
           unitPrice: pricing.basePrice,
           discountAmount: pricing.vehicleDiscount,
@@ -252,6 +256,7 @@ function buildQuotationVehicleLineItems(enquiryData: SalesEnquiry) {
       itemType: 'Vehicle' as const,
       itemCode: variant,
       itemDescription: `${make} ${model} ${variant}`.trim(),
+      whsCode: getVehicleWarehouse(line.vin),
       quantity: line.quantity,
       unitPrice: pricing.basePrice,
       discountAmount: pricing.vehicleDiscount,
@@ -468,18 +473,19 @@ export function useQuotationFormData({
       }
 
       // Prepare form data from parent quotation
+      const primaryLine = quotationData.lineItems?.[0];
       const formData: QuotationFormData = {
         enquirySlno: Number(quotationData.ENQUIRY_SLNO),
         customerName: quotationData.CUSTOMER_NAME || '',
         customerMobile: quotationData.CUSTOMER_MOBILE || '',
         customerEmail: quotationData.CUSTOMER_EMAIL || '',
         customerAddress: quotationData.CUSTOMER_ADDRESS || '',
-        vehicleMake: quotationData.VEHICLE_MAKE || '',
-        vehicleModel: quotationData.VEHICLE_MODEL || '',
-        vehicleVariant: quotationData.VEHICLE_VARIANT || '',
-        vehicleYear: quotationData.VEHICLE_YEAR || '',
-        vehicleColor: quotationData.VEHICLE_COLOR || '',
-        vinNumber: quotationData.VIN_NUMBER || '',
+        vehicleMake: quotationData.VEHICLE_MAKE || primaryLine?.VEHICLE_MAKE || '',
+        vehicleModel: quotationData.VEHICLE_MODEL || primaryLine?.VEHICLE_MODEL || '',
+        vehicleVariant: quotationData.VEHICLE_VARIANT || primaryLine?.VEHICLE_VARIANT || '',
+        vehicleYear: quotationData.VEHICLE_YEAR || primaryLine?.VEHICLE_YEAR || '',
+        vehicleColor: quotationData.VEHICLE_COLOR || primaryLine?.VEHICLE_COLOR || '',
+        vinNumber: quotationData.VIN_NUMBER || primaryLine?.VIN_NUMBER || '',
         vehicleBasePrice: Number(quotationData.VEHICLE_BASE_PRICE) || 0,
         vehicleDiscount: Number(quotationData.VEHICLE_DISCOUNT) || 0,
         vehicleNetPrice: Number(quotationData.VEHICLE_NET_PRICE) || 0,
@@ -508,6 +514,7 @@ export function useQuotationFormData({
             itemCode: item.ITEM_CODE || '',
             itemDescription: item.ITEM_DESCRIPTION || '',
             itemCategory: item.ITEM_CATEGORY || '',
+            whsCode: item.WHSCODE || '',
             quantity: Number(item.QUANTITY) || 1,
             unitPrice: Number(item.UNIT_PRICE) || 0,
             discountAmount: Number(item.DISCOUNT_AMOUNT) || 0,

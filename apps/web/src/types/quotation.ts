@@ -18,10 +18,16 @@ export interface Quotation {
   SUPERSEDE_REASON: string | null;
 
   // Customer Information (denormalized)
+  CUSTOMER_CODE?: string | null;
   CUSTOMER_NAME: string | null;
   CUSTOMER_MOBILE: string | null;
   CUSTOMER_EMAIL: string | null;
   CUSTOMER_ADDRESS: string | null;
+  APILOG?: string | null;
+  SAPDOCNUM?: string | null;
+  SAPDOCENTRY?: string | null;
+  SAPREFENTRY?: string | null;
+  SAPSTATUS?: string | null;
 
   // Vehicle Information (denormalized)
   VEHICLE_MAKE: string | null;
@@ -124,6 +130,13 @@ export interface QuotationLineItem {
   DISCOUNT_PERCENTAGE: number;
   NET_PRICE: number;
   TAX_INCLUDED: 'Y' | 'N';
+  VEHICLE_MAKE?: string | null;
+  VEHICLE_MODEL?: string | null;
+  VEHICLE_VARIANT?: string | null;
+  VEHICLE_YEAR?: string | null;
+  VEHICLE_COLOR?: string | null;
+  VIN_NUMBER?: string | null;
+  WHSCODE?: string | null;
   MANUFACTURER: string | null;
   PART_NUMBER: string | null;
   WARRANTY_PERIOD: string | null;
@@ -166,6 +179,15 @@ export interface QuotationActivity {
   CREATED_DATE: string;
 }
 
+export interface QuotationSapPostingResult {
+  status: 'Posted' | 'Queued' | 'Failed';
+  integrationLogId?: number;
+  reportUrl?: string;
+  referenceNumber?: string;
+  referenceSource?: 'docEntry' | 'stagingSlno';
+  errorMessage?: string;
+}
+
 // ============================================================================
 // Combined Response Types
 // ============================================================================
@@ -189,6 +211,7 @@ export interface LineItemInput {
   itemCode?: string;
   itemDescription: string;
   itemCategory?: string;
+  whsCode?: string;
   quantity: number;
   unitPrice: number;
   discountAmount: number;
@@ -357,10 +380,10 @@ export interface UseQuotationsByEnquiryReturn {
 }
 
 export interface UseQuotationMutationsReturn {
-  createQuotation: (data: CreateQuotationData) => Promise<{ success: boolean; id: number; quotationNumber: string }>;
+  createQuotation: (data: CreateQuotationData) => Promise<{ success: boolean; id: number; quotationNumber: string; sapPosting?: QuotationSapPostingResult }>;
   updateQuotation: (id: number, data: UpdateQuotationData) => Promise<void>;
   deleteQuotation: (id: number) => Promise<void>;
-  supersedeQuotation: (data: SupersedeQuotationData) => Promise<{ success: boolean; id: number; quotationNumber: string }>;
+  supersedeQuotation: (data: SupersedeQuotationData) => Promise<{ success: boolean; id: number; quotationNumber: string; sapPosting?: QuotationSapPostingResult }>;
   requestApproval: (quotationId: number, data: RequestDiscountApprovalData) => Promise<void>;
   approveDiscount: (approvalId: number, data: ApproveDiscountData) => Promise<void>;
   passToCashier: (quotationId: number, data: PassToCashierData) => Promise<void>;

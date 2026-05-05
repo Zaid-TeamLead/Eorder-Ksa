@@ -12,6 +12,8 @@ import { logger } from '@/lib/logger';
 export function transformQuotationToFormData(
   quotation: QuotationWithLineItems
 ): QuotationFormData {
+  const primaryLine = quotation.lineItems?.[0];
+
   return {
     // Required field
     enquirySlno: quotation.ENQUIRY_SLNO,
@@ -23,12 +25,12 @@ export function transformQuotationToFormData(
     customerAddress: quotation.CUSTOMER_ADDRESS ?? '',
 
     // Vehicle Information
-    vehicleMake: quotation.VEHICLE_MAKE ?? '',
-    vehicleModel: quotation.VEHICLE_MODEL ?? '',
-    vehicleVariant: quotation.VEHICLE_VARIANT ?? '',
-    vehicleYear: quotation.VEHICLE_YEAR ?? '',
-    vehicleColor: quotation.VEHICLE_COLOR ?? '',
-    vinNumber: quotation.VIN_NUMBER ?? '',
+    vehicleMake: quotation.VEHICLE_MAKE ?? primaryLine?.VEHICLE_MAKE ?? '',
+    vehicleModel: quotation.VEHICLE_MODEL ?? primaryLine?.VEHICLE_MODEL ?? '',
+    vehicleVariant: quotation.VEHICLE_VARIANT ?? primaryLine?.VEHICLE_VARIANT ?? '',
+    vehicleYear: quotation.VEHICLE_YEAR ?? primaryLine?.VEHICLE_YEAR ?? '',
+    vehicleColor: quotation.VEHICLE_COLOR ?? primaryLine?.VEHICLE_COLOR ?? '',
+    vinNumber: quotation.VIN_NUMBER ?? primaryLine?.VIN_NUMBER ?? '',
 
     // Vehicle Pricing
     vehicleBasePrice: quotation.VEHICLE_BASE_PRICE ?? 0,
@@ -89,6 +91,7 @@ function transformLineItemToFormData(
     itemCode: item.ITEM_CODE ?? '',
     itemDescription: item.ITEM_DESCRIPTION ?? '',
     itemCategory: item.ITEM_CATEGORY ?? '',
+    whsCode: item.WHSCODE ?? '',
     quantity: item.QUANTITY ?? 1,
     unitPrice: item.UNIT_PRICE ?? 0,
     discountAmount: item.DISCOUNT_AMOUNT ?? 0,

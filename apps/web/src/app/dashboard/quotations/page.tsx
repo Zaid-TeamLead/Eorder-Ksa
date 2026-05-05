@@ -194,7 +194,7 @@ export default function QuotationsPage() {
                                 Edit
                               </DropdownMenuItem>
                             )}
-                            <DropdownMenuItem onClick={() => handlePrint(quotation.SLNO)}>
+                            <DropdownMenuItem onClick={() => handlePrint(quotation)}>
                               <Printer className="mr-2 h-4 w-4" />
                               Print
                             </DropdownMenuItem>

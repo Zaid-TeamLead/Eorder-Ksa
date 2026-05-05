@@ -37,6 +37,7 @@ import {
 import { LoadingState } from '@/components/shared/loading-state';
 import { ErrorState } from '@/components/shared/error-state';
 import { formatCurrency, formatDate } from '@/lib/formatters';
+import { buildSalesReportUrl } from '@/lib/sales-report';
 import { useSalesOrderById } from '@/hooks/entities/useSalesOrders';
 import { useSalesOrderMutations } from '@/hooks/entities/useSalesOrderMutations';
 import { useSalesEmployees } from '@/hooks/entities/useSalesEmployees';
@@ -54,7 +55,9 @@ export default function SalesOrderDetailsPage() {
     createHandoverBooking,
     recordLostSale,
     cancelSalesOrder,
+    markAsPrinted,
     isUpdating,
+    isPrinting,
     isPassingToVehicleAdmin,
     isCreatingHandoverBooking,
     isRecordingLostSale,
@@ -66,7 +69,6 @@ export default function SalesOrderDetailsPage() {
   const [isCreateHandoverOpen, setIsCreateHandoverOpen] = useState(false);
   const [isRecordLostOpen, setIsRecordLostOpen] = useState(false);
   const [isCancelOpen, setIsCancelOpen] = useState(false);
-
   const [notesDraft, setNotesDraft] = useState('');
   const [vinDraft, setVinDraft] = useState('');
   const [vehicleAdminAssignedTo, setVehicleAdminAssignedTo] = useState('');
@@ -226,6 +228,37 @@ export default function SalesOrderDetailsPage() {
     setCancellationReason('');
   };
 
+  const getSalesOrderReportReference = () =>
+    salesOrder.SAPDOCENTRY?.trim() ||
+    salesOrder.SAPDOCNUM?.trim() ||
+    salesOrder.SAPREFENTRY?.trim() ||
+    salesOrder.quotation?.SAPREFENTRY?.trim() ||
+    '';
+
+  const handlePrintOrder = async () => {
+    const reportReference = getSalesOrderReportReference();
+
+    if (reportReference) {
+      window.open(
+        buildSalesReportUrl({
+          referenceNumber: reportReference,
+          type: 'SalesOrder',
+        }),
+        '_blank',
+        'noopener,noreferrer'
+      );
+      if (salesOrder.STATUS === 'Provisional') {
+        await markAsPrinted(orderId);
+      }
+      return;
+    }
+
+    if (salesOrder.STATUS === 'Provisional') {
+      await markAsPrinted(orderId);
+    }
+    router.push(`/dashboard/sales-order/print/${salesOrder.SLNO}`);
+  };
+
   return (
     <div className="container mx-auto py-6">
       <Button variant="ghost" onClick={() => router.push('/dashboard/sales-order')}>
@@ -247,13 +280,11 @@ export default function SalesOrderDetailsPage() {
                 <Badge variant="outline">{salesOrder.STATUS}</Badge>
                 <Button
                   variant="outline"
-                  onClick={() =>
-                    router.push(`/dashboard/sales-order/print/${salesOrder.SLNO}`)
-                  }
-                  disabled={!canPrint}
+                  onClick={() => void handlePrintOrder()}
+                  disabled={!canPrint || isPrinting}
                 >
                   <Printer className="mr-2 h-4 w-4" />
-                  Print
+                  {isPrinting ? 'Preparing...' : 'Print'}
                 </Button>
                 <Button
                   variant="outline"

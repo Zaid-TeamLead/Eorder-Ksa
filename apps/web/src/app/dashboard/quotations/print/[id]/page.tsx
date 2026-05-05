@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { QuotationPrintTemplate } from '@/components/quotation/print-template';
 import { useQuotationById } from '@/hooks/entities/useQuotations';
 import { LoadingState } from '@/components/shared/loading-state';
+import { buildSalesReportUrl } from '@/lib/sales-report';
 
 interface PrintQuotationPageProps {
   params: Promise<{
@@ -22,6 +23,18 @@ export default function PrintQuotationPage({ params }: PrintQuotationPageProps) 
   const { quotation, isLoading, error } = useQuotationById(quotationId);
 
   const handlePrint = () => {
+    if (quotation?.SAPDOCENTRY?.trim()) {
+      window.open(
+        buildSalesReportUrl({
+          referenceNumber: quotation.SAPDOCENTRY,
+          type: 'SalesQuote',
+        }),
+        '_blank',
+        'noopener,noreferrer'
+      );
+      return;
+    }
+
     window.print();
   };
 

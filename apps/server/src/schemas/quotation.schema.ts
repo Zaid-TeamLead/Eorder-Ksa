@@ -53,6 +53,7 @@ export const lineItemSchema = z.object({
     .min(1, { message: 'Item description is required' })
     .max(500, { message: 'Item description cannot exceed 500 characters' }),
   itemCategory: z.string().max(100).optional(),
+  whsCode: z.string().max(50).optional(),
   quantity: z.coerce.number().int().min(1, { message: 'Quantity must be at least 1' }).default(1),
   unitPrice: z.coerce.number().nonnegative({ message: 'Unit price cannot be negative' }),
   discountAmount: z.coerce

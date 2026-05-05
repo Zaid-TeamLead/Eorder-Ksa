@@ -6,8 +6,8 @@ import { ArrowLeft, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { LoadingState } from '@/components/shared/loading-state';
 import { useSalesOrderById } from '@/hooks/entities/useSalesOrders';
-import { useSalesOrderMutations } from '@/hooks/entities/useSalesOrderMutations';
 import { SalesOrderPrintTemplate } from '@/components/sales-order/print-template';
+import { buildSalesReportUrl } from '@/lib/sales-report';
 
 interface PrintSalesOrderPageProps {
   params: Promise<{
@@ -21,10 +21,29 @@ export default function PrintSalesOrderPage({ params }: PrintSalesOrderPageProps
   const salesOrderId = Number.parseInt(resolvedParams.id, 10);
 
   const { salesOrder, isLoading, error } = useSalesOrderById(salesOrderId);
-  const { markAsPrinted, isPrinting } = useSalesOrderMutations();
 
-  const handlePrint = async () => {
-    await markAsPrinted(salesOrderId);
+  const getSalesOrderReportReference = () =>
+    salesOrder?.SAPDOCENTRY?.trim() ||
+    salesOrder?.SAPDOCNUM?.trim() ||
+    salesOrder?.SAPREFENTRY?.trim() ||
+    salesOrder?.quotation?.SAPREFENTRY?.trim() ||
+    '';
+
+  const handlePrint = () => {
+    const reportReference = getSalesOrderReportReference();
+
+    if (reportReference) {
+      window.open(
+        buildSalesReportUrl({
+          referenceNumber: reportReference,
+          type: 'SalesOrder',
+        }),
+        '_blank',
+        'noopener,noreferrer'
+      );
+      return;
+    }
+
     window.print();
   };
 
@@ -62,9 +81,9 @@ export default function PrintSalesOrderPage({ params }: PrintSalesOrderPageProps
             {salesOrder.SALES_ORDER_NUMBER}
           </div>
 
-          <Button onClick={() => void handlePrint()} disabled={isPrinting}>
+          <Button onClick={handlePrint}>
             <Printer className="mr-2 h-4 w-4" />
-            {isPrinting ? 'Preparing...' : 'Print Sales Order'}
+            Print Sales Order
           </Button>
         </div>
       </div>

@@ -51,6 +51,7 @@ import { CancelQuotationDialog } from '@/components/quotation/cancel-quotation-d
 // Custom hooks
 import { useQuotationActions } from '@/hooks/quotation/useQuotationActions';
 import { useQuotationMutations } from '@/hooks/entities/useQuotationMutations';
+import { confirmQuotationToSalesOrder } from '@/services/quotation';
 
 export default function QuotationDetailPage() {
   const params = useParams();
@@ -62,6 +63,8 @@ export default function QuotationDetailPage() {
   const [allocateDepositDialogOpen, setAllocateDepositDialogOpen] = useState(false);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [reserveVehicleDialogOpen, setReserveVehicleDialogOpen] = useState(false);
+  const [isConfirmingSalesOrder, setIsConfirmingSalesOrder] = useState(false);
+  const [confirmSalesOrderDialogOpen, setConfirmSalesOrderDialogOpen] = useState(false);
   const [reservationFromDate, setReservationFromDate] = useState('');
   const [reservationToDate, setReservationToDate] = useState('');
   const [reservationNotes, setReservationNotes] = useState('');
@@ -170,6 +173,39 @@ export default function QuotationDetailPage() {
     !isVehicleReserved &&
     !isTerminalStatus &&
     !!quotation.VIN_NUMBER?.trim();
+  const hasSapValue = (value: unknown) => {
+    const normalized = String(value ?? '').trim();
+    return normalized !== '' && normalized !== '?';
+  };
+  const hasConfirmedSapSalesOrder =
+    hasSapValue(quotation.SAPREFENTRY) &&
+    String(quotation.SAPSTATUS || '').trim().toLowerCase() === 'success';
+  const canConfirmSalesOrder =
+    !isTerminalStatus &&
+    !hasConfirmedSapSalesOrder;
+
+  const handleConfirmToSalesOrder = async () => {
+    try {
+      setIsConfirmingSalesOrder(true);
+      const result = await confirmQuotationToSalesOrder(quotationId);
+      setConfirmSalesOrderDialogOpen(false);
+      toast.success(`Sales Order ${result.targetDocumentNumber} created successfully in SAP`);
+      void refetch();
+    } catch (error) {
+      const apiError = error as {
+        response?: { data?: { error?: { message?: string }; message?: string } };
+        message?: string;
+      };
+      toast.error(
+        apiError.response?.data?.error?.message ||
+          apiError.response?.data?.message ||
+          apiError.message ||
+          'Failed to confirm sales order'
+      );
+    } finally {
+      setIsConfirmingSalesOrder(false);
+    }
+  };
 
   const handleReserveVehicle = async () => {
     if (reservationFromDate && reservationToDate && reservationToDate < reservationFromDate) {
@@ -304,19 +340,71 @@ export default function QuotationDetailPage() {
           <div>
             <p className="text-sm font-medium">Sales Order</p>
             <p className="text-sm text-muted-foreground">
-              Create a provisional sales order from this quotation when needed.
+              {hasConfirmedSapSalesOrder
+                ? `SAP Sales Order ${quotation.SAPREFENTRY} created. Save it locally to continue the sales order workflow.`
+                : 'Confirm this quotation as a sales order in SAP.'}
             </p>
           </div>
-          <Button
-            variant="outline"
-            onClick={() => router.push(`/dashboard/sales-order?quotationId=${quotationId}`)}
-            disabled={isTerminalStatus}
-          >
-            <FileText className="mr-2 h-4 w-4" />
-            Create Sales Order
-          </Button>
+          {hasConfirmedSapSalesOrder ? (
+            <Button
+              onClick={() => {
+                const query = new URLSearchParams({
+                  quotationId: String(activeQuotationId),
+                  quotationNumber: displayQuotationNumber,
+                });
+                router.push(`/dashboard/sales-order?${query.toString()}`);
+              }}
+              disabled={isTerminalStatus}
+            >
+              <FileText className="mr-2 h-4 w-4" />
+              Create Sales Order
+            </Button>
+          ) : (
+            <Button
+              onClick={() => setConfirmSalesOrderDialogOpen(true)}
+              disabled={!canConfirmSalesOrder || isConfirmingSalesOrder}
+            >
+              <FileText className="mr-2 h-4 w-4" />
+              Confirm to Sales Order
+            </Button>
+          )}
         </CardContent>
       </Card>
+
+      <Dialog open={confirmSalesOrderDialogOpen} onOpenChange={setConfirmSalesOrderDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm to Sales Order</DialogTitle>
+            <DialogDescription>
+              This will convert quotation {quotation.ROOT_QUOTATION_NUMBER || quotation.QUOTATION_NUMBER} to a Sales Order in SAP. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Customer</span>
+              <span className="font-medium">{quotation.CUSTOMER_NAME}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Vehicle</span>
+              <span className="font-medium">{quotation.VEHICLE_MAKE} {quotation.VEHICLE_MODEL}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">SAP Reference</span>
+              <span className="font-medium">
+                {quotation.SAPDOCENTRY || quotation.SAPDOCNUM || quotation.SAPREFENTRY || 'Not synced'}
+              </span>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmSalesOrderDialogOpen(false)} disabled={isConfirmingSalesOrder}>
+              Cancel
+            </Button>
+            <Button onClick={() => void handleConfirmToSalesOrder()} disabled={isConfirmingSalesOrder}>
+              {isConfirmingSalesOrder ? 'Confirming...' : 'Confirm'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Card>
         <CardContent className="flex items-center justify-between gap-4 py-4">

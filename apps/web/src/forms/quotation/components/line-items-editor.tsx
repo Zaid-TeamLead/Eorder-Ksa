@@ -282,12 +282,12 @@ export function LineItemsEditor() {
                   </div>
                 </div>
 
-                {/* Optional Row: Item Code, Manufacturer, Part Number */}
+                {/* Optional Row: Item Code, Warehouse, Manufacturer, Part Number */}
                 <details className="text-sm">
                   <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
                     Additional Details
                   </summary>
-                  <div className="mt-4 grid grid-cols-3 gap-4">
+                  <div className="mt-4 grid grid-cols-4 gap-4">
                     <FormField
                       control={form.control}
                       name={`lineItems.${index}.itemCode`}
@@ -296,6 +296,19 @@ export function LineItemsEditor() {
                           <FormLabel>Item Code</FormLabel>
                           <FormControl>
                             <Input {...field} placeholder="Optional" />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name={`lineItems.${index}.whsCode`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Warehouse</FormLabel>
+                          <FormControl>
+                            <Input {...field} value={field.value ?? ''} placeholder="Warehouse" readOnly className="bg-muted" />
                           </FormControl>
                         </FormItem>
                       )}

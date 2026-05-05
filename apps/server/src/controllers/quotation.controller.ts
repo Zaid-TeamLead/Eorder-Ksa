@@ -1,5 +1,7 @@
 import type { Request, Response } from 'express';
 import { quotationService } from '../services/quotation.service.js';
+import { sapOrderIntegrationService } from '../services/sapOrderIntegration.service.js';
+import { logger } from '../utils/logger.js';
 import type {
   CreateQuotationInput,
   UpdateQuotationInput,
@@ -69,7 +71,68 @@ export const createQuotation = async (req: Request, res: Response) => {
   };
 
   const result = await quotationService.createQuotation(quotationData);
-  sendSuccess(res, result, 201);
+  logger.info(
+    {
+      quotationId: result.id,
+      quotationNumber: result.quotationNumber,
+      enquirySlno: quotationData.enquirySlno,
+      customerName: quotationData.customerName,
+      userId: req.user?.userId,
+      slpCode: req.user?.SlpCode,
+    },
+    'Quotation created locally, starting DMS/SAP posting'
+  );
+
+  let sapPosting: {
+    status: 'Posted' | 'Queued' | 'Failed';
+    integrationLogId?: number;
+    reportUrl?: string;
+    referenceNumber?: string;
+    referenceSource?: 'docEntry' | 'stagingSlno';
+    errorMessage?: string;
+  } | undefined;
+
+  try {
+    const postingResult = await sapOrderIntegrationService.postQuotationToSap(result.id, {
+      userId: req.user?.userId,
+      email: req.user?.email,
+      name: req.user?.name,
+      SlpCode: req.user?.SlpCode,
+    });
+
+    sapPosting = {
+      status:
+        postingResult.referenceSource === 'docEntry' ? 'Posted' : 'Queued',
+      integrationLogId: postingResult.integrationLogId,
+      reportUrl: postingResult.reportUrl,
+      referenceNumber: postingResult.referenceNumber,
+      referenceSource: postingResult.referenceSource,
+    };
+    logger.info(
+      {
+        quotationId: result.id,
+        quotationNumber: result.quotationNumber,
+        sapPosting,
+      },
+      'Quotation DMS/SAP posting completed'
+    );
+  } catch (error: any) {
+    console.error('Quotation SAP posting failed after local create:', error);
+    logger.error(
+      {
+        error,
+        quotationId: result.id,
+        quotationNumber: result.quotationNumber,
+      },
+      'Quotation DMS/SAP posting failed after local create'
+    );
+    sapPosting = {
+      status: 'Failed',
+      errorMessage: error?.message || 'Failed to post quotation to SAP',
+    };
+  }
+
+  sendSuccess(res, { ...result, sapPosting }, 201);
 };
 
 /**
@@ -167,7 +230,41 @@ export const supersedeQuotation = async (req: Request, res: Response) => {
   };
 
   const result = await quotationService.supersedeQuotation(supersedeData);
-  sendSuccess(res, result, 201);
+
+  let sapPosting: {
+    status: 'Posted' | 'Queued' | 'Failed';
+    integrationLogId?: number;
+    reportUrl?: string;
+    referenceNumber?: string;
+    referenceSource?: 'docEntry' | 'stagingSlno';
+    errorMessage?: string;
+  } | undefined;
+
+  try {
+    const postingResult = await sapOrderIntegrationService.postQuotationToSap(result.id, {
+      userId: req.user?.userId,
+      email: req.user?.email,
+      name: req.user?.name,
+      SlpCode: req.user?.SlpCode,
+    });
+
+    sapPosting = {
+      status:
+        postingResult.referenceSource === 'docEntry' ? 'Posted' : 'Queued',
+      integrationLogId: postingResult.integrationLogId,
+      reportUrl: postingResult.reportUrl,
+      referenceNumber: postingResult.referenceNumber,
+      referenceSource: postingResult.referenceSource,
+    };
+  } catch (error: any) {
+    console.error('Superseded quotation SAP posting failed after local create:', error);
+    sapPosting = {
+      status: 'Failed',
+      errorMessage: error?.message || 'Failed to post quotation to SAP',
+    };
+  }
+
+  sendSuccess(res, { ...result, sapPosting }, 201);
 };
 
 /**
@@ -341,4 +438,30 @@ export const getQuotationActivities = async (req: Request, res: Response) => {
   const quotationSlno = Number(req.params.id);
   const activities = await quotationService.getQuotationActivities(quotationSlno);
   sendSuccess(res, activities);
+};
+
+/**
+ * Post quotation to staging/queue and return report URL
+ * POST /api/quotations/:id/post-to-sap-report
+ */
+export const postQuotationToSapReport = async (req: Request, res: Response) => {
+  const quotationId = Number(req.params.id);
+  const result = await sapOrderIntegrationService.ensureQuotationPosted(quotationId, {
+    userId: req.user?.userId,
+    email: req.user?.email,
+    name: req.user?.name,
+    SlpCode: req.user?.SlpCode,
+  });
+
+  sendSuccess(res, result);
+};
+
+/**
+ * POST /api/quotations/:id/confirm-to-sales-order
+ * Convert a quotation to sales order via SAP Convert Sales Documents API
+ */
+export const confirmQuotationToSalesOrder = async (req: Request, res: Response) => {
+  const quotationId = Number(req.params.id);
+  const result = await quotationService.confirmToSalesOrder(quotationId, getAuditUser(req));
+  sendSuccess(res, result);
 };

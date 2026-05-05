@@ -3,7 +3,9 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { useQuotationMutations } from '../entities/useQuotationMutations';
 import { logger } from '@/lib/logger';
+import { buildSalesReportUrl } from '@/lib/sales-report';
 import type { CancelQuotationData } from '@/types/quotation';
+import type { Quotation } from '@/types/quotation';
 
 interface UseQuotationActionsParams {
   quotationId?: number;
@@ -38,9 +40,28 @@ export function useQuotationActions(params: UseQuotationActionsParams = {}) {
   );
 
   const handlePrint = useCallback(
-    (id?: number) => {
-      const targetId = id || quotationId;
+    async (quotationOrId?: number | Quotation) => {
+      const target = quotationOrId || quotationId;
+      if (!target) return;
+
+      const targetId =
+        typeof target === 'object' && target !== null
+          ? Number((target as Quotation).SLNO || quotationId)
+          : Number(target);
       if (!targetId) return;
+
+      if (typeof target === 'object' && target !== null && target.SAPDOCENTRY?.trim()) {
+        window.open(
+          buildSalesReportUrl({
+            referenceNumber: target.SAPDOCENTRY,
+            type: 'SalesQuote',
+          }),
+          '_blank',
+          'noopener,noreferrer'
+        );
+        return;
+      }
+
       router.push(`/dashboard/quotations/print/${targetId}`);
     },
     [router, quotationId]

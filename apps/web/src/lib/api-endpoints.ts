@@ -24,6 +24,8 @@ export const API_ENDPOINTS = {
   QUOTATION_ALLOCATE_DEPOSIT: (id: string | number) => `/api/quotations/${id}/allocate-deposit`,
   QUOTATION_RESERVE_VEHICLE: (id: string | number) => `/api/quotations/${id}/reserve-vehicle`,
   QUOTATION_CANCEL: (id: string | number) => `/api/quotations/${id}/cancel`,
+  QUOTATION_POST_TO_SAP_REPORT: (id: string | number) => `/api/quotations/${id}/post-to-sap-report`,
+  QUOTATION_CONFIRM_TO_SALES_ORDER: (id: string | number) => `/api/quotations/${id}/confirm-to-sales-order`,
 
   // Sales Order endpoints
   SALES_ORDERS: '/api/sales-orders',

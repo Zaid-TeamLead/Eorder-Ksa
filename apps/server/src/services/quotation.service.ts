@@ -1,6 +1,7 @@
 import { db } from './database.service.js';
 import { logger } from '../utils/logger.js';
 import { AppError, ConflictError } from '../types/errors.js';
+import { env } from '../config/env.js';
 import type {
   CreateQuotationInput,
   UpdateQuotationInput,
@@ -65,6 +66,8 @@ export interface Quotation {
   SLNO: number;
   ENQUIRY_SLNO: number;
   QUOTATION_NUMBER: string;
+  DOC_TYPE?: 'SQ' | 'SO' | null;
+  SOURCE_QUOTATION_SLNO?: number | null;
   VERSION: number;
   PARENT_QUOTATION_SLNO?: number;
   IS_LATEST_VERSION: string;
@@ -72,10 +75,16 @@ export interface Quotation {
   ROOT_QUOTATION_NUMBER?: string;
 
   // Customer
+  CUSTOMER_CODE?: string;
   CUSTOMER_NAME?: string;
   CUSTOMER_MOBILE?: string;
   CUSTOMER_EMAIL?: string;
   CUSTOMER_ADDRESS?: string;
+  APILOG?: string;
+  SAPDOCNUM?: string;
+  SAPDOCENTRY?: string;
+  SAPREFENTRY?: string;
+  SAPSTATUS?: string;
 
   // Vehicle
   VEHICLE_MAKE?: string;
@@ -128,6 +137,27 @@ export interface Quotation {
   VEHICLE_RESERVATION_NOTES?: string;
   VEHICLE_RESERVATION_FROM_DATE?: string;
   VEHICLE_RESERVATION_TO_DATE?: string;
+  PRINTED_BY?: string;
+  PRINTED_DATE?: string;
+  PASSED_TO_VEHICLE_ADMIN?: string;
+  PASSED_TO_VA_DATE?: string;
+  PASSED_TO_VA_BY?: string;
+  VEHICLE_ADMIN_ASSIGNED_TO?: string;
+  VEHICLE_ADMIN_NOTES?: string;
+  HANDOVER_BOOKED?: string;
+  HANDOVER_DATE?: string;
+  HANDOVER_TIME?: string;
+  HANDOVER_LOCATION?: string;
+  HANDOVER_NOTES?: string;
+  HANDOVER_BOOKED_BY?: string;
+  HANDOVER_BOOKED_DATE?: string;
+  IS_LOST_SALE?: string;
+  LOST_SALE_DATE?: string;
+  LOST_REASON?: string;
+  LOST_NOTES?: string;
+  CANCELLATION_REASON?: string;
+  CANCELLED_DATE?: string;
+  CANCELLED_BY?: string;
 
   // Notes
   NOTES?: string;
@@ -161,6 +191,13 @@ export interface QuotationLineItem {
   DISCOUNT_PERCENTAGE: number;
   NET_PRICE: number;
   TAX_INCLUDED: string;
+  VEHICLE_MAKE?: string;
+  VEHICLE_MODEL?: string;
+  VEHICLE_VARIANT?: string;
+  VEHICLE_YEAR?: string;
+  VEHICLE_COLOR?: string;
+  VIN_NUMBER?: string;
+  WHSCODE?: string;
   MANUFACTURER?: string;
   PART_NUMBER?: string;
   WARRANTY_PERIOD?: string;
@@ -200,6 +237,33 @@ interface AggregatedQuotationLineTotals {
   LINE_DISCOUNT_TOTAL: number;
 }
 
+interface QuotationPrimaryLineSummary {
+  QUOTATION_SLNO: number;
+  VEHICLE_MAKE?: string;
+  VEHICLE_MODEL?: string;
+  VEHICLE_VARIANT?: string;
+  VEHICLE_YEAR?: string;
+  VEHICLE_COLOR?: string;
+  VIN_NUMBER?: string;
+  WHSCODE?: string;
+}
+
+interface SapQuotationDocument {
+  DocEntry: number;
+  DocNum: number;
+  CardCode?: string;
+  DocStatus?: string;
+  CANCELED?: string;
+}
+
+interface SapQuotationLine {
+  LineNum: number;
+  ItemCode?: string;
+  Quantity?: number;
+  WhsCode?: string;
+  LineStatus?: string;
+}
+
 function extractVinFromUnknown(input: unknown): string {
   if (!input || typeof input !== 'object') return '';
 
@@ -227,6 +291,51 @@ function extractVinFromUnknown(input: unknown): string {
   });
 
   return dynamicMatch ? String(dynamicMatch[1]).trim() : '';
+}
+
+function normalizeText(value: unknown): string {
+  if (value === undefined || value === null) return '';
+  return String(value).trim();
+}
+
+function normalizeSapIdentifier(value: string, label: string): string {
+  const normalized = normalizeText(value);
+  if (!/^[A-Za-z0-9_]+$/.test(normalized)) {
+    throw new AppError(`Invalid ${label}: ${value}`, 400, 'INVALID_SAP_IDENTIFIER');
+  }
+  return normalized;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function extractFromKeys(input: unknown, keys: string[]): string {
+  const record = asRecord(input);
+  if (!record) return '';
+
+  for (const key of keys) {
+    const value = normalizeText(record[key]);
+    if (value) return value;
+  }
+
+  return '';
+}
+
+function extractSelectedVehicleLines(vinDetails: unknown): Record<string, unknown>[] {
+  if (!vinDetails || typeof vinDetails !== 'object' || Array.isArray(vinDetails)) return [];
+  const lines = (vinDetails as Record<string, unknown>).SELECTED_VEHICLE_LINES;
+  if (!Array.isArray(lines)) return [];
+  return lines.map((line) => asRecord(line)).filter((line): line is Record<string, unknown> => !!line);
+}
+
+function extractVehicleLineRecord(
+  line: Record<string, unknown> | null | undefined
+): Record<string, unknown> | null {
+  if (!line) return null;
+  const nestedVin = asRecord(line.vin);
+  return nestedVin || line;
 }
 
 // =====================================================
@@ -274,6 +383,7 @@ class QuotationService {
           SELECT "SLNO", "PARENT_QUOTATION_SLNO", "QUOTATION_NUMBER"
           FROM "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION"
           WHERE "SLNO" = ? AND "IS_DELETED" = 'N'
+            AND COALESCE("DOC_TYPE", 'SQ') = 'SQ'
         `,
         [currentId]
       );
@@ -341,6 +451,131 @@ class QuotationService {
     return new Map(rows.map((row) => [Number(row.QUOTATION_SLNO), row]));
   }
 
+  private async getPrimaryLineSummaryMap(
+    quotationIds: number[]
+  ): Promise<Map<number, QuotationPrimaryLineSummary>> {
+    if (quotationIds.length === 0) {
+      return new Map();
+    }
+
+    const placeholders = quotationIds.map(() => '?').join(', ');
+    const rows = await db.query<QuotationPrimaryLineSummary & { LINE_NUMBER?: number }>(
+      `
+        SELECT
+          "QUOTATION_SLNO",
+          "LINE_NUMBER",
+          "VEHICLE_MAKE",
+          "VEHICLE_MODEL",
+          "VEHICLE_VARIANT",
+          "VEHICLE_YEAR",
+          "VEHICLE_COLOR",
+          "VIN_NUMBER",
+          "WHSCODE"
+        FROM "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION_LINE_ITEMS"
+        WHERE "IS_DELETED" = 'N'
+          AND "QUOTATION_SLNO" IN (${placeholders})
+        ORDER BY "QUOTATION_SLNO", "LINE_NUMBER", "SLNO"
+      `,
+      quotationIds
+    );
+
+    const map = new Map<number, QuotationPrimaryLineSummary>();
+    for (const row of rows) {
+      const quotationId = Number(row.QUOTATION_SLNO);
+      if (!map.has(quotationId)) {
+        map.set(quotationId, row);
+      }
+    }
+
+    return map;
+  }
+
+  private applyVehicleSummaryFromLine<T extends Quotation>(
+    quotation: T,
+    primaryLine?: QuotationPrimaryLineSummary | null
+  ): T {
+    if (!primaryLine) return quotation;
+
+    return {
+      ...quotation,
+      VEHICLE_MAKE: primaryLine.VEHICLE_MAKE || quotation.VEHICLE_MAKE,
+      VEHICLE_MODEL: primaryLine.VEHICLE_MODEL || quotation.VEHICLE_MODEL,
+      VEHICLE_VARIANT: primaryLine.VEHICLE_VARIANT || quotation.VEHICLE_VARIANT,
+      VEHICLE_YEAR: primaryLine.VEHICLE_YEAR || quotation.VEHICLE_YEAR,
+      VEHICLE_COLOR: primaryLine.VEHICLE_COLOR || quotation.VEHICLE_COLOR,
+      VIN_NUMBER: primaryLine.VIN_NUMBER || quotation.VIN_NUMBER,
+    };
+  }
+
+  private async hydrateQuotationVehicleSummary<T extends Quotation>(quotations: T[]): Promise<T[]> {
+    const quotationIds = quotations
+      .map((quotation) => Number(quotation.SLNO))
+      .filter((id) => Number.isFinite(id) && id > 0);
+
+    const primaryLineMap = await this.getPrimaryLineSummaryMap(quotationIds);
+    return quotations.map((quotation) =>
+      this.applyVehicleSummaryFromLine(quotation, primaryLineMap.get(Number(quotation.SLNO)))
+    );
+  }
+
+  private buildLineVehicleDetails(
+    lineItem: Record<string, unknown> | undefined,
+    selectedVehicle: Record<string, unknown> | null,
+    fallbackVehicle: {
+      vehicleMake?: string;
+      vehicleModel?: string;
+      vehicleVariant?: string;
+      vehicleYear?: string;
+      vehicleColor?: string;
+      vinNumber?: string;
+    }
+  ) {
+    return {
+      vehicleMake:
+        normalizeText(lineItem?.vehicleMake) ||
+        normalizeText(lineItem?.VEHICLE_MAKE) ||
+        extractFromKeys(selectedVehicle, ['Make', 'MAKE', 'make', 'Brand', 'BRAND']) ||
+        normalizeText(fallbackVehicle.vehicleMake),
+      vehicleModel:
+        normalizeText(lineItem?.vehicleModel) ||
+        normalizeText(lineItem?.VEHICLE_MODEL) ||
+        extractFromKeys(selectedVehicle, ['Model', 'MODEL', 'model']) ||
+        normalizeText(fallbackVehicle.vehicleModel),
+      vehicleVariant:
+        normalizeText(lineItem?.vehicleVariant) ||
+        normalizeText(lineItem?.VEHICLE_VARIANT) ||
+        extractFromKeys(selectedVehicle, ['Variant', 'VARIANT', 'variant', 'ItemCode', 'ITEMCODE']) ||
+        normalizeText(fallbackVehicle.vehicleVariant),
+      vehicleYear:
+        normalizeText(lineItem?.vehicleYear) ||
+        normalizeText(lineItem?.VEHICLE_YEAR) ||
+        extractFromKeys(selectedVehicle, ['Year', 'YEAR', 'year']) ||
+        normalizeText(fallbackVehicle.vehicleYear),
+      vehicleColor:
+        normalizeText(lineItem?.vehicleColor) ||
+        normalizeText(lineItem?.VEHICLE_COLOR) ||
+        extractFromKeys(selectedVehicle, ['Color', 'COLOR', 'color']) ||
+        normalizeText(fallbackVehicle.vehicleColor),
+      vinNumber:
+        normalizeText(lineItem?.vinNumber) ||
+        normalizeText(lineItem?.VIN_NUMBER) ||
+        extractFromKeys(selectedVehicle, ['VinNumber', 'VINNUMBER', 'VIN', 'vin', 'vinNumber']) ||
+        normalizeText(fallbackVehicle.vinNumber),
+      whsCode:
+        normalizeText(lineItem?.whsCode) ||
+        normalizeText(lineItem?.WHSCODE) ||
+        extractFromKeys(selectedVehicle, [
+          'WhsCode',
+          'WHSCODE',
+          'whsCode',
+          'WhsName',
+          'WHSNAME',
+          'Warehouse',
+          'warehouse',
+        ]),
+    };
+  }
+
   private async resolveLatestQuotationId(id: number): Promise<number> {
     let currentId = id;
     const visited = new Set<number>();
@@ -353,6 +588,7 @@ class QuotationService {
           SELECT "SLNO"
           FROM "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION"
           WHERE "PARENT_QUOTATION_SLNO" = ? AND "IS_DELETED" = 'N'
+            AND COALESCE("DOC_TYPE", 'SQ') = 'SQ'
           ORDER BY "VERSION" DESC, "CREATED_DATE" DESC
           LIMIT 1
         `,
@@ -427,7 +663,7 @@ class QuotationService {
   }
 
   private getCreateQuotationLineSpSql(): string {
-    return `CALL "${QUOTATION_DB_SCHEMA}"."${CREATE_QUOTATION_LINE_SP_NAME}"(${Array(18)
+    return `CALL "${QUOTATION_DB_SCHEMA}"."${CREATE_QUOTATION_LINE_SP_NAME}"(${Array(25)
       .fill('?')
       .join(', ')})`;
   }
@@ -436,7 +672,16 @@ class QuotationService {
     quotationId: number,
     item: any,
     actor: string,
-    currentDateTime: string
+    currentDateTime: string,
+    vehicleDetails?: {
+      vehicleMake?: string;
+      vehicleModel?: string;
+      vehicleVariant?: string;
+      vehicleYear?: string;
+      vehicleColor?: string;
+      vinNumber?: string;
+      whsCode?: string;
+    }
   ): Promise<void> {
     const lineNumber = Number(item?.lineNumber ?? item?.LINE_NUMBER ?? 1);
     const quantity = Number(item?.quantity ?? item?.QUANTITY ?? 1);
@@ -458,6 +703,13 @@ class QuotationService {
       Number.isFinite(discountPercentage) ? discountPercentage : 0,
       Number.isFinite(netPrice) ? netPrice : 0,
       item?.taxIncluded ?? item?.TAX_INCLUDED ?? 'N',
+      vehicleDetails?.vehicleMake ?? item?.vehicleMake ?? item?.VEHICLE_MAKE ?? null,
+      vehicleDetails?.vehicleModel ?? item?.vehicleModel ?? item?.VEHICLE_MODEL ?? null,
+      vehicleDetails?.vehicleVariant ?? item?.vehicleVariant ?? item?.VEHICLE_VARIANT ?? null,
+      vehicleDetails?.vehicleYear ?? item?.vehicleYear ?? item?.VEHICLE_YEAR ?? null,
+      vehicleDetails?.vehicleColor ?? item?.vehicleColor ?? item?.VEHICLE_COLOR ?? null,
+      vehicleDetails?.vinNumber ?? item?.vinNumber ?? item?.VIN_NUMBER ?? null,
+      vehicleDetails?.whsCode ?? item?.whsCode ?? item?.WHSCODE ?? null,
       item?.manufacturer ?? item?.MANUFACTURER ?? null,
       item?.partNumber ?? item?.PART_NUMBER ?? null,
       item?.warrantyPeriod ?? item?.WARRANTY_PERIOD ?? null,
@@ -477,14 +729,17 @@ class QuotationService {
     const currentDateTime = this.getCurrentDateTime();
     const quotationNumber = options?.quotationNumber || (await this.generateQuotationNumber());
     let resolvedVinNumber = data.vinNumber || null;
+    let resolvedCustomerCode: string | null = null;
+    let selectedVehicleLines: Record<string, unknown>[] = [];
 
-    if (!resolvedVinNumber && data.enquirySlno) {
+    if (data.enquirySlno) {
       const enquiry = await db.queryOne<{
+        CUSTOMERID?: string | null;
         VINNUMBER?: string | null;
         VINDETAILS?: string | null;
       }>(
         `
-          SELECT "VINNUMBER", "VINDETAILS"
+          SELECT "CUSTOMERID", "VINNUMBER", "VINDETAILS"
           FROM "${QUOTATION_DB_SCHEMA}"."DMS_SALESENQUIRY"
           WHERE "SLNO" = ?
         `,
@@ -492,12 +747,18 @@ class QuotationService {
       );
 
       if (enquiry) {
-        resolvedVinNumber = enquiry.VINNUMBER || null;
+        resolvedCustomerCode = normalizeText(enquiry.CUSTOMERID) || null;
+        if (!resolvedVinNumber) {
+          resolvedVinNumber = enquiry.VINNUMBER || null;
+        }
 
-        if (!resolvedVinNumber && enquiry.VINDETAILS) {
+        if (enquiry.VINDETAILS) {
           try {
             const vinDetails = JSON.parse(enquiry.VINDETAILS) as unknown;
-            resolvedVinNumber = extractVinFromUnknown(vinDetails) || null;
+            selectedVehicleLines = extractSelectedVehicleLines(vinDetails);
+            if (!resolvedVinNumber) {
+              resolvedVinNumber = extractVinFromUnknown(vinDetails) || null;
+            }
           } catch {
             // Ignore invalid VINDETAILS JSON and keep VIN null.
           }
@@ -510,16 +771,13 @@ class QuotationService {
     const createMasterParameters = [
       data.enquirySlno,
       quotationNumber,
+      'SQ',
+      null,
+      resolvedCustomerCode,
       data.customerName || null,
       data.customerMobile || null,
       data.customerEmail || null,
       data.customerAddress || null,
-      data.vehicleMake || null,
-      data.vehicleModel || null,
-      data.vehicleVariant || null,
-      data.vehicleYear || null,
-      data.vehicleColor || null,
-      resolvedVinNumber,
       data.vehicleBasePrice,
       data.vehicleDiscount,
       data.vehicleNetPrice,
@@ -561,6 +819,7 @@ class QuotationService {
     const idQuery = `
       SELECT "SLNO" FROM "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION"
       WHERE "QUOTATION_NUMBER" = ?
+        AND COALESCE("DOC_TYPE", 'SQ') = 'SQ'
     `;
     const idResult = await db.query(idQuery, [quotationNumber]);
     const quotationId = idResult[0]?.SLNO;
@@ -571,8 +830,25 @@ class QuotationService {
       );
     }
 
-    for (const item of data.lineItems) {
-      await this.insertQuotationLineItemViaSp(quotationId, item, data.createdBy, currentDateTime);
+    for (const [index, item] of data.lineItems.entries()) {
+      const selectedVehicle = extractVehicleLineRecord(
+        selectedVehicleLines[index] || selectedVehicleLines[0]
+      );
+      const vehicleDetails = this.buildLineVehicleDetails(item, selectedVehicle, {
+        vehicleMake: data.vehicleMake,
+        vehicleModel: data.vehicleModel,
+        vehicleVariant: data.vehicleVariant,
+        vehicleYear: data.vehicleYear,
+        vehicleColor: data.vehicleColor,
+        vinNumber: resolvedVinNumber || undefined,
+      });
+      await this.insertQuotationLineItemViaSp(
+        quotationId,
+        item,
+        data.createdBy,
+        currentDateTime,
+        vehicleDetails
+      );
     }
 
     return { quotationId, quotationNumber, currentDateTime };
@@ -592,6 +868,7 @@ class QuotationService {
         SELECT "QUOTATION_NUMBER"
         FROM "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION"
         WHERE "QUOTATION_NUMBER" LIKE ?
+          AND COALESCE("DOC_TYPE", 'SQ') = 'SQ'
         ORDER BY "QUOTATION_NUMBER" DESC
         LIMIT 1
       `;
@@ -669,6 +946,193 @@ class QuotationService {
     return new Date().toISOString().replace('T', ' ').substring(0, 19);
   }
 
+  private async findSapCompanySchemas(): Promise<string[]> {
+    const rows = await db.query<{ SCHEMA_NAME: string }>(
+      `
+        SELECT "SCHEMA_NAME"
+        FROM "SYS"."TABLES"
+        WHERE "TABLE_NAME" IN ('OQUT', 'QUT1')
+        GROUP BY "SCHEMA_NAME"
+        HAVING COUNT(DISTINCT "TABLE_NAME") = 2
+        ORDER BY "SCHEMA_NAME"
+      `
+    );
+
+    return rows.map((row) => normalizeText(row.SCHEMA_NAME)).filter(Boolean);
+  }
+
+  private async resolveSapQuotationBase(
+    companyDb: string,
+    quotation: Quotation,
+    localLines: Array<{
+      LineNumber: string;
+      ItemCode: string;
+      Quantity: string;
+      Warehouse: string;
+    }>
+  ): Promise<{
+    companyDb: string;
+    baseEntry: string;
+    lines: Array<{
+      LineNumber: string;
+      ItemCode: string;
+      Quantity: string;
+      Warehouse: string;
+    }>;
+  }> {
+    const preferredSchema = normalizeSapIdentifier(companyDb, 'CompanyDB');
+    const isAlreadyConfirmed =
+      normalizeText(quotation.SAPSTATUS).toLowerCase() === 'success';
+    const candidates = Array.from(
+      new Set(
+        [
+          quotation.SAPDOCENTRY,
+          quotation.SAPDOCNUM,
+          isAlreadyConfirmed ? null : quotation.SAPREFENTRY,
+        ]
+          .map((value) => Number(normalizeText(value)))
+          .filter((value) => Number.isInteger(value) && value > 0)
+      )
+    );
+
+    if (candidates.length === 0) {
+      throw new AppError(
+        'SAP quotation DocEntry is required before converting to sales order.',
+        400,
+        'MISSING_SAP_DOCENTRY'
+      );
+    }
+
+    const resolveInSchema = async (schema: string) => {
+      const placeholders = candidates.map(() => '?').join(', ');
+      const documents = await db.query<SapQuotationDocument>(
+        `
+          SELECT "DocEntry", "DocNum", "CardCode", "DocStatus", "CANCELED"
+          FROM "${schema}"."OQUT"
+          WHERE "DocEntry" IN (${placeholders})
+             OR "DocNum" IN (${placeholders})
+        `,
+        [...candidates, ...candidates]
+      );
+
+      const requestedDocEntry = Number(
+        normalizeText(quotation.SAPDOCENTRY || (!isAlreadyConfirmed ? quotation.SAPREFENTRY : ''))
+      );
+      const document =
+        documents.find((row) => Number(row.DocEntry) === requestedDocEntry) ||
+        documents[0];
+
+      if (!document) {
+        throw new AppError(
+          `SAP Sales Quotation was not found in CompanyDB=${schema}. Checked DocEntry/DocNum: ${candidates.join(', ')}.`,
+          400,
+          'SAP_BASE_DOCUMENT_NOT_FOUND'
+        );
+      }
+
+      if (normalizeText(document.CANCELED).toUpperCase() === 'Y') {
+        throw new AppError(
+          `SAP Sales Quotation DocEntry=${document.DocEntry} is cancelled and cannot be converted.`,
+          400,
+          'SAP_BASE_DOCUMENT_CANCELLED'
+        );
+      }
+
+      if (normalizeText(document.DocStatus).toUpperCase() === 'C') {
+        throw new AppError(
+          `SAP Sales Quotation DocEntry=${document.DocEntry} is closed and cannot be converted.`,
+          400,
+          'SAP_BASE_DOCUMENT_CLOSED'
+        );
+      }
+
+      const sapLines = await db.query<SapQuotationLine>(
+        `
+          SELECT "LineNum", "ItemCode", "Quantity", "WhsCode", "LineStatus"
+          FROM "${schema}"."QUT1"
+          WHERE "DocEntry" = ?
+          ORDER BY "LineNum"
+        `,
+        [Number(document.DocEntry)]
+      );
+
+      const resolvedLines = localLines.map((line) => {
+        const lineNumber = Number(line.LineNumber);
+        const sapLine = sapLines.find((candidate) => Number(candidate.LineNum) === lineNumber);
+
+        if (!sapLine) {
+          throw new AppError(
+            `SAP Sales Quotation DocEntry=${document.DocEntry} does not contain line ${line.LineNumber}.`,
+            400,
+            'SAP_BASE_LINE_NOT_FOUND'
+          );
+        }
+
+        if (normalizeText(sapLine.LineStatus).toUpperCase() === 'C') {
+          throw new AppError(
+            `SAP Sales Quotation DocEntry=${document.DocEntry} line ${line.LineNumber} is closed and cannot be converted.`,
+            400,
+            'SAP_BASE_LINE_CLOSED'
+          );
+        }
+
+        return {
+          LineNumber: line.LineNumber,
+          ItemCode: normalizeText(sapLine.ItemCode) || line.ItemCode,
+          Quantity: line.Quantity,
+          Warehouse: normalizeText(sapLine.WhsCode) || line.Warehouse,
+        };
+      });
+
+      return {
+        companyDb: schema,
+        baseEntry: String(
+          env.CONVERT_SALES_DOC_BASE_REF === 'DocNum'
+            ? document.DocNum
+            : document.DocEntry
+        ),
+        lines: resolvedLines,
+      };
+    };
+
+    try {
+      return await resolveInSchema(preferredSchema);
+    } catch (error) {
+      const schemas = await this.findSapCompanySchemas().catch(() => []);
+      const searchSchemas = schemas.filter((schema) => schema !== preferredSchema);
+
+      for (const schema of searchSchemas) {
+        try {
+          return await resolveInSchema(schema);
+        } catch {
+          // Try the next visible SAP company schema.
+        }
+      }
+
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const isInvalidSchema = errorMessage.toLowerCase().includes('invalid schema name');
+      const schemaHint = isInvalidSchema
+        ? await this.findSapCompanySchemas()
+            .then((schemas) =>
+              schemas.length > 0
+                ? ` Available SAP company schemas with OQUT/QUT1: ${schemas.join(', ')}.`
+                : ' No SAP company schemas containing OQUT/QUT1 were visible to this database user.'
+            )
+            .catch(() => '')
+        : '';
+
+      throw new AppError(
+        `Could not verify SAP Sales Quotation in CompanyDB=${preferredSchema}: ${errorMessage}.${schemaHint}`,
+        502,
+        'SAP_BASE_DOCUMENT_LOOKUP_FAILED'
+      );
+    }
+  }
+
   private async getQuotationOrThrow(
     id: number
   ): Promise<Quotation & { lineItems: QuotationLineItem[] }> {
@@ -719,6 +1183,7 @@ class QuotationService {
       const quotationQuery = `
         SELECT * FROM "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION"
         WHERE "SLNO" = ? AND "IS_DELETED" = 'N'
+          AND COALESCE("DOC_TYPE", 'SQ') = 'SQ'
       `;
 
       const lineItemsQuery = `
@@ -730,10 +1195,25 @@ class QuotationService {
       const quotation = await db.queryOne(quotationQuery, [targetId]);
       if (!quotation) return null;
 
-      const lineItems = await db.query(lineItemsQuery, [targetId]);
+      const lineItems = await db.query<QuotationLineItem>(lineItemsQuery, [targetId]);
+      const primaryLine = lineItems[0];
 
       const [quotationWithReference] = await this.hydrateQuotationReferences([
-        { ...quotation, lineItems } as Quotation & { lineItems: QuotationLineItem[] },
+        this.applyVehicleSummaryFromLine(
+          { ...quotation, lineItems } as Quotation & { lineItems: QuotationLineItem[] },
+          primaryLine
+            ? {
+                QUOTATION_SLNO: Number(primaryLine.QUOTATION_SLNO),
+                VEHICLE_MAKE: primaryLine.VEHICLE_MAKE,
+                VEHICLE_MODEL: primaryLine.VEHICLE_MODEL,
+                VEHICLE_VARIANT: primaryLine.VEHICLE_VARIANT,
+                VEHICLE_YEAR: primaryLine.VEHICLE_YEAR,
+                VEHICLE_COLOR: primaryLine.VEHICLE_COLOR,
+                VIN_NUMBER: primaryLine.VIN_NUMBER,
+                WHSCODE: primaryLine.WHSCODE,
+              }
+            : null
+        ),
       ]);
 
       return quotationWithReference || null;
@@ -751,12 +1231,14 @@ class QuotationService {
       const query = `
         SELECT * FROM "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION"
         WHERE "ENQUIRY_SLNO" = ? AND "IS_DELETED" = 'N'
+          AND COALESCE("DOC_TYPE", 'SQ') = 'SQ'
         ORDER BY "VERSION" DESC, "CREATED_DATE" DESC
       `;
 
       const quotations = await db.query<Quotation>(query, [enquiryId]);
       const hydratedTotals = await this.hydrateQuotationHeaderTotals(quotations);
-      return await this.hydrateQuotationReferences(hydratedTotals);
+      const hydratedVehicles = await this.hydrateQuotationVehicleSummary(hydratedTotals);
+      return await this.hydrateQuotationReferences(hydratedVehicles);
     } catch (error: any) {
       logger.error('Error fetching quotations for enquiry:', error);
       throw new Error('Failed to fetch quotations: ' + error.message);
@@ -776,6 +1258,7 @@ class QuotationService {
       let query = `
         SELECT * FROM "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION"
         WHERE "IS_DELETED" = 'N'
+          AND COALESCE("DOC_TYPE", 'SQ') = 'SQ'
       `;
       const params: any[] = [];
 
@@ -803,7 +1286,8 @@ class QuotationService {
 
       const quotations = await db.query<Quotation>(query, params);
       const hydratedTotals = await this.hydrateQuotationHeaderTotals(quotations);
-      return await this.hydrateQuotationReferences(hydratedTotals);
+      const hydratedVehicles = await this.hydrateQuotationVehicleSummary(hydratedTotals);
+      return await this.hydrateQuotationReferences(hydratedVehicles);
     } catch (error: any) {
       logger.error('Error fetching all quotations:', error);
       throw new Error('Failed to fetch quotations: ' + error.message);
@@ -838,32 +1322,6 @@ class QuotationService {
       if (data.customerAddress !== undefined) {
         updates.push('"CUSTOMER_ADDRESS" = ?');
         params.push(data.customerAddress);
-      }
-
-      // Vehicle fields
-      if (data.vehicleMake !== undefined) {
-        updates.push('"VEHICLE_MAKE" = ?');
-        params.push(data.vehicleMake);
-      }
-      if (data.vehicleModel !== undefined) {
-        updates.push('"VEHICLE_MODEL" = ?');
-        params.push(data.vehicleModel);
-      }
-      if (data.vehicleVariant !== undefined) {
-        updates.push('"VEHICLE_VARIANT" = ?');
-        params.push(data.vehicleVariant);
-      }
-      if (data.vehicleYear !== undefined) {
-        updates.push('"VEHICLE_YEAR" = ?');
-        params.push(data.vehicleYear);
-      }
-      if (data.vehicleColor !== undefined) {
-        updates.push('"VEHICLE_COLOR" = ?');
-        params.push(data.vehicleColor);
-      }
-      if (data.vinNumber !== undefined) {
-        updates.push('"VIN_NUMBER" = ?');
-        params.push(data.vinNumber);
       }
 
       // Pricing fields
@@ -983,6 +1441,26 @@ class QuotationService {
 
       // Handle line items update if provided
       if (data.lineItems && Array.isArray(data.lineItems)) {
+        const quotation = await this.getQuotationById(id);
+        const enquiry = quotation?.ENQUIRY_SLNO
+          ? await db.queryOne<{ VINDETAILS?: string | null }>(
+              `
+                SELECT "VINDETAILS"
+                FROM "${QUOTATION_DB_SCHEMA}"."DMS_SALESENQUIRY"
+                WHERE "SLNO" = ?
+              `,
+              [quotation.ENQUIRY_SLNO]
+            )
+          : null;
+        let selectedVehicleLines: Record<string, unknown>[] = [];
+        if (enquiry?.VINDETAILS) {
+          try {
+            selectedVehicleLines = extractSelectedVehicleLines(JSON.parse(enquiry.VINDETAILS));
+          } catch {
+            selectedVehicleLines = [];
+          }
+        }
+
         // Delete existing line items
         const deleteLineItemsQuery = `
           DELETE FROM "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION_LINE_ITEMS"
@@ -991,8 +1469,25 @@ class QuotationService {
         await db.execute(deleteLineItemsQuery, [id]);
 
         // Insert new line items via stored procedure
-        for (const item of data.lineItems) {
-          await this.insertQuotationLineItemViaSp(id, item, data.updatedBy, currentDateTime);
+        for (const [index, item] of data.lineItems.entries()) {
+          const selectedVehicle = extractVehicleLineRecord(
+            selectedVehicleLines[index] || selectedVehicleLines[0]
+          );
+          const vehicleDetails = this.buildLineVehicleDetails(item, selectedVehicle, {
+            vehicleMake: data.vehicleMake || quotation?.VEHICLE_MAKE || undefined,
+            vehicleModel: data.vehicleModel || quotation?.VEHICLE_MODEL || undefined,
+            vehicleVariant: data.vehicleVariant || quotation?.VEHICLE_VARIANT || undefined,
+            vehicleYear: data.vehicleYear || quotation?.VEHICLE_YEAR || undefined,
+            vehicleColor: data.vehicleColor || quotation?.VEHICLE_COLOR || undefined,
+            vinNumber: data.vinNumber || quotation?.VIN_NUMBER || undefined,
+          });
+          await this.insertQuotationLineItemViaSp(
+            id,
+            item,
+            data.updatedBy,
+            currentDateTime,
+            vehicleDetails
+          );
         }
 
         logger.info({ quotationId: id, lineItemsCount: data.lineItems.length }, 'Line items updated');
@@ -1029,6 +1524,7 @@ class QuotationService {
       }
 
       const newVersion = Number(parent.VERSION || 1) + 1;
+      const parentPrimaryLine = parent.lineItems?.[0];
       const lineItemsToInsert: CreateQuotationInput['lineItems'] = data.lineItems?.length
         ? data.lineItems
         : (parent.lineItems || []).map((item) => ({
@@ -1062,12 +1558,18 @@ class QuotationService {
         customerMobile: data.customerMobile || parent.CUSTOMER_MOBILE || '',
         customerEmail: data.customerEmail || parent.CUSTOMER_EMAIL || '',
         customerAddress: data.customerAddress || parent.CUSTOMER_ADDRESS || '',
-        vehicleMake: data.vehicleMake || parent.VEHICLE_MAKE || '',
-        vehicleModel: data.vehicleModel || parent.VEHICLE_MODEL || '',
-        vehicleVariant: data.vehicleVariant || parent.VEHICLE_VARIANT || '',
-        vehicleYear: data.vehicleYear || parent.VEHICLE_YEAR || '',
-        vehicleColor: data.vehicleColor || parent.VEHICLE_COLOR || '',
-        vinNumber: data.vinNumber || parent.VIN_NUMBER || '',
+        vehicleMake:
+          data.vehicleMake || parentPrimaryLine?.VEHICLE_MAKE || parent.VEHICLE_MAKE || '',
+        vehicleModel:
+          data.vehicleModel || parentPrimaryLine?.VEHICLE_MODEL || parent.VEHICLE_MODEL || '',
+        vehicleVariant:
+          data.vehicleVariant || parentPrimaryLine?.VEHICLE_VARIANT || parent.VEHICLE_VARIANT || '',
+        vehicleYear:
+          data.vehicleYear || parentPrimaryLine?.VEHICLE_YEAR || parent.VEHICLE_YEAR || '',
+        vehicleColor:
+          data.vehicleColor || parentPrimaryLine?.VEHICLE_COLOR || parent.VEHICLE_COLOR || '',
+        vinNumber:
+          data.vinNumber || parentPrimaryLine?.VIN_NUMBER || parent.VIN_NUMBER || '',
         vehicleBasePrice: data.vehicleBasePrice,
         vehicleDiscount: data.vehicleDiscount,
         vehicleNetPrice: data.vehicleNetPrice,
@@ -1357,10 +1859,12 @@ class QuotationService {
           AND ("DEPOSIT_COLLECTED" IS NULL OR "DEPOSIT_COLLECTED" = 'N')
           AND "STATUS" NOT IN ('Cancelled', 'Superseded')
           AND "IS_DELETED" = 'N'
+          AND COALESCE("DOC_TYPE", 'SQ') = 'SQ'
         ORDER BY "PASSED_TO_CASHIER_DATE" DESC, "UPDATED_DATE" DESC
       `;
 
-      return await db.query(query);
+      const quotations = await db.query<Quotation>(query);
+      return await this.hydrateQuotationVehicleSummary(quotations);
     } catch (error: any) {
       logger.error('Error fetching open deposits:', error);
       throw new Error('Failed to fetch open deposits: ' + error.message);
@@ -1800,6 +2304,214 @@ class QuotationService {
       logger.error('Error fetching quotation activities:', error);
       throw new Error('Failed to fetch quotation activities: ' + error.message);
     }
+  }
+
+  /**
+   * Convert a quotation to a sales order via the SAP Convert Sales Documents API
+   */
+  async confirmToSalesOrder(quotationId: number, actor = 'SYSTEM'): Promise<{
+    targetDocumentNumber: string;
+    status: string;
+    errorCode: string;
+  }> {
+    const quotation = await this.getQuotationById(quotationId, { resolveLatest: true });
+    if (!quotation) throw new Error('Quotation not found');
+
+    const isAlreadyConfirmed =
+      normalizeText(quotation.SAPSTATUS).toLowerCase() === 'success';
+    const hasSapQuotationReference = [
+      quotation.SAPDOCENTRY,
+      quotation.SAPDOCNUM,
+      isAlreadyConfirmed ? null : quotation.SAPREFENTRY,
+    ].some((value) => {
+      const numericValue = Number(normalizeText(value));
+      return Number.isInteger(numericValue) && numericValue > 0;
+    });
+
+    if (!hasSapQuotationReference) {
+      throw new Error('Quotation has not been posted or synced to SAP yet. Please sync the SAP quotation reference first.');
+    }
+
+    // Get enquiry for CardCode and VIN metadata. Currency is stored inside VINDETAILS
+    // in this schema, not as a direct DMS_SALESENQUIRY column.
+    const enquiry = quotation.ENQUIRY_SLNO
+      ? await db.queryOne<{ CUSTOMERID?: string; VINDETAILS?: string | null }>(
+          `SELECT "CUSTOMERID", "VINDETAILS" FROM "${QUOTATION_DB_SCHEMA}"."DMS_SALESENQUIRY" WHERE "SLNO" = ?`,
+          [quotation.ENQUIRY_SLNO]
+        )
+      : null;
+
+    const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const cardCode = normalizeText(quotation.CUSTOMER_CODE) || normalizeText(enquiry?.CUSTOMERID);
+    let vinDetails: unknown = null;
+    if (enquiry?.VINDETAILS) {
+      try {
+        vinDetails = JSON.parse(enquiry.VINDETAILS);
+      } catch {
+        vinDetails = null;
+      }
+    }
+    const selectedVehicle = extractVehicleLineRecord(extractSelectedVehicleLines(vinDetails)[0]);
+    const currency =
+      extractFromKeys(selectedVehicle, ['Currency', 'CURRENCY', 'currency', 'Curr', 'CURR']) ||
+      extractFromKeys(vinDetails, ['Currency', 'CURRENCY', 'currency', 'Curr', 'CURR']) ||
+      'SAR';
+    const warehouseFallback =
+      extractFromKeys(selectedVehicle, ['WhsCode', 'WHSCODE', 'whsCode', 'Warehouse', 'warehouse']) ||
+      extractFromKeys(vinDetails, ['WhsCode', 'WHSCODE', 'whsCode', 'Warehouse', 'warehouse']);
+    const lines = (quotation.lineItems || []).map((item, index) => {
+      const storedLineNumber = Number(item.LINE_NUMBER);
+      const baseLineNumber =
+        Number.isFinite(storedLineNumber) && storedLineNumber > 0
+          ? storedLineNumber - 1
+          : index;
+
+      return {
+        LineNumber: String(baseLineNumber),
+        ItemCode: normalizeText(item.ITEM_CODE),
+        Quantity: String(Number(item.QUANTITY) || 1),
+        Warehouse: normalizeText(item.WHSCODE) || warehouseFallback,
+      };
+    });
+
+    if (!cardCode) {
+      throw new AppError('Customer code is required to convert quotation to sales order.', 400, 'MISSING_CUSTOMER_CODE');
+    }
+
+    if (lines.length === 0) {
+      throw new AppError('At least one quotation line is required to convert to sales order.', 400, 'MISSING_QUOTATION_LINES');
+    }
+
+    const missingItemCodeLine = lines.find((line) => !line.ItemCode);
+    if (missingItemCodeLine) {
+      throw new AppError('All quotation lines must have an item code before converting to sales order.', 400, 'MISSING_ITEM_CODE');
+    }
+
+    const sapBase = await this.resolveSapQuotationBase(
+      env.CONVERT_SALES_DOC_COMPANY_DB,
+      quotation,
+      lines
+    );
+
+    const payload = {
+      CompanyDB: sapBase.companyDb,
+      CardCode: cardCode,
+      CardName: normalizeText(quotation.CUSTOMER_NAME),
+      DocDate: today,
+      DocDueDate: today,
+      SourceDocument: 'SQ',
+      TargetDocument: 'SO',
+      NumAtCard: normalizeText(quotation.ROOT_QUOTATION_NUMBER) || normalizeText(quotation.QUOTATION_NUMBER),
+      Currency: currency,
+      ExRate: '1',
+      SlpCode: normalizeText(quotation.SLPCODE),
+      Comments: normalizeText(quotation.NOTES),
+      BaseDocuments: [
+        {
+          BaseEntry: sapBase.baseEntry,
+          ConvertOption: env.CONVERT_SALES_DOC_OPTION,
+          Lines: sapBase.lines,
+        },
+      ],
+    };
+
+    const apiUrl = `${env.CONVERT_SALES_DOC_API_URL.replace(/\/+$/, '')}/api/negt/ConvertSalesDocument`;
+    logger.info({ quotationId, apiUrl, payload }, 'Calling Convert Sales Documents API');
+
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    const text = await response.text();
+    let data: Record<string, unknown>;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error(`Convert API returned non-JSON response: ${text}`);
+    }
+
+    logger.info({ quotationId, response: data }, 'Convert Sales Documents API response');
+
+    if (!response.ok || String(data.ErrorCode) !== '200') {
+      throw new AppError(
+        [
+          `SAP Convert API failed (${data.ErrorCode || response.status}): ${data.ErrorMessage || data.Status || text}`,
+          `Sent CompanyDB=${payload.CompanyDB}`,
+          `SourceDocument=${payload.SourceDocument}`,
+          `TargetDocument=${payload.TargetDocument}`,
+          `BaseEntry=${payload.BaseDocuments[0]?.BaseEntry}`,
+          `ConvertOption=${payload.BaseDocuments[0]?.ConvertOption}`,
+          `Lines=${JSON.stringify(payload.BaseDocuments[0]?.Lines || [])}`,
+        ].join(' | '),
+        502,
+        'SAP_CONVERT_ERROR'
+      );
+    }
+
+    await db.execute(
+      `
+        UPDATE "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION"
+        SET "SAPREFENTRY" = ?,
+            "SAPSTATUS" = ?,
+            "UPDATED_BY" = ?,
+            "UPDATED_DATE" = ?
+        WHERE "SLNO" = ?
+      `,
+      [
+        String(data.TargetDocumentNumber || ''),
+        String(data.Status || ''),
+        actor,
+        this.getCurrentDateTime(),
+        quotation.SLNO,
+      ]
+    );
+
+    return {
+      targetDocumentNumber: String(data.TargetDocumentNumber || ''),
+      status: String(data.Status || ''),
+      errorCode: String(data.ErrorCode || ''),
+    };
+  }
+
+  async hasSapSalesOrderForQuotation(quotationId: number): Promise<boolean> {
+    const quotation = await this.getQuotationById(quotationId, { resolveLatest: true });
+    if (!quotation) return false;
+
+    const candidates = Array.from(
+      new Set(
+        [quotation.SAPREFENTRY, quotation.SAPDOCNUM, quotation.SAPDOCENTRY]
+          .map((value) => Number(normalizeText(value)))
+          .filter((value) => Number.isInteger(value) && value > 0)
+      )
+    );
+
+    const conditions: string[] = [];
+    const params: Array<string | number> = [];
+
+    if (candidates.length > 0) {
+      const placeholders = candidates.map(() => '?').join(', ');
+      conditions.push(`"DocNum" IN (${placeholders})`);
+      params.push(...candidates);
+      conditions.push(`"DocEntry" IN (${placeholders})`);
+      params.push(...candidates);
+    }
+
+    conditions.push(`"U_ECOMREFNUM" = ?`);
+    params.push(String(quotation.SLNO));
+
+    const sapOrder = await db.queryOne<{ EXISTS_FLAG: number }>(
+      `
+        SELECT 1 AS "EXISTS_FLAG"
+        FROM "${normalizeSapIdentifier(env.CONVERT_SALES_DOC_COMPANY_DB, 'CompanyDB')}"."ORDR"
+        WHERE ${conditions.map((condition) => `(${condition})`).join(' OR ')}
+        LIMIT 1
+      `,
+      params
+    );
+
+    return Boolean(sapOrder);
   }
 }
 

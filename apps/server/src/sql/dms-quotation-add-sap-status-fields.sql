@@ -1,0 +1,29 @@
+-- Add SAP reference / status fields to quotation header.
+-- Schema: BI_NEGT_KSAISUZU
+
+ALTER TABLE "BI_NEGT_KSAISUZU"."DMS_QUOTATION" ADD (
+  "SAPREFENTRY" NVARCHAR(120),
+  "SAPSTATUS" NVARCHAR(30)
+);
+
+-- Optional backfill from the latest quotation integration log, if available.
+UPDATE "BI_NEGT_KSAISUZU"."DMS_QUOTATION" Q
+SET
+  "SAPREFENTRY" = COALESCE("SAPREFENTRY", (
+    SELECT L."REFERENCE_NUMBER"
+    FROM "BI_NEGT_KSAISUZU"."DMS_SO_SQ_INTEGRATION_LOG" L
+    WHERE L."SOURCE_TYPE" = 'Quotation'
+      AND L."SOURCE_SLNO" = Q."SLNO"
+      AND COALESCE(L."IS_DELETED", 'N') = 'N'
+    ORDER BY L."SLNO" DESC
+    LIMIT 1
+  )),
+  "SAPSTATUS" = COALESCE("SAPSTATUS", (
+    SELECT L."STATUS"
+    FROM "BI_NEGT_KSAISUZU"."DMS_SO_SQ_INTEGRATION_LOG" L
+    WHERE L."SOURCE_TYPE" = 'Quotation'
+      AND L."SOURCE_SLNO" = Q."SLNO"
+      AND COALESCE(L."IS_DELETED", 'N') = 'N'
+    ORDER BY L."SLNO" DESC
+    LIMIT 1
+  ));

@@ -5,6 +5,7 @@ import { env } from '@/config/env';
 const ACCESS_TOKEN_EXPIRY = '7d';
 
 export interface TokenPayload {
+  userId?: string;
   email: string;
   name: string;
   role: string;

@@ -6,6 +6,7 @@ import type {
   QuotationLineItem,
   DiscountApproval,
   QuotationActivity,
+  QuotationSapPostingResult,
   CreateQuotationData,
   UpdateQuotationData,
   SupersedeQuotationData,
@@ -53,7 +54,7 @@ export const getQuotationsByEnquiryId = async (enquiryId: number): Promise<Quota
  */
 export const createQuotation = async (
   data: CreateQuotationData
-): Promise<{ success: boolean; id: number; quotationNumber: string }> => {
+): Promise<{ success: boolean; id: number; quotationNumber: string; sapPosting?: QuotationSapPostingResult }> => {
   return apiClient.post(API_ENDPOINTS.QUOTATIONS, data);
 };
 
@@ -72,7 +73,7 @@ export const updateQuotation = async (
  */
 export const supersedeQuotation = async (
   data: SupersedeQuotationData
-): Promise<{ success: boolean; id: number; quotationNumber: string }> => {
+): Promise<{ success: boolean; id: number; quotationNumber: string; sapPosting?: QuotationSapPostingResult }> => {
   return apiClient.post(`${API_ENDPOINTS.QUOTATIONS}/supersede`, data);
 };
 
@@ -173,6 +174,22 @@ export const cancelQuotation = async (
   data: CancelQuotationData
 ): Promise<{ success: boolean; message: string }> => {
   return apiClient.post(API_ENDPOINTS.QUOTATION_CANCEL(quotationId), data);
+};
+
+export const postQuotationToSapReport = async (
+  quotationId: number
+): Promise<{
+  reportUrl: string;
+  referenceNumber: string;
+  referenceSource: 'docEntry' | 'stagingSlno';
+}> => {
+  return apiClient.post(API_ENDPOINTS.QUOTATION_POST_TO_SAP_REPORT(quotationId), {});
+};
+
+export const confirmQuotationToSalesOrder = async (
+  quotationId: number
+): Promise<{ targetDocumentNumber: string; status: string; errorCode: string }> => {
+  return apiClient.post(API_ENDPOINTS.QUOTATION_CONFIRM_TO_SALES_ORDER(quotationId), {});
 };
 
 // ============================================================================
