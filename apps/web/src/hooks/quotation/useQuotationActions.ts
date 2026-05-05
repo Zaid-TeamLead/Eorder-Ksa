@@ -12,6 +12,33 @@ interface UseQuotationActionsParams {
   onSuccess?: () => void;
 }
 
+function getReportReference(...values: unknown[]): string {
+  for (const value of values) {
+    const normalized = String(value ?? '').trim();
+    if (normalized && normalized !== '?' && normalized !== '0') {
+      return normalized;
+    }
+  }
+  return '';
+}
+
+function openQuotationReport(referenceNumber: string): void {
+  window.open(
+    buildSalesReportUrl({
+      referenceNumber,
+      type: 'SalesQuote',
+      fromDate: '2024-01-01',
+      toDate: '2022-02-30',
+    }),
+    '_blank',
+    'noopener,noreferrer'
+  );
+}
+
+function getQuotationReportReference(quotation: Quotation): string {
+  return getReportReference(quotation.SAPDOCENTRY);
+}
+
 /**
  * Custom hook for quotation actions (view, edit, print, delete, supersede)
  * Centralizes all quotation-related navigation and mutations
@@ -50,16 +77,13 @@ export function useQuotationActions(params: UseQuotationActionsParams = {}) {
           : Number(target);
       if (!targetId) return;
 
-      if (typeof target === 'object' && target !== null && target.SAPDOCENTRY?.trim()) {
-        window.open(
-          buildSalesReportUrl({
-            referenceNumber: target.SAPDOCENTRY,
-            type: 'SalesQuote',
-          }),
-          '_blank',
-          'noopener,noreferrer'
-        );
-        return;
+      if (typeof target === 'object' && target !== null) {
+        const reportReference = getQuotationReportReference(target);
+
+        if (reportReference) {
+          openQuotationReport(reportReference);
+          return;
+        }
       }
 
       router.push(`/dashboard/quotations/print/${targetId}`);

@@ -31,6 +31,7 @@ export const API_ENDPOINTS = {
   SALES_ORDERS: '/api/sales-orders',
   SALES_ORDER_BY_ID: (id: string | number) => `/api/sales-orders/${id}`,
   SALES_ORDER_FROM_QUOTATION: '/api/sales-orders/from-quotation',
+  SALES_ORDER_CONFIRM_TO_SALES_ORDER: (id: string | number) => `/api/sales-orders/${id}/confirm-to-sales-order`,
   SALES_ORDER_PRINT: (id: string | number) => `/api/sales-orders/${id}/print`,
   SALES_ORDER_PASS_TO_VA: (id: string | number) => `/api/sales-orders/${id}/pass-to-vehicle-admin`,
   SALES_ORDER_RESERVE_VEHICLE: (id: string | number) => `/api/sales-orders/${id}/reserve-vehicle`,

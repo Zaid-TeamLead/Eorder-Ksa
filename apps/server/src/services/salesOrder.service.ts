@@ -1,6 +1,7 @@
 import { db } from './database.service.js';
 import { logger } from '../utils/logger.js';
 import { AppError, ConflictError } from '../types/errors.js';
+import { quotationService } from './quotation.service.js';
 import type {
   CancelSalesOrderInput,
   CreateSalesOrderFromQuotationInput,
@@ -719,6 +720,75 @@ class SalesOrderService {
         'Failed to create sales order from quotation: ' + error.message
       );
     }
+  }
+
+  async confirmToSalesOrder(
+    salesOrderId: number,
+    actor = 'SYSTEM'
+  ): Promise<{
+    targetDocumentNumber: string;
+    status: string;
+    errorCode: string;
+    sapDocEntry?: string;
+  }> {
+    const salesOrder = await this.getSalesOrderById(salesOrderId);
+    if (!salesOrder) {
+      throw new AppError('Sales order not found', 404, 'NOT_FOUND');
+    }
+
+    const existingSapDocEntry = this.normalizeText(salesOrder.SAPDOCENTRY);
+    const existingSapDocNum = this.normalizeText(salesOrder.SAPDOCNUM || salesOrder.SAPREFENTRY);
+    const existingSapStatus = this.normalizeText(salesOrder.SAPSTATUS).toLowerCase();
+
+    if (existingSapDocEntry && existingSapStatus === 'success') {
+      return {
+        targetDocumentNumber: existingSapDocNum || existingSapDocEntry,
+        status: 'Success',
+        errorCode: '200',
+        sapDocEntry: existingSapDocEntry,
+      };
+    }
+
+    if (!salesOrder.QUOTATION_SLNO) {
+      throw new AppError(
+        'Sales order does not have a source quotation to confirm.',
+        400,
+        'MISSING_SOURCE_QUOTATION'
+      );
+    }
+
+    const result = await quotationService.confirmToSalesOrder(salesOrder.QUOTATION_SLNO, actor);
+    const targetDocumentNumber = this.normalizeText(result.targetDocumentNumber);
+    const resolvedSapOrder = await this.resolveSapSalesOrderReference(targetDocumentNumber);
+    const currentDateTime = this.getCurrentDateTime();
+
+    await db.execute(
+      `
+        UPDATE "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION"
+        SET "SAPDOCENTRY" = ?,
+            "SAPDOCNUM" = ?,
+            "SAPREFENTRY" = ?,
+            "SAPSTATUS" = ?,
+            "UPDATED_BY" = ?,
+            "UPDATED_DATE" = TO_TIMESTAMP(?, 'YYYY-MM-DD HH24:MI:SS')
+        WHERE "SLNO" = ?
+          AND "DOC_TYPE" = '${SALES_ORDER_DOC_TYPE}'
+      `,
+      [
+        resolvedSapOrder?.sapDocEntry || null,
+        resolvedSapOrder?.sapDocNum || targetDocumentNumber || null,
+        targetDocumentNumber || null,
+        result.status,
+        actor,
+        currentDateTime,
+        salesOrderId,
+      ]
+    );
+
+    return {
+      ...result,
+      sapDocEntry: resolvedSapOrder?.sapDocEntry,
+    };
   }
 
   async getAllSalesOrders(filters?: SalesOrderFilters): Promise<SalesOrder[]> {

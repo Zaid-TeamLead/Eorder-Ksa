@@ -239,7 +239,8 @@ function describeQueueResponse(response: unknown): string {
 
 function normalizeNumericReference(value: unknown): string {
   const normalized = normalizeText(value);
-  return /^\d+$/.test(normalized) ? normalized : '';
+  if (!/^\d+$/.test(normalized)) return '';
+  return Number(normalized) > 0 ? normalized : '';
 }
 
 function extractDocEntryCandidate(input: unknown): string {

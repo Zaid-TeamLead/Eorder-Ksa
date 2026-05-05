@@ -13,6 +13,30 @@ import type {
   UpdateSalesOrderInput,
 } from '../schemas/salesOrder.schema.js';
 
+type SalesOrderSapPosting = {
+  status: 'Posted' | 'Queued' | 'Failed';
+  integrationLogId?: number;
+  reportUrl?: string;
+  referenceNumber?: string;
+  referenceSource?: 'docEntry' | 'stagingSlno';
+  errorMessage?: string;
+};
+
+function buildSapPostingSummary(postingResult: {
+  integrationLogId?: number;
+  reportUrl?: string;
+  referenceNumber: string;
+  referenceSource: 'docEntry' | 'stagingSlno';
+}): SalesOrderSapPosting {
+  return {
+    status: postingResult.referenceSource === 'docEntry' ? 'Posted' : 'Queued',
+    integrationLogId: postingResult.integrationLogId,
+    reportUrl: postingResult.reportUrl,
+    referenceNumber: postingResult.referenceNumber,
+    referenceSource: postingResult.referenceSource,
+  };
+}
+
 /**
  * Create sales order from quotation
  * POST /api/sales-orders/from-quotation
@@ -26,48 +50,20 @@ export const createSalesOrderFromQuotation = async (
     createdBy: getAuditUser(req),
   });
 
-  let sapPosting: {
-    status: 'Posted' | 'Queued' | 'Failed';
-    integrationLogId?: number;
-    reportUrl?: string;
-    referenceNumber?: string;
-    referenceSource?: 'docEntry' | 'stagingSlno';
-    errorMessage?: string;
-  } | undefined;
-
+  let sapPosting: SalesOrderSapPosting | undefined;
   try {
-    const createdOrder = await salesOrderService.getSalesOrderById(result.id);
-    const existingSapDocEntry = String(createdOrder?.SAPDOCENTRY || '').trim();
-    const existingSapStatus = String(createdOrder?.SAPSTATUS || '').trim().toLowerCase();
+    const postingResult = await sapOrderIntegrationService.postSalesOrderToSap(result.id, {
+      userId: req.user?.userId,
+      email: req.user?.email,
+      name: req.user?.name,
+      SlpCode: req.user?.SlpCode,
+    });
 
-    if (existingSapDocEntry && existingSapStatus === 'success') {
-      sapPosting = {
-        status: 'Posted',
-        referenceNumber: existingSapDocEntry,
-        referenceSource: 'docEntry',
-      };
-    } else {
-      const postingResult = await sapOrderIntegrationService.postSalesOrderToSap(result.id, {
-        userId: req.user?.userId,
-        email: req.user?.email,
-        name: req.user?.name,
-        SlpCode: req.user?.SlpCode,
-      });
-
-      sapPosting = {
-        status:
-          postingResult.referenceSource === 'docEntry' ? 'Posted' : 'Queued',
-        integrationLogId: postingResult.integrationLogId,
-        reportUrl: postingResult.reportUrl,
-        referenceNumber: postingResult.referenceNumber,
-        referenceSource: postingResult.referenceSource,
-      };
-    }
+    sapPosting = buildSapPostingSummary(postingResult);
   } catch (error: any) {
-    console.error('Sales order SAP posting failed after local create:', error);
     sapPosting = {
       status: 'Failed',
-      errorMessage: error?.message || 'Failed to post sales order to SAP',
+      errorMessage: error?.message || 'Failed to push sales order to DMS queue',
     };
   }
 
@@ -126,6 +122,35 @@ export const markSalesOrderPrinted = async (req: Request, res: Response) => {
   const id = Number(req.params.id);
   const result = await salesOrderService.markAsPrinted(id, getAuditUser(req));
   sendSuccess(res, result);
+};
+
+/**
+ * Confirm sales order in SAP by converting its source quotation
+ * POST /api/sales-orders/:id/confirm-to-sales-order
+ */
+export const confirmSalesOrderToSalesOrder = async (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  const result = await salesOrderService.confirmToSalesOrder(id, getAuditUser(req));
+
+  let sapPosting: SalesOrderSapPosting | undefined;
+
+  try {
+    const postingResult = await sapOrderIntegrationService.postSalesOrderToSap(id, {
+      userId: req.user?.userId,
+      email: req.user?.email,
+      name: req.user?.name,
+      SlpCode: req.user?.SlpCode,
+    });
+
+    sapPosting = buildSapPostingSummary(postingResult);
+  } catch (error: any) {
+    sapPosting = {
+      status: 'Failed',
+      errorMessage: error?.message || 'Failed to push sales order to DMS queue',
+    };
+  }
+
+  sendSuccess(res, { ...result, sapPosting });
 };
 
 /**

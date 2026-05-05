@@ -428,6 +428,126 @@ class QuotationService {
     );
   }
 
+  private getNumericSapReference(value: unknown): number | null {
+    const normalized = normalizeText(value);
+    if (!/^\d+$/.test(normalized)) return null;
+    const numericValue = Number(normalized);
+    return Number.isInteger(numericValue) && numericValue > 0 ? numericValue : null;
+  }
+
+  private async hydrateSapQuotationReferences<T extends Quotation>(quotations: T[]): Promise<T[]> {
+    if (quotations.length === 0) return quotations;
+
+    const sapCompanySchema = normalizeSapIdentifier(
+      env.CONVERT_SALES_DOC_COMPANY_DB,
+      'CompanyDB'
+    );
+    const ecomReferences = Array.from(
+      new Set(
+        quotations
+          .map((quotation) => this.getNumericSapReference(quotation.SLNO))
+          .filter((value): value is number => value !== null)
+      )
+    );
+    const sapReferences = Array.from(
+      new Set(
+        quotations.flatMap((quotation) => {
+          const isConvertedToSalesOrder =
+            normalizeText(quotation.SAPSTATUS).toLowerCase() === 'success';
+          return [
+            this.getNumericSapReference(quotation.SAPDOCENTRY),
+            this.getNumericSapReference(quotation.SAPDOCNUM),
+            isConvertedToSalesOrder ? null : this.getNumericSapReference(quotation.SAPREFENTRY),
+          ].filter((value): value is number => value !== null);
+        })
+      )
+    );
+
+    const conditions: string[] = [];
+    const params: Array<string | number> = [];
+
+    if (ecomReferences.length > 0) {
+      conditions.push(`TO_NVARCHAR("U_ECOMREFNUM") IN (${ecomReferences.map(() => '?').join(', ')})`);
+      params.push(...ecomReferences.map(String));
+    }
+
+    if (sapReferences.length > 0) {
+      const placeholders = sapReferences.map(() => '?').join(', ');
+      conditions.push(`"DocEntry" IN (${placeholders})`);
+      params.push(...sapReferences);
+      conditions.push(`"DocNum" IN (${placeholders})`);
+      params.push(...sapReferences);
+    }
+
+    if (conditions.length === 0) return quotations;
+
+    try {
+      const sapQuotations = await db.query<{
+        DocEntry: number;
+        DocNum: number;
+        U_ECOMREFNUM?: string | number | null;
+      }>(
+        `
+          SELECT "DocEntry", "DocNum", "U_ECOMREFNUM"
+          FROM "${sapCompanySchema}"."OQUT"
+          WHERE ${conditions.map((condition) => `(${condition})`).join(' OR ')}
+          ORDER BY "DocEntry" DESC
+        `,
+        params
+      );
+
+      const byEcomRef = new Map<string, { DocEntry: number; DocNum: number }>();
+      const bySapRef = new Map<string, { DocEntry: number; DocNum: number }>();
+
+      for (const sapQuotation of sapQuotations) {
+        const record = {
+          DocEntry: Number(sapQuotation.DocEntry),
+          DocNum: Number(sapQuotation.DocNum),
+        };
+        const ecomRef = normalizeText(sapQuotation.U_ECOMREFNUM);
+        if (ecomRef && !byEcomRef.has(ecomRef)) {
+          byEcomRef.set(ecomRef, record);
+        }
+        bySapRef.set(String(record.DocEntry), record);
+        bySapRef.set(String(record.DocNum), record);
+      }
+
+      return quotations.map((quotation) => {
+        const existingReferenceCandidates = [
+          quotation.SAPDOCENTRY,
+          quotation.SAPDOCNUM,
+          normalizeText(quotation.SAPSTATUS).toLowerCase() === 'success'
+            ? null
+            : quotation.SAPREFENTRY,
+        ]
+          .map((value) => this.getNumericSapReference(value))
+          .filter((value): value is number => value !== null)
+          .map(String);
+        const sapQuotation =
+          byEcomRef.get(String(quotation.SLNO)) ||
+          existingReferenceCandidates
+            .map((reference) => bySapRef.get(reference))
+            .find(Boolean);
+
+        if (!sapQuotation) {
+          return quotation;
+        }
+
+        return {
+          ...quotation,
+          SAPDOCENTRY: String(sapQuotation.DocEntry),
+          SAPDOCNUM: String(sapQuotation.DocNum),
+        };
+      });
+    } catch (error) {
+      logger.warn(
+        { error, companyDb: sapCompanySchema },
+        'Unable to hydrate SAP quotation DocEntry for print report'
+      );
+      return quotations;
+    }
+  }
+
   private async getLineItemTotalsMap(
     quotationIds: number[]
   ): Promise<Map<number, AggregatedQuotationLineTotals>> {
@@ -1198,23 +1318,24 @@ class QuotationService {
       const lineItems = await db.query<QuotationLineItem>(lineItemsQuery, [targetId]);
       const primaryLine = lineItems[0];
 
-      const [quotationWithReference] = await this.hydrateQuotationReferences([
-        this.applyVehicleSummaryFromLine(
-          { ...quotation, lineItems } as Quotation & { lineItems: QuotationLineItem[] },
-          primaryLine
-            ? {
-                QUOTATION_SLNO: Number(primaryLine.QUOTATION_SLNO),
-                VEHICLE_MAKE: primaryLine.VEHICLE_MAKE,
-                VEHICLE_MODEL: primaryLine.VEHICLE_MODEL,
-                VEHICLE_VARIANT: primaryLine.VEHICLE_VARIANT,
-                VEHICLE_YEAR: primaryLine.VEHICLE_YEAR,
-                VEHICLE_COLOR: primaryLine.VEHICLE_COLOR,
-                VIN_NUMBER: primaryLine.VIN_NUMBER,
-                WHSCODE: primaryLine.WHSCODE,
-              }
-            : null
-        ),
-      ]);
+      const quotationWithLines = this.applyVehicleSummaryFromLine(
+        { ...quotation, lineItems } as Quotation & { lineItems: QuotationLineItem[] },
+        primaryLine
+          ? {
+              QUOTATION_SLNO: Number(primaryLine.QUOTATION_SLNO),
+              VEHICLE_MAKE: primaryLine.VEHICLE_MAKE,
+              VEHICLE_MODEL: primaryLine.VEHICLE_MODEL,
+              VEHICLE_VARIANT: primaryLine.VEHICLE_VARIANT,
+              VEHICLE_YEAR: primaryLine.VEHICLE_YEAR,
+              VEHICLE_COLOR: primaryLine.VEHICLE_COLOR,
+              VIN_NUMBER: primaryLine.VIN_NUMBER,
+              WHSCODE: primaryLine.WHSCODE,
+            }
+          : null
+      );
+      const [quotationWithReference] = await this.hydrateSapQuotationReferences(
+        await this.hydrateQuotationReferences([quotationWithLines])
+      );
 
       return quotationWithReference || null;
     } catch (error: any) {
@@ -1238,7 +1359,9 @@ class QuotationService {
       const quotations = await db.query<Quotation>(query, [enquiryId]);
       const hydratedTotals = await this.hydrateQuotationHeaderTotals(quotations);
       const hydratedVehicles = await this.hydrateQuotationVehicleSummary(hydratedTotals);
-      return await this.hydrateQuotationReferences(hydratedVehicles);
+      return await this.hydrateSapQuotationReferences(
+        await this.hydrateQuotationReferences(hydratedVehicles)
+      );
     } catch (error: any) {
       logger.error('Error fetching quotations for enquiry:', error);
       throw new Error('Failed to fetch quotations: ' + error.message);
@@ -1287,7 +1410,9 @@ class QuotationService {
       const quotations = await db.query<Quotation>(query, params);
       const hydratedTotals = await this.hydrateQuotationHeaderTotals(quotations);
       const hydratedVehicles = await this.hydrateQuotationVehicleSummary(hydratedTotals);
-      return await this.hydrateQuotationReferences(hydratedVehicles);
+      return await this.hydrateSapQuotationReferences(
+        await this.hydrateQuotationReferences(hydratedVehicles)
+      );
     } catch (error: any) {
       logger.error('Error fetching all quotations:', error);
       throw new Error('Failed to fetch quotations: ' + error.message);

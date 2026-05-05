@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   CalendarCheck2,
   CircleX,
+  FileCheck2,
   FilePenLine,
   Printer,
   Send,
@@ -47,7 +48,7 @@ export default function SalesOrderDetailsPage() {
   const router = useRouter();
   const orderId = Number.parseInt(params.id as string, 10);
 
-  const { salesOrder, isLoading, error } = useSalesOrderById(orderId);
+  const { salesOrder, isLoading, error, refetch } = useSalesOrderById(orderId);
   const { salesEmployees, isLoading: isLoadingSalesEmployees } = useSalesEmployees();
   const {
     updateSalesOrder,
@@ -55,6 +56,7 @@ export default function SalesOrderDetailsPage() {
     createHandoverBooking,
     recordLostSale,
     cancelSalesOrder,
+    confirmToSalesOrder,
     markAsPrinted,
     isUpdating,
     isPrinting,
@@ -62,6 +64,7 @@ export default function SalesOrderDetailsPage() {
     isCreatingHandoverBooking,
     isRecordingLostSale,
     isCancelling,
+    isConfirmingSalesOrder,
   } = useSalesOrderMutations();
 
   const [isEditNotesOpen, setIsEditNotesOpen] = useState(false);
@@ -69,6 +72,7 @@ export default function SalesOrderDetailsPage() {
   const [isCreateHandoverOpen, setIsCreateHandoverOpen] = useState(false);
   const [isRecordLostOpen, setIsRecordLostOpen] = useState(false);
   const [isCancelOpen, setIsCancelOpen] = useState(false);
+  const [isConfirmToSalesOrderOpen, setIsConfirmToSalesOrderOpen] = useState(false);
   const [notesDraft, setNotesDraft] = useState('');
   const [vinDraft, setVinDraft] = useState('');
   const [vehicleAdminAssignedTo, setVehicleAdminAssignedTo] = useState('');
@@ -108,6 +112,23 @@ export default function SalesOrderDetailsPage() {
     salesOrder.PASSED_TO_VEHICLE_ADMIN === 'Y';
   const canRecordLost = status !== 'Cancelled' && status !== 'Lost';
   const canCancel = status !== 'Cancelled' && status !== 'Lost';
+  const hasSapValue = (value: unknown) => {
+    const normalized = String(value ?? '').trim();
+    return normalized !== '' && normalized !== '?';
+  };
+  const sapSalesOrderReference =
+    salesOrder.SAPDOCNUM?.trim() ||
+    salesOrder.SAPREFENTRY?.trim() ||
+    salesOrder.SAPDOCENTRY?.trim() ||
+    '';
+  const hasConfirmedSapSalesOrder =
+    String(salesOrder.SAPSTATUS || '').trim().toLowerCase() === 'success' &&
+    (hasSapValue(salesOrder.SAPDOCENTRY) ||
+      hasSapValue(salesOrder.SAPDOCNUM) ||
+      hasSapValue(salesOrder.SAPREFENTRY));
+  const canConfirmSapSalesOrder =
+    canCancel && !hasConfirmedSapSalesOrder && Number(salesOrder.QUOTATION_SLNO) > 0;
+  const canSyncSapSalesOrderQueue = canCancel && hasConfirmedSapSalesOrder;
   const quotation = salesOrder.quotation;
   const enquiry = salesOrder.enquiry;
   const lineItems = salesOrder.lineItems || [];
@@ -228,6 +249,12 @@ export default function SalesOrderDetailsPage() {
     setCancellationReason('');
   };
 
+  const handleConfirmToSalesOrder = async () => {
+    await confirmToSalesOrder(orderId);
+    setIsConfirmToSalesOrderOpen(false);
+    await refetch();
+  };
+
   const getSalesOrderReportReference = () =>
     salesOrder.SAPDOCENTRY?.trim() ||
     salesOrder.SAPDOCNUM?.trim() ||
@@ -278,6 +305,26 @@ export default function SalesOrderDetailsPage() {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="outline">{salesOrder.STATUS}</Badge>
+                {hasConfirmedSapSalesOrder ? (
+                  <Badge variant="outline">SAP SO {sapSalesOrderReference}</Badge>
+                ) : null}
+                <Button
+                  onClick={() => setIsConfirmToSalesOrderOpen(true)}
+                  disabled={
+                    hasConfirmedSapSalesOrder
+                      ? !canSyncSapSalesOrderQueue || isConfirmingSalesOrder
+                      : !canConfirmSapSalesOrder || isConfirmingSalesOrder
+                  }
+                >
+                  <FileCheck2 className="mr-2 h-4 w-4" />
+                  {isConfirmingSalesOrder
+                    ? hasConfirmedSapSalesOrder
+                      ? 'Syncing...'
+                      : 'Confirming...'
+                    : hasConfirmedSapSalesOrder
+                      ? 'Sync Queue'
+                      : 'Confirm to Sales Order'}
+                </Button>
                 <Button
                   variant="outline"
                   onClick={() => void handlePrintOrder()}
@@ -338,6 +385,12 @@ export default function SalesOrderDetailsPage() {
               <div>
                 <p className="text-muted-foreground">Mobile</p>
                 <p className="font-medium">{salesOrder.CUSTOMER_MOBILE || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">SAP Sales Order</p>
+                <p className="font-medium">
+                  {hasConfirmedSapSalesOrder ? sapSalesOrderReference : 'Not confirmed'}
+                </p>
               </div>
             </div>
 
@@ -706,6 +759,58 @@ export default function SalesOrderDetailsPage() {
             </Button>
             <Button onClick={() => void handleSaveOrderDetails()} disabled={isUpdating}>
               {isUpdating ? 'Saving...' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isConfirmToSalesOrderOpen} onOpenChange={setIsConfirmToSalesOrderOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm to Sales Order</DialogTitle>
+            <DialogDescription>
+              {hasConfirmedSapSalesOrder
+                ? 'SAP sales order already exists. This will push this sales order to the DMS queue again.'
+                : 'Convert the source quotation into a SAP sales order and save the SAP reference on this sales order.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">Sales Order</span>
+              <span className="font-medium">{salesOrder.SALES_ORDER_NUMBER}</span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">Source Quotation</span>
+              <span className="font-medium">#{salesOrder.QUOTATION_SLNO}</span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">Customer</span>
+              <span className="font-medium">{salesOrder.CUSTOMER_NAME || 'N/A'}</span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">Current SAP Status</span>
+              <span className="font-medium">{salesOrder.SAPSTATUS || 'Not confirmed'}</span>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsConfirmToSalesOrderOpen(false)}
+              disabled={isConfirmingSalesOrder}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => void handleConfirmToSalesOrder()}
+              disabled={isConfirmingSalesOrder}
+            >
+              {isConfirmingSalesOrder
+                ? hasConfirmedSapSalesOrder
+                  ? 'Syncing...'
+                  : 'Confirming...'
+                : hasConfirmedSapSalesOrder
+                  ? 'Sync Queue'
+                  : 'Confirm'}
             </Button>
           </DialogFooter>
         </DialogContent>

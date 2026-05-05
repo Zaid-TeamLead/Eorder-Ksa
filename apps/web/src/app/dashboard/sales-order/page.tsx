@@ -112,10 +112,11 @@ export default function SalesOrderPage() {
   }, [quotationIdParam, form, router]);
 
   const onSubmit = async (data: CreateSalesOrderFormData) => {
-    await createFromQuotation(data);
+    const result = await createFromQuotation(data);
     setCreateDialogOpen(false);
     form.reset({ quotationSlno: 0, notes: '' });
     await refetch();
+    router.push(`/dashboard/sales-order/${result.id}`);
   };
 
   if (isLoading) {

@@ -41,6 +41,25 @@ export const createSalesOrderFromQuotation = async (
   return apiClient.post(API_ENDPOINTS.SALES_ORDER_FROM_QUOTATION, data);
 };
 
+export const confirmSalesOrderToSalesOrder = async (
+  id: number
+): Promise<{
+  targetDocumentNumber: string;
+  status: string;
+  errorCode: string;
+  sapDocEntry?: string;
+  sapPosting?: {
+    status: 'Posted' | 'Queued' | 'Failed';
+    integrationLogId?: number;
+    reportUrl?: string;
+    referenceNumber?: string;
+    referenceSource?: 'docEntry' | 'stagingSlno';
+    errorMessage?: string;
+  };
+}> => {
+  return apiClient.post(API_ENDPOINTS.SALES_ORDER_CONFIRM_TO_SALES_ORDER(id), {});
+};
+
 export const updateSalesOrder = async (
   id: number,
   data: UpdateSalesOrderData

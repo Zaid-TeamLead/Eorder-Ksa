@@ -15,6 +15,16 @@ interface PrintQuotationPageProps {
   }>;
 }
 
+function getReportReference(...values: unknown[]): string {
+  for (const value of values) {
+    const normalized = String(value ?? '').trim();
+    if (normalized && normalized !== '?' && normalized !== '0') {
+      return normalized;
+    }
+  }
+  return '';
+}
+
 export default function PrintQuotationPage({ params }: PrintQuotationPageProps) {
   const router = useRouter();
   const resolvedParams = use(params);
@@ -23,11 +33,15 @@ export default function PrintQuotationPage({ params }: PrintQuotationPageProps) 
   const { quotation, isLoading, error } = useQuotationById(quotationId);
 
   const handlePrint = () => {
-    if (quotation?.SAPDOCENTRY?.trim()) {
+    const reportReference = getReportReference(quotation?.SAPDOCENTRY);
+
+    if (reportReference) {
       window.open(
         buildSalesReportUrl({
-          referenceNumber: quotation.SAPDOCENTRY,
+          referenceNumber: reportReference,
           type: 'SalesQuote',
+          fromDate: '2024-01-01',
+          toDate: '2022-02-30',
         }),
         '_blank',
         'noopener,noreferrer'

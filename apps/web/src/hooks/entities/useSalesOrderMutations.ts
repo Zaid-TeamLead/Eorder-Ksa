@@ -3,6 +3,7 @@ import { queryKeys } from '@/lib/query-keys';
 import { useMutationWithToast } from '@/hooks/mutations/useMutationWithToast';
 import {
   cancelSalesOrder,
+  confirmSalesOrderToSalesOrder,
   createSalesOrderHandoverBooking,
   createSalesOrderFromQuotation,
   markSalesOrderAsPrinted,
@@ -34,7 +35,9 @@ export function useSalesOrderMutations() {
     mutationFn: (data: CreateSalesOrderFromQuotationData) =>
       createSalesOrderFromQuotation(data),
     successMessage: (result) =>
-      `Sales order ${result?.salesOrderNumber || ''} created successfully`,
+      result?.sapPosting?.status
+        ? `Sales order ${result?.salesOrderNumber || ''} created. Queue status: ${result.sapPosting.status}`
+        : `Sales order ${result?.salesOrderNumber || ''} created successfully`,
     onSuccess: () => {
       invalidateSalesOrders();
     },
@@ -52,6 +55,17 @@ export function useSalesOrderMutations() {
   const printMutation = useMutationWithToast({
     mutationFn: (id: number) => markSalesOrderAsPrinted(id),
     successMessage: 'Sales order marked as printed',
+    onSuccess: (_result, id) => {
+      invalidateSalesOrders(id);
+    },
+  });
+
+  const confirmToSalesOrderMutation = useMutationWithToast({
+    mutationFn: (id: number) => confirmSalesOrderToSalesOrder(id),
+    successMessage: (result) =>
+      result?.sapPosting?.status
+        ? `Sales order confirmed. Queue status: ${result.sapPosting.status}`
+        : `SAP Sales Order ${result?.targetDocumentNumber || ''} created successfully`,
     onSuccess: (_result, id) => {
       invalidateSalesOrders(id);
     },
@@ -108,6 +122,8 @@ export function useSalesOrderMutations() {
     updateSalesOrder: async (id: number, data: UpdateSalesOrderData) =>
       updateMutation.mutateAsync({ id, data }),
     markAsPrinted: async (id: number) => printMutation.mutateAsync(id),
+    confirmToSalesOrder: async (id: number) =>
+      confirmToSalesOrderMutation.mutateAsync(id),
     passToVehicleAdmin: async (id: number, data: PassToVehicleAdminData) =>
       passToVehicleAdminMutation.mutateAsync({ id, data }),
     reserveVehicle: async (id: number, data: ReserveVehicleData) =>
@@ -121,6 +137,7 @@ export function useSalesOrderMutations() {
     isCreating: createFromQuotationMutation.isPending,
     isUpdating: updateMutation.isPending,
     isPrinting: printMutation.isPending,
+    isConfirmingSalesOrder: confirmToSalesOrderMutation.isPending,
     isPassingToVehicleAdmin: passToVehicleAdminMutation.isPending,
     isReservingVehicle: reserveVehicleMutation.isPending,
     isCreatingHandoverBooking: createHandoverBookingMutation.isPending,

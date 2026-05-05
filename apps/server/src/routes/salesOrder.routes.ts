@@ -7,6 +7,7 @@ import {
 } from '../middleware/resource-ownership.js';
 import {
   cancelSalesOrder,
+  confirmSalesOrderToSalesOrder,
   createSalesOrderHandoverBooking,
   createSalesOrderFromQuotation,
   getAllSalesOrders,
@@ -120,6 +121,25 @@ router.post(
     })
   ),
   asyncHandler(markSalesOrderPrinted)
+);
+
+/**
+ * POST /api/sales-orders/:id/confirm-to-sales-order
+ * Convert the source quotation into a SAP sales order and sync the SAP refs
+ */
+router.post(
+  '/:id/confirm-to-sales-order',
+  validate(getSalesOrderByIdSchema, 'params'),
+  asyncHandler(
+    checkResourceOwnership({
+      getResourceById: (id) => salesOrderService.getSalesOrderById(Number(id)),
+      getOwnerId: (order) => order.SLPCODE,
+      getUserId: (req) => getSalesOrderOwnershipCandidates(req),
+      resourceName: 'Sales Order',
+      allowUnassigned: false,
+    })
+  ),
+  asyncHandler(confirmSalesOrderToSalesOrder)
 );
 
 /**
