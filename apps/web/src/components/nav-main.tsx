@@ -14,22 +14,48 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { useSession } from "@/lib/auth-client";
 import { IconCirclePlusFilled, type Icon } from "@tabler/icons-react";
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+type NavItem = {
+  title: string;
+  url: string;
+  icon?: Icon;
+  external?: boolean;
+  externalApp?: "pdi";
+};
+
+function getSessionUserId(session: ReturnType<typeof useSession>["data"]) {
+  const user = session?.user;
+  return (
+    user?.userId ||
+    user?.id ||
+    user?.email?.split("@")[0] ||
+    user?.SlpCode ||
+    ""
+  );
+}
+
+function buildPdiUrl(userId: string) {
+  const url = new URL("https://pp.neweast.cloud/pdis");
+  url.searchParams.set("uSrId", userId);
+  url.searchParams.set("LoTp", "40068");
+  url.searchParams.set("co", "BI_NEGT");
+  return url.toString();
+}
+
 export function NavMain({
   items,
 }: {
-  items: {
-    title: string;
-    url: string;
-    icon?: Icon;
-  }[];
+  items: NavItem[];
 }) {
   const [quickCreateModal, setQuickCreateModal] = useState(false);
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const sessionUserId = getSessionUserId(session);
 
   return (
     <>
@@ -50,9 +76,19 @@ export function NavMain({
           <SidebarMenu>
             {items.map((item) => {
               // For /dashboard, only match exactly. For other routes, match exactly or sub-routes
-              const isActive = item.url === "/dashboard"
+              const href = item.externalApp === "pdi"
+                ? buildPdiUrl(sessionUserId)
+                : item.url;
+              const isActive = item.external ? false : item.url === "/dashboard"
                 ? pathname === item.url
                 : pathname === item.url || pathname?.startsWith(item.url + "/");
+              const content = (
+                <>
+                  {item.icon && <item.icon />}
+                  <span>{item.title}</span>
+                </>
+              );
+
               return (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
@@ -60,10 +96,11 @@ export function NavMain({
                     asChild
                     isActive={isActive}
                   >
-                    <Link href={item.url as any}>
-                      {item.icon && <item.icon />}
-                      <span>{item.title}</span>
-                    </Link>
+                    {item.external ? (
+                      <a href={href}>{content}</a>
+                    ) : (
+                      <Link href={href as any}>{content}</Link>
+                    )}
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               );

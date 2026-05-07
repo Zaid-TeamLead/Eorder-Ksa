@@ -4,7 +4,8 @@ import { logger } from '@/lib/logger';
 const API_URL = process.env.NEXT_PUBLIC_SERVER_URL || "http://localhost:3000";
 
 export interface User {
-  id: string;
+  id?: string;
+  userId?: string;
   email: string;
   name: string;
   role: string;

@@ -13,6 +13,8 @@ const OTP_BYPASS_USER_ID = "104006";
 // Note: Removed sanitizeInput function - now using parameterized queries for SQL injection prevention
 
 export interface UserData {
+  id?: string;
+  userId?: string;
   email: string;
   name: string;
   role: string;
@@ -42,6 +44,8 @@ async function createBypassSession(
   const slpCode = await getSlpCodeForUser(resolvedUserId);
 
   const user: UserData = {
+    id: resolvedUserId,
+    userId: resolvedUserId,
     email: `${resolvedUserId}@local.dev`,
     name: `User ${resolvedUserId}`,
     role: "user",
@@ -50,6 +54,7 @@ async function createBypassSession(
   };
 
   const accessTokenPayload: TokenPayload = {
+    userId: resolvedUserId,
     email: user.email,
     name: user.name,
     role: user.role,
@@ -212,6 +217,8 @@ export async function verifyOtp(
 
     const userIdFromApi = apiUser.USER_ID || userId;
     const user: UserData = {
+      id: userIdFromApi,
+      userId: userIdFromApi,
       email: apiUser.USER_EMAIL || "",
       name: apiUser.EMP_FULLNAME || "",
       role: "user",

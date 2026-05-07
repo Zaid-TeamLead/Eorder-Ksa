@@ -56,6 +56,13 @@ export const SIDEBAR_MENU = {
       url: '/dashboard/dispatch-pod',
       icon: IconFolder,
     },
+    {
+      title: 'PDI',
+      url: 'https://pp.neweast.cloud/pdis',
+      icon: IconChartBar,
+      external: true,
+      externalApp: 'pdi' as const,
+    },
   ],
   navSecondary: [
     {
