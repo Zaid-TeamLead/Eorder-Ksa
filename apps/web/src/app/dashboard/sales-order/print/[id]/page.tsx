@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { LoadingState } from '@/components/shared/loading-state';
+import { ErrorState } from '@/components/shared/error-state';
 import { useSalesOrderById } from '@/hooks/entities/useSalesOrders';
 import { SalesOrderPrintTemplate } from '@/components/sales-order/print-template';
 import { buildSalesReportUrl } from '@/lib/sales-report';
@@ -53,18 +54,13 @@ export default function PrintSalesOrderPage({ params }: PrintSalesOrderPageProps
 
   if (error || !salesOrder) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-destructive">Error Loading Sales Order</h2>
-          <p className="mt-2 text-muted-foreground">
-            {error?.message || 'Sales order not found'}
-          </p>
-          <Button onClick={() => router.back()} className="mt-4">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Go Back
-          </Button>
-        </div>
-      </div>
+      <ErrorState
+        title="Error Loading Sales Order"
+        message={error?.message || 'Sales order not found'}
+        onRetry={() => router.back()}
+        actionLabel="Go Back"
+        ActionIcon={ArrowLeft}
+      />
     );
   }
 

@@ -15,6 +15,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { IconSearch } from "@tabler/icons-react";
 import { ButtonLoading } from "@/components/shared/button-loading";
 import type { VehicleChargeItem } from "@/services/vehicles";
+import { toSafeText } from "@/lib/value-normalizers";
+import { getVehicleChargePrice } from "@/lib/vehicle-charge";
 
 interface ChargeSelectionModalProps {
   open: boolean;
@@ -33,31 +35,6 @@ interface IndexedCharge {
   raw: VehicleChargeItem;
 }
 
-const safeValue = (value: unknown): string => {
-  if (value === undefined || value === null) return "";
-  const normalized = String(value).trim();
-  if (!normalized || normalized === "?") return "";
-  return normalized;
-};
-
-const getChargePrice = (charge: VehicleChargeItem): string => {
-  const candidates = [
-    charge.PRICE,
-    charge.Price,
-    charge.UNITPRICE,
-    charge.UnitPrice,
-    charge.DISCPRICE,
-    charge.Discprice,
-    charge.AMOUNT,
-    charge.Amount,
-  ];
-  for (const candidate of candidates) {
-    const value = safeValue(candidate);
-    if (value) return value;
-  }
-  return "";
-};
-
 export function ChargeSelectionModal({
   open,
   onOpenChange,
@@ -72,9 +49,9 @@ export function ChargeSelectionModal({
 
   const indexedCharges = useMemo<IndexedCharge[]>(() => {
     return (charges || []).map((charge, index) => {
-      const code = safeValue(charge.ITEMCODE) || "N/A";
-      const name = safeValue(charge.FRGNANME || charge.ITEMNAME) || "N/A";
-      const price = getChargePrice(charge) || "N/A";
+      const code = toSafeText(charge.ITEMCODE) || "N/A";
+      const name = toSafeText(charge.FRGNANME || charge.ITEMNAME) || "N/A";
+      const price = getVehicleChargePrice(charge) || "N/A";
       const id = `${code}-${name}-${index}`;
 
       return {

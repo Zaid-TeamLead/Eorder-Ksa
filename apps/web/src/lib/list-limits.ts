@@ -1,0 +1,1 @@
+export const DASHBOARD_LIST_LIMIT = 100;

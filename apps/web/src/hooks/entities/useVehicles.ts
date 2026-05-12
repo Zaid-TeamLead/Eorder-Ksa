@@ -20,7 +20,7 @@ export interface UseVehiclesReturn {
   refetch: () => Promise<void>;
 }
 
-export function useVehicles(customerCode?: string): UseVehiclesReturn {
+export function useVehicles(customerCode?: string, enabled = true): UseVehiclesReturn {
   const normalizedCustomerCode = (customerCode || "").trim();
   const { data: vehicles, isLoading, error, refetch } = useEntityQuery({
     queryKey: normalizedCustomerCode
@@ -28,6 +28,7 @@ export function useVehicles(customerCode?: string): UseVehiclesReturn {
       : queryKeys.vehicles.all,
     queryFn: () => getAllVehicleInventory(normalizedCustomerCode || undefined),
     defaultValue: [],
+    enabled,
   });
 
   return { vehicles, isLoading, error, refetch };

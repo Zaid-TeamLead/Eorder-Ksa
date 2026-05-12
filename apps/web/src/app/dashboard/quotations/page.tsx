@@ -1,7 +1,17 @@
 'use client';
 
-import { useState } from 'react';
-import { Printer, Eye, Edit, Copy, Trash2, MoreHorizontal, CircleX } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import {
+  Printer,
+  Eye,
+  Edit,
+  Copy,
+  Trash2,
+  MoreHorizontal,
+  CircleX,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -33,26 +43,44 @@ import { useQuotations } from '@/hooks/entities/useQuotations';
 // Shared utilities and components
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { LoadingState } from '@/components/shared/loading-state';
+import { TableEmptyRow } from '@/components/shared/table-empty-row';
 import { QuotationStatusBadge } from '@/components/quotation/status-badge';
 import { CancelQuotationDialog } from '@/components/quotation/cancel-quotation-dialog';
+import type { QuotationFilters } from '@/types/quotation';
 
 // Custom hooks
-import { useQuotationsTable } from '@/hooks/quotation/useQuotationsTable';
 import { useQuotationActions } from '@/hooks/quotation/useQuotationActions';
 
+const QUOTATION_PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
+const DEFAULT_QUOTATION_PAGE_SIZE = 20;
+
 export default function QuotationsPage() {
-  const { quotations, isLoading, refetch } = useQuotations();
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(DEFAULT_QUOTATION_PAGE_SIZE);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [quotationToCancel, setQuotationToCancel] = useState<{
     id: number;
     number: string;
   } | null>(null);
 
-  // Use custom hooks for table filtering and actions
-  const { filteredQuotations, statusFilter, setStatusFilter } = useQuotationsTable({
-    quotations,
-    initialFilter: 'all',
-  });
+  const quotationFilters = useMemo<QuotationFilters>(
+    () => ({
+      limit: pageSize + 1,
+      offset: pageIndex * pageSize,
+      ...(statusFilter === 'all'
+        ? {}
+        : { status: statusFilter as QuotationFilters['status'] }),
+    }),
+    [pageIndex, pageSize, statusFilter]
+  );
+
+  const { quotations, isLoading, isFetching, refetch } = useQuotations(quotationFilters);
+  const visibleQuotations = quotations.slice(0, pageSize);
+  const hasNextPage = quotations.length > pageSize;
+  const hasPreviousPage = pageIndex > 0;
+  const pageStart = pageIndex * pageSize + 1;
+  const pageEnd = pageIndex * pageSize + visibleQuotations.length;
 
   const {
     handleView,
@@ -66,6 +94,16 @@ export default function QuotationsPage() {
     useQuotationActions({
       onSuccess: () => refetch(),
     });
+
+  const handleStatusFilterChange = (value: string) => {
+    setStatusFilter(value);
+    setPageIndex(0);
+  };
+
+  const handlePageSizeChange = (value: string) => {
+    setPageSize(Number(value));
+    setPageIndex(0);
+  };
 
   if (isLoading) {
     return <LoadingState message="Loading quotations..." />;
@@ -84,28 +122,65 @@ export default function QuotationsPage() {
         </CardHeader>
         <CardContent>
           {/* Filters */}
-          <div className="mb-6 flex items-center gap-4">
-            <div className="w-64">
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Filter by status" />
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-64">
+                <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Filter by status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    <SelectItem value="Draft">Draft</SelectItem>
+                    <SelectItem value="Pending">Pending</SelectItem>
+                    <SelectItem value="Approved">Approved</SelectItem>
+                    <SelectItem value="Sent">Sent</SelectItem>
+                    <SelectItem value="Accepted">Accepted</SelectItem>
+                    <SelectItem value="Rejected">Rejected</SelectItem>
+                    <SelectItem value="Expired">Expired</SelectItem>
+                    <SelectItem value="Superseded">Superseded</SelectItem>
+                    <SelectItem value="Cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="text-sm text-muted-foreground">
+                {visibleQuotations.length === 0
+                  ? 'No quotations on this page'
+                  : `Showing ${pageStart}-${pageEnd}`}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Rows per page</span>
+              <Select value={`${pageSize}`} onValueChange={handlePageSizeChange}>
+                <SelectTrigger className="h-9 w-20">
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="Draft">Draft</SelectItem>
-                  <SelectItem value="Pending">Pending</SelectItem>
-                  <SelectItem value="Approved">Approved</SelectItem>
-                  <SelectItem value="Sent">Sent</SelectItem>
-                  <SelectItem value="Accepted">Accepted</SelectItem>
-                  <SelectItem value="Rejected">Rejected</SelectItem>
-                  <SelectItem value="Expired">Expired</SelectItem>
-                  <SelectItem value="Superseded">Superseded</SelectItem>
-                  <SelectItem value="Cancelled">Cancelled</SelectItem>
+                  {QUOTATION_PAGE_SIZE_OPTIONS.map((size) => (
+                    <SelectItem key={size} value={`${size}`}>
+                      {size}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
-            </div>
-            <div className="text-sm text-muted-foreground">
-              {filteredQuotations.length} quotation{filteredQuotations.length !== 1 ? 's' : ''}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPageIndex((current) => Math.max(current - 1, 0))}
+                disabled={!hasPreviousPage || isFetching}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPageIndex((current) => current + 1)}
+                disabled={!hasNextPage || isFetching}
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </Button>
             </div>
           </div>
 
@@ -125,14 +200,10 @@ export default function QuotationsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredQuotations.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="h-24 text-center">
-                      No quotations found.
-                    </TableCell>
-                  </TableRow>
+                {visibleQuotations.length === 0 ? (
+                  <TableEmptyRow colSpan={8} message="No quotations found." />
                 ) : (
-                  filteredQuotations.map((quotation) => (
+                  visibleQuotations.map((quotation) => (
                     <TableRow key={quotation.SLNO}>
                       <TableCell className="font-medium">
                         {quotation.ROOT_QUOTATION_NUMBER || quotation.QUOTATION_NUMBER}

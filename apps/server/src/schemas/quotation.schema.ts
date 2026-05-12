@@ -303,6 +303,8 @@ export const quotationFiltersSchema = z.object({
   dateTo: z.string().optional(),
   enquirySlno: z.number().int().positive().optional(),
   quotationNumber: z.string().max(50).optional(),
+  limit: z.number().int().positive().max(500).optional(),
+  offset: z.number().int().min(0).optional(),
 });
 
 export const discountApprovalFiltersSchema = z.object({

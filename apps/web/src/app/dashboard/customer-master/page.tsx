@@ -19,6 +19,7 @@ import { DataTable } from "./components/data-table";
 import { columns, type VehicleHistory } from "./components/columns";
 import { logger } from '@/lib/logger';
 import type { AxiosError } from "axios";
+import { EmptyState } from "@/components/shared/empty-state";
 
 interface Customer {
     CardCode: string;
@@ -501,14 +502,10 @@ const CustomerMaster = () => {
 
                     {/* Empty State */}
                     {!selectedCustomer && !isSearching && !showResults && (
-                        <div className="flex items-center justify-center py-12 text-center">
-                            <div>
-                                <Search className="h-12 w-12 mx-auto text-muted-foreground mb-4 opacity-50" />
-                                <p className="text-sm text-muted-foreground">
-                                    Search for a customer to view their details
-                                </p>
-                            </div>
-                        </div>
+                        <EmptyState
+                            icon={<Search className="h-12 w-12 text-muted-foreground opacity-50" />}
+                            title="Search for a customer to view their details"
+                        />
                     )}
                 </div>
             </div>

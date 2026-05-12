@@ -18,6 +18,7 @@ import type {
 } from '../schemas/quotation.schema.js';
 import { sendSuccess } from '../utils/api-response.js';
 import { getAuditUser } from '../utils/user-context.js';
+import { parsePositiveInteger } from '../utils/pagination.js';
 
 /**
  * Create a new quotation from an enquiry
@@ -150,6 +151,8 @@ export const getAllQuotations = async (req: Request, res: Response) => {
       ? Number(req.query.enquirySlno as string)
       : undefined,
     quotationNumber: req.query.quotationNumber as string,
+    limit: parsePositiveInteger(req.query.limit, { max: 500 }),
+    offset: parsePositiveInteger(req.query.offset, { defaultValue: 0 }),
   };
 
   const quotations = await quotationService.getAllQuotations(filters);

@@ -344,6 +344,8 @@ export interface QuotationFilters {
   dateTo?: string;
   enquirySlno?: number;
   quotationNumber?: string;
+  limit?: number;
+  offset?: number;
 }
 
 export interface DiscountApprovalFilters {
@@ -361,6 +363,7 @@ export interface DiscountApprovalFilters {
 export interface UseQuotationsReturn {
   quotations: Quotation[];
   isLoading: boolean;
+  isFetching: boolean;
   error: Error | null;
   refetch: () => Promise<void>;
 }

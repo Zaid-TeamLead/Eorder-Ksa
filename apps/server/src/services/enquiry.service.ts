@@ -9,6 +9,7 @@ import {
   enquiryFieldMapping,
   enquiryValueTransformers,
 } from '../schemas/shared/field-mappings.js';
+import { appendLimitOffset } from '../utils/pagination.js';
 
 const ENQUIRY_SCHEMA = 'BI_NEGT_KSAISUZU';
 const ENQUIRY_TABLE = 'DMS_SALESENQUIRY';
@@ -528,6 +529,8 @@ class EnquiryService {
     fromDate?: string;
     toDate?: string;
     includeDeleted?: boolean;
+    limit?: number;
+    offset?: number;
   }) {
     try {
       let query = `
@@ -568,6 +571,8 @@ class EnquiryService {
       }
 
       query += ` ORDER BY "CREATEDDATE" DESC`;
+
+      query = appendLimitOffset(query, filters);
 
       const result = await db.query(query, parameters);
       const chargeMap = await getEnquiryChargeMap(

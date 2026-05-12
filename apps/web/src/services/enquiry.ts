@@ -128,6 +128,8 @@ export interface EnquiryFilters {
   customerId?: string;
   fromDate?: string;
   toDate?: string;
+  limit?: number;
+  offset?: number;
 }
 
 export type SalespersonDashboardRow = Record<string, string | number | null>;

@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
+import dynamic from "next/dynamic";
 import { toast } from "sonner";
 import { IconPlus } from "@tabler/icons-react";
 import { useSearchParams } from "next/navigation";
@@ -12,8 +13,6 @@ import { createSalesEnquiryColumns } from "./components/columns";
 import { EnquiryDetailsModal } from "@/components/enquiry-details-modal";
 import { Button } from "@/components/ui/button";
 import { SalesEnquiryForm, type SalesEnquiryFormSubmission } from "@/forms/sales-enquiry";
-import { VehicleSelectionModal } from "@/components/vehicle-selection-modal";
-import { ChargeSelectionModal } from "@/components/charge-selection-modal";
 
 import { useSession } from "@/lib/auth-client";
 import { useEnquiries } from "@/hooks/entities/useEnquiries";
@@ -27,7 +26,19 @@ import { useChargeSelection } from "@/hooks/forms/useChargeSelection";
 import { useEnquiryFormSubmit } from "@/hooks/enquiry/useEnquiryFormSubmit";
 import { useEnquiryActions } from "@/hooks/enquiry/useEnquiryActions";
 import type { SalesEnquiry } from "@/services/enquiry";
+import { DASHBOARD_LIST_LIMIT } from "@/lib/list-limits";
+import { toSafeText } from "@/lib/value-normalizers";
 import { logger } from '@/lib/logger';
+
+const VehicleSelectionModal = dynamic(
+  () => import("@/components/vehicle-selection-modal").then((mod) => mod.VehicleSelectionModal),
+  { ssr: false }
+);
+
+const ChargeSelectionModal = dynamic(
+  () => import("@/components/charge-selection-modal").then((mod) => mod.ChargeSelectionModal),
+  { ssr: false }
+);
 
 const TABS = [
   { id: "customer-information", label: "Customer Information" },
@@ -45,18 +56,11 @@ const sanitizeEmail = (value?: string | null) => {
   return isValid ? email : "";
 };
 
-const toSafeString = (value: unknown): string => {
-  if (value === undefined || value === null) return "";
-  const normalized = String(value).trim();
-  if (!normalized || normalized === "?") return "";
-  return normalized;
-};
-
 const getChargeFromEnquiry = (enquiry?: SalesEnquiry | null) => {
   const fromColumns = {
-    chargeCode: toSafeString(enquiry?.CHARGECODE),
-    chargeName: toSafeString(enquiry?.CHARGENAME),
-    chargePrice: toSafeString(enquiry?.CHARGEPRICE),
+    chargeCode: toSafeText(enquiry?.CHARGECODE),
+    chargeName: toSafeText(enquiry?.CHARGENAME),
+    chargePrice: toSafeText(enquiry?.CHARGEPRICE),
     chargeDetails:
       enquiry?.CHARGEDETAILS && typeof enquiry.CHARGEDETAILS === "object"
         ? (enquiry.CHARGEDETAILS as Record<string, unknown>)
@@ -84,9 +88,9 @@ const getChargeFromEnquiry = (enquiry?: SalesEnquiry | null) => {
       : undefined;
 
   return {
-    chargeCode: toSafeString(chargeObject?.code),
-    chargeName: toSafeString(chargeObject?.name),
-    chargePrice: toSafeString(chargeObject?.price),
+    chargeCode: toSafeText(chargeObject?.code),
+    chargeName: toSafeText(chargeObject?.name),
+    chargePrice: toSafeText(chargeObject?.price),
     chargeDetails: chargeObject?.details as Record<string, unknown> | undefined,
   };
 };
@@ -143,10 +147,13 @@ export default function SalesEnquiry() {
   const [chargeCustomerCode, setChargeCustomerCode] = useState("");
 
   // Fetch enquiries using custom hook
-  const { enquiries, isLoading } = useEnquiries();
+  const { enquiries, isLoading } = useEnquiries({ limit: DASHBOARD_LIST_LIMIT });
 
-  // Fetch vehicle inventory using custom hook
-  const { vehicles, isLoading: isLoadingVehicles } = useVehicles(inventoryCustomerCode);
+  // Fetch vehicle inventory only when the selection modal is opened.
+  const { vehicles, isLoading: isLoadingVehicles } = useVehicles(
+    inventoryCustomerCode,
+    vehicleModalOpen
+  );
   const { chargeItems, isLoading: isLoadingCharges, error: chargeItemsError } = useChargeItems(
     chargeCustomerCode,
     chargeModalOpen

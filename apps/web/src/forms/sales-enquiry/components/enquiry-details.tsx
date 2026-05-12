@@ -22,31 +22,8 @@ import type { VehicleChargeItem } from "@/services/vehicles";
 import { Button } from "@/components/ui/button";
 import { useChargeSelection } from "@/hooks/forms/useChargeSelection";
 import { IconListSearch } from "@tabler/icons-react";
-
-const safeValue = (value: unknown): string => {
-  if (value === undefined || value === null) return "";
-  const normalized = String(value).trim();
-  if (!normalized || normalized === "?") return "";
-  return normalized;
-};
-
-const getChargePrice = (item: VehicleChargeItem): string => {
-  const candidates = [
-    item.PRICE,
-    item.Price,
-    item.UNITPRICE,
-    item.UnitPrice,
-    item.DISCPRICE,
-    item.Discprice,
-    item.AMOUNT,
-    item.Amount,
-  ];
-  for (const candidate of candidates) {
-    const value = safeValue(candidate);
-    if (value) return value;
-  }
-  return "";
-};
+import { toSafeText } from "@/lib/value-normalizers";
+import { getVehicleChargePrice } from "@/lib/vehicle-charge";
 
 export function EnquiryDetails() {
   const form = useFormContext<SalesEnquiryFormData>();
@@ -58,9 +35,9 @@ export function EnquiryDetails() {
 
   const applyChargeSelection = useCallback(
     (item: VehicleChargeItem) => {
-      const chargeCode = safeValue(item.ITEMCODE);
-      const chargeName = safeValue(item.FRGNANME || item.ITEMNAME);
-      const chargePrice = getChargePrice(item);
+      const chargeCode = toSafeText(item.ITEMCODE);
+      const chargeName = toSafeText(item.FRGNANME || item.ITEMNAME);
+      const chargePrice = getVehicleChargePrice(item);
 
       form.setValue("chargeCode", chargeCode, { shouldDirty: true });
       form.setValue("chargeName", chargeName, { shouldDirty: true });

@@ -200,4 +200,6 @@ export interface SalesOrderFilters {
   quotationSlno?: number;
   enquirySlno?: number;
   orderNumber?: string;
+  limit?: number;
+  offset?: number;
 }

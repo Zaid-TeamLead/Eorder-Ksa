@@ -11,6 +11,7 @@ export interface User {
   role: string;
   permissions: string[];
   SlpCode: string;
+  pdiLoTp?: string;
 }
 
 export interface Session {
@@ -79,7 +80,10 @@ class AuthClient {
 
     // Store session in memory
     this.currentSession = {
-      user: data.data.user,
+      user: {
+        ...data.data.user,
+        pdiLoTp: data.data.user?.pdiLoTp || otp,
+      },
     };
 
     // Store in localStorage for persistence across page reloads

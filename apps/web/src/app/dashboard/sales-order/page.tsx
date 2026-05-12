@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Plus, Eye } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Eye } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -48,7 +48,10 @@ import { useSalesOrderMutations } from '@/hooks/entities/useSalesOrderMutations'
 import { useQuotations } from '@/hooks/entities/useQuotations';
 import { LoadingState } from '@/components/shared/loading-state';
 import { ErrorState } from '@/components/shared/error-state';
+import { TableEmptyRow } from '@/components/shared/table-empty-row';
 import { formatCurrency, formatDate } from '@/lib/formatters';
+import { DASHBOARD_LIST_LIMIT } from '@/lib/list-limits';
+import type { SalesOrderFilters } from '@/types/salesOrder';
 
 const createSalesOrderSchema = z.object({
   quotationSlno: z.coerce.number().int().positive('Valid quotation ID is required'),
@@ -57,6 +60,9 @@ const createSalesOrderSchema = z.object({
 
 type CreateSalesOrderFormData = z.infer<typeof createSalesOrderSchema>;
 
+const SALES_ORDER_PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
+const DEFAULT_SALES_ORDER_PAGE_SIZE = 20;
+
 export default function SalesOrderPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -64,13 +70,35 @@ export default function SalesOrderPage() {
   const quotationNumberParam = searchParams.get('quotationNumber');
   const hasConsumedQuotationParam = useRef(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(DEFAULT_SALES_ORDER_PAGE_SIZE);
 
-  const { salesOrders, isLoading, error, refetch } = useSalesOrders();
-  const { quotations, isLoading: isLoadingQuotations } = useQuotations();
+  const salesOrderFilters = useMemo<SalesOrderFilters>(
+    () => ({
+      limit: pageSize + 1,
+      offset: pageIndex * pageSize,
+      ...(statusFilter === 'all'
+        ? {}
+        : { status: statusFilter as SalesOrderFilters['status'] }),
+    }),
+    [pageIndex, pageSize, statusFilter]
+  );
+
+  const { salesOrders, isLoading, isFetching, error, refetch } = useSalesOrders(salesOrderFilters);
+  const { salesOrders: salesOrdersForSelection } = useSalesOrders({ limit: DASHBOARD_LIST_LIMIT });
+  const { quotations, isLoading: isLoadingQuotations } = useQuotations({
+    limit: DASHBOARD_LIST_LIMIT,
+  });
   const { createFromQuotation, isCreating } = useSalesOrderMutations();
+  const visibleSalesOrders = salesOrders.slice(0, pageSize);
+  const hasNextPage = salesOrders.length > pageSize;
+  const hasPreviousPage = pageIndex > 0;
+  const pageStart = pageIndex * pageSize + 1;
+  const pageEnd = pageIndex * pageSize + visibleSalesOrders.length;
 
   const usedQuotationIds = new Set(
-    salesOrders
+    salesOrdersForSelection
       .map((order) => Number(order.QUOTATION_SLNO))
       .filter((quotationId) => Number.isFinite(quotationId) && quotationId > 0)
   );
@@ -119,6 +147,16 @@ export default function SalesOrderPage() {
     router.push(`/dashboard/sales-order/${result.id}`);
   };
 
+  const handleStatusFilterChange = (value: string) => {
+    setStatusFilter(value);
+    setPageIndex(0);
+  };
+
+  const handlePageSizeChange = (value: string) => {
+    setPageSize(Number(value));
+    setPageIndex(0);
+  };
+
   if (isLoading) {
     return <LoadingState message="Loading sales orders..." />;
   }
@@ -151,6 +189,66 @@ export default function SalesOrderPage() {
           </div>
         </CardHeader>
         <CardContent>
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-64">
+                <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Filter by status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    <SelectItem value="Provisional">Provisional</SelectItem>
+                    <SelectItem value="Printed">Printed</SelectItem>
+                    <SelectItem value="PassedToVehicleAdmin">Passed to Vehicle Admin</SelectItem>
+                    <SelectItem value="HandoverBooked">Handover Booked</SelectItem>
+                    <SelectItem value="Lost">Lost</SelectItem>
+                    <SelectItem value="Superseded">Superseded</SelectItem>
+                    <SelectItem value="Cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="text-sm text-muted-foreground">
+                {visibleSalesOrders.length === 0
+                  ? 'No sales orders on this page'
+                  : `Showing ${pageStart}-${pageEnd}`}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Rows per page</span>
+              <Select value={`${pageSize}`} onValueChange={handlePageSizeChange}>
+                <SelectTrigger className="h-9 w-20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SALES_ORDER_PAGE_SIZE_OPTIONS.map((size) => (
+                    <SelectItem key={size} value={`${size}`}>
+                      {size}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPageIndex((current) => Math.max(current - 1, 0))}
+                disabled={!hasPreviousPage || isFetching}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPageIndex((current) => current + 1)}
+                disabled={!hasNextPage || isFetching}
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
           <div className="rounded-md border">
             <Table>
               <TableHeader>
@@ -166,14 +264,10 @@ export default function SalesOrderPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {salesOrders.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
-                      No sales orders found.
-                    </TableCell>
-                  </TableRow>
+                {visibleSalesOrders.length === 0 ? (
+                  <TableEmptyRow colSpan={8} message="No sales orders found." />
                 ) : (
-                  salesOrders.map((order) => (
+                  visibleSalesOrders.map((order) => (
                     <TableRow key={order.SLNO}>
                       <TableCell className="font-medium">{order.SALES_ORDER_NUMBER}</TableCell>
                       <TableCell>#{order.QUOTATION_SLNO}</TableCell>

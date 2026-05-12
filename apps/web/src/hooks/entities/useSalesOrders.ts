@@ -1,17 +1,19 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query-keys';
 import { getAllSalesOrders, getSalesOrderById } from '@/services/salesOrder';
 import type { SalesOrderFilters } from '@/types/salesOrder';
 
 export function useSalesOrders(filters?: SalesOrderFilters) {
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: queryKeys.salesOrders.list(filters),
     queryFn: () => getAllSalesOrders(filters),
+    placeholderData: keepPreviousData,
   });
 
   return {
     salesOrders: data || [],
     isLoading,
+    isFetching,
     error: error as Error | null,
     refetch: async () => {
       await refetch();

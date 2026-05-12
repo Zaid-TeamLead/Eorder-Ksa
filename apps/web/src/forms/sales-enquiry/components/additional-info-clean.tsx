@@ -18,15 +18,10 @@ import {
 } from "@/components/ui/select";
 import { useSalesEmployees } from "@/hooks/entities/useSalesEmployees";
 import { cn } from "@/lib/utils";
+import { toSearchText } from "@/lib/value-normalizers";
 import type { SalesEnquiryFormData } from "../schema";
 
 const ALL_SALESPERSONS_VALUE = "__all_salespersons__";
-
-const normalizeText = (value: unknown): string =>
-  String(value || "")
-    .trim()
-    .replace(/\s+/g, " ")
-    .toLowerCase();
 
 const getSalesEmployeeBranchValues = (employee: Record<string, unknown>): string[] => {
   const values = new Set<string>();
@@ -53,7 +48,7 @@ export function AdditionalInfoClean() {
   const salesperson = String(form.watch("salesperson") || "").trim();
   const slpCode = String(form.watch("slpCode") || "").trim();
 
-  const normalizedBranch = useMemo(() => normalizeText(branch), [branch]);
+  const normalizedBranch = useMemo(() => toSearchText(branch), [branch]);
 
   const employeesWithBranchMetadata = useMemo(
     () =>
@@ -74,7 +69,7 @@ export function AdditionalInfoClean() {
       if (branchValues.length === 0) return false;
 
       return branchValues.some((value) => {
-        const normalizedValue = normalizeText(value);
+        const normalizedValue = toSearchText(value);
         return (
           normalizedValue === normalizedBranch ||
           normalizedValue.includes(normalizedBranch) ||

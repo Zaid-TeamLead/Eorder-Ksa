@@ -115,7 +115,6 @@ interface IntegrationPayloadBuildResult {
 
 type GenericRecord = Record<string, unknown>;
 const FIXED_DMS_QUEUE_USER_ID = '104006';
-const FIXED_DMS_QUEUE_OTP = '91620';
 const FIXED_DMS_QUEUE_COMPANY = 'KSAISUZU';
 const FIXED_DMS_QUEUE_COMPANY_CO = 'BI_NEGT_KSAISUZU';
 function resolveQueueOrderSource(): string {
@@ -840,7 +839,7 @@ class SapOrderIntegrationService {
     for (const [key, value] of Object.entries(jobData)) {
       queueUrl.searchParams.set(key, String(value));
     }
-    queueUrl.searchParams.set('LoTp', FIXED_DMS_QUEUE_OTP);
+    queueUrl.searchParams.set('LoTp', env.SO_SQ_LOTP);
     queueUrl.searchParams.set('co', FIXED_DMS_QUEUE_COMPANY_CO);
     queueUrl.searchParams.set('returnValue', payload.returnValue);
 

@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import EnquiryService, { type CreateEnquiryData, type UpdateEnquiryData } from '../services/enquiry.service.js';
 import { sendSuccess } from '../utils/api-response.js';
 import { getAuditUserWithSlpCode } from '../utils/user-context.js';
+import { parsePositiveInteger } from '../utils/pagination.js';
 
 export const createEnquiry = async (req: Request, res: Response) => {
   const enquiryData: CreateEnquiryData = {
@@ -23,6 +24,8 @@ export const getAllEnquiries = async (req: Request, res: Response) => {
     customerId: req.query.customerId as string,
     fromDate: req.query.fromDate as string,
     toDate: req.query.toDate as string,
+    limit: parsePositiveInteger(req.query.limit, { max: 500 }),
+    offset: parsePositiveInteger(req.query.offset, { defaultValue: 0 }),
   };
 
   const enquiries = await EnquiryService.getAllEnquiries(filters);

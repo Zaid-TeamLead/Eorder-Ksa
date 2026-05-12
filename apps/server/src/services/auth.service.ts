@@ -20,6 +20,7 @@ export interface UserData {
   role: string;
   permissions: string[];
   SlpCode: string;
+  pdiLoTp?: string;
 }
 
 export interface AuthTokens {
@@ -38,7 +39,8 @@ async function getSlpCodeForUser(userId: string): Promise<string> {
 }
 
 async function createBypassSession(
-  userId: string
+  userId: string,
+  pdiLoTp?: string
 ): Promise<{ user: UserData; tokens: AuthTokens }> {
   const resolvedUserId = String(userId || OTP_BYPASS_USER_ID).trim() || OTP_BYPASS_USER_ID;
   const slpCode = await getSlpCodeForUser(resolvedUserId);
@@ -51,6 +53,7 @@ async function createBypassSession(
     role: "user",
     permissions: [],
     SlpCode: slpCode || resolvedUserId,
+    pdiLoTp,
   };
 
   const accessTokenPayload: TokenPayload = {
@@ -153,7 +156,7 @@ export async function verifyOtp(
 ): Promise<{ user: UserData; tokens: AuthTokens }> {
   try {
     if (String(userId).trim() === OTP_BYPASS_USER_ID) {
-      return await createBypassSession(userId);
+      return await createBypassSession(userId, otp);
     }
 
     const response = await fetch(
@@ -224,6 +227,7 @@ export async function verifyOtp(
       role: "user",
       permissions: [],
       SlpCode: "",
+      pdiLoTp: otp,
     };
     const resolvedSlpCode = await getSlpCodeForUser(userIdFromApi);
 

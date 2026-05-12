@@ -16,6 +16,7 @@ import {
 import { useOpenDeposits } from '@/hooks/entities/useQuotations';
 import { LoadingState } from '@/components/shared/loading-state';
 import { ErrorState } from '@/components/shared/error-state';
+import { EmptyState } from '@/components/shared/empty-state';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { AllocateDepositDialog } from '@/components/quotation/allocate-deposit-dialog';
 import type { Quotation } from '@/types/quotation';
@@ -58,7 +59,7 @@ export default function OpenDepositsPage() {
         </CardHeader>
         <CardContent>
           {pendingDeposits.length === 0 ? (
-            <div className="py-10 text-center text-muted-foreground">No open deposits found.</div>
+            <EmptyState title="No open deposits found." className="py-10" />
           ) : (
             <div className="rounded-md border">
               <Table>

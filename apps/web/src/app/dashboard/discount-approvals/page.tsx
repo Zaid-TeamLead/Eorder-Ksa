@@ -36,6 +36,7 @@ import { formatCurrency, formatDate } from '@/lib/formatters';
 import { getDiscountApprovalStatusColor } from '@/lib/quotation-utils';
 import { LoadingState } from '@/components/shared/loading-state';
 import { ErrorState } from '@/components/shared/error-state';
+import { EmptyState } from '@/components/shared/empty-state';
 
 export default function DiscountApprovalsPage() {
   const router = useRouter();
@@ -119,9 +120,9 @@ export default function DiscountApprovalsPage() {
         </CardHeader>
         <CardContent>
           {filteredApprovals.length === 0 ? (
-            <div className="py-12 text-center text-muted-foreground">
-              <p>No {statusFilter !== 'all' ? statusFilter.toLowerCase() : ''} approval requests found</p>
-            </div>
+            <EmptyState
+              title={`No ${statusFilter !== 'all' ? statusFilter.toLowerCase() : ''} approval requests found`}
+            />
           ) : (
             <Table>
               <TableHeader>

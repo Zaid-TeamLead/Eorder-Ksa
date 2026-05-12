@@ -3,6 +3,7 @@ import { sendSuccess } from '../utils/api-response.js';
 import { getAuditUser } from '../utils/user-context.js';
 import { salesOrderService } from '../services/salesOrder.service.js';
 import { sapOrderIntegrationService } from '../services/sapOrderIntegration.service.js';
+import { parsePositiveInteger } from '../utils/pagination.js';
 import type {
   CancelSalesOrderInput,
   CreateHandoverBookingInput,
@@ -85,6 +86,8 @@ export const getAllSalesOrders = async (req: Request, res: Response) => {
       ? Number(req.query.enquirySlno as string)
       : undefined,
     orderNumber: req.query.orderNumber as string,
+    limit: parsePositiveInteger(req.query.limit, { max: 500 }),
+    offset: parsePositiveInteger(req.query.offset, { defaultValue: 0 }),
   };
 
   const orders = await salesOrderService.getAllSalesOrders(filters);

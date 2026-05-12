@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { QuotationPrintTemplate } from '@/components/quotation/print-template';
 import { useQuotationById } from '@/hooks/entities/useQuotations';
 import { LoadingState } from '@/components/shared/loading-state';
+import { ErrorState } from '@/components/shared/error-state';
 import { buildSalesReportUrl } from '@/lib/sales-report';
 
 interface PrintQuotationPageProps {
@@ -62,18 +63,13 @@ export default function PrintQuotationPage({ params }: PrintQuotationPageProps) 
 
   if (error || !quotation) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-destructive">Error Loading Quotation</h2>
-          <p className="mt-2 text-muted-foreground">
-            {error?.message || 'Quotation not found'}
-          </p>
-          <Button onClick={handleBack} className="mt-4">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Go Back
-          </Button>
-        </div>
-      </div>
+      <ErrorState
+        title="Error Loading Quotation"
+        message={error?.message || 'Quotation not found'}
+        onRetry={handleBack}
+        actionLabel="Go Back"
+        ActionIcon={ArrowLeft}
+      />
     );
   }
 

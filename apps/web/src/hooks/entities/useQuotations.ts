@@ -9,7 +9,7 @@
  * ```
  */
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query-keys";
 import {
   getAllQuotations,
@@ -32,16 +32,19 @@ export function useQuotations(filters?: QuotationFilters): UseQuotationsReturn {
   const {
     data: quotations,
     isLoading,
+    isFetching,
     error,
     refetch,
   } = useQuery({
-    queryKey: queryKeys.quotations.all,
+    queryKey: filters ? queryKeys.quotations.list(filters) : queryKeys.quotations.all,
     queryFn: () => getAllQuotations(filters),
+    placeholderData: keepPreviousData,
   });
 
   return {
     quotations: quotations || [],
     isLoading,
+    isFetching,
     error: error as Error | null,
     refetch: async () => {
       await refetch();

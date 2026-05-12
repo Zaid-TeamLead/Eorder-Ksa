@@ -5,7 +5,7 @@
  * Used across the application to display errors in a user-friendly way.
  */
 
-import { AlertCircle, RefreshCw } from 'lucide-react';
+import { AlertCircle, RefreshCw, type LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface ErrorStateProps {
@@ -24,6 +24,18 @@ interface ErrorStateProps {
    * Optional retry callback
    */
   onRetry?: () => void;
+
+  /**
+   * Action button label
+   * @default "Retry"
+   */
+  actionLabel?: string;
+
+  /**
+   * Action button icon
+   * @default RefreshCw
+   */
+  ActionIcon?: LucideIcon;
 
   /**
    * Additional CSS classes
@@ -46,6 +58,8 @@ export function ErrorState({
   title = 'Error',
   message,
   onRetry,
+  actionLabel = 'Retry',
+  ActionIcon = RefreshCw,
   className = '',
 }: ErrorStateProps) {
   return (
@@ -57,8 +71,8 @@ export function ErrorState({
       <p className="text-muted-foreground">{message}</p>
       {onRetry && (
         <Button onClick={onRetry}>
-          <RefreshCw className="mr-2 h-4 w-4" />
-          Retry
+          <ActionIcon className="mr-2 h-4 w-4" />
+          {actionLabel}
         </Button>
       )}
     </div>

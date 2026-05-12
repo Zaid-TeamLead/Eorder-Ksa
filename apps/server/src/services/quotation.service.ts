@@ -21,6 +21,7 @@ import {
   findActiveVehicleReservation,
   isVehicleReservationActive,
 } from '../utils/vehicle-reservation.js';
+import { appendLimitOffset } from '../utils/pagination.js';
 
 const QUOTATION_DB_SCHEMA = (() => {
   const raw = process.env.QUOTATION_DB_SCHEMA || 'BI_NEGT_KSAISUZU';
@@ -49,10 +50,171 @@ const CREATE_QUOTATION_LINE_SP_NAME = (() => {
   return normalized;
 })();
 
+const DISCOUNT_APPROVAL_TABLE = 'DMS_DISCOUNT_APPROVAL';
+const QUOTATION_TABLE = 'DMS_QUOTATION';
+
+const tableColumnsCache = new Map<string, Set<string> | null>();
+
+async function getTableColumns(schemaName: string, tableName: string): Promise<Set<string> | null> {
+  const cacheKey = `${schemaName}.${tableName}`;
+  if (tableColumnsCache.has(cacheKey)) {
+    return tableColumnsCache.get(cacheKey) ?? null;
+  }
+
+  const rows = await db.query<{ COLUMN_NAME: string }>(
+    `SELECT "COLUMN_NAME"
+     FROM "SYS"."TABLE_COLUMNS"
+     WHERE "SCHEMA_NAME" = ?
+       AND "TABLE_NAME" = ?`,
+    [schemaName, tableName]
+  );
+
+  if (rows.length === 0) {
+    const tableRow = await db.queryOne<{ TABLE_NAME: string }>(
+      `SELECT "TABLE_NAME"
+       FROM "SYS"."TABLES"
+       WHERE "SCHEMA_NAME" = ?
+         AND "TABLE_NAME" = ?`,
+      [schemaName, tableName]
+    );
+
+    if (!tableRow?.TABLE_NAME) {
+      tableColumnsCache.set(cacheKey, null);
+      return null;
+    }
+  }
+
+  const columns = new Set(rows.map((row) => row.COLUMN_NAME.toUpperCase()));
+  tableColumnsCache.set(cacheKey, columns);
+  return columns;
+}
+
+function hasColumn(columns: Set<string> | null, columnName: string): boolean {
+  return columns?.has(columnName.toUpperCase()) ?? false;
+}
+
+function selectOptionalColumn(
+  columns: Set<string> | null,
+  tableAlias: string,
+  columnName: string,
+  enabled = true
+): string {
+  return enabled && hasColumn(columns, columnName)
+    ? `${tableAlias}."${columnName}"`
+    : `NULL AS "${columnName}"`;
+}
+
+async function buildDiscountApprovalListQuery(
+  filters?: DiscountApprovalFilters,
+  options?: { pendingOnly?: boolean; assignedTo?: string }
+): Promise<{ query: string; params: any[] } | null> {
+  const approvalColumns = await getTableColumns(QUOTATION_DB_SCHEMA, DISCOUNT_APPROVAL_TABLE);
+  if (!approvalColumns) {
+    logger.warn(
+      { schema: QUOTATION_DB_SCHEMA, table: DISCOUNT_APPROVAL_TABLE },
+      'Discount approval table is not available; returning an empty approvals list'
+    );
+    return null;
+  }
+
+  const quotationColumns = await getTableColumns(QUOTATION_DB_SCHEMA, QUOTATION_TABLE);
+  const canJoinQuotation = hasColumn(approvalColumns, 'QUOTATION_SLNO') && hasColumn(quotationColumns, 'SLNO');
+  const params: any[] = [];
+  const whereParts: string[] = [];
+
+  if (hasColumn(approvalColumns, 'IS_DELETED')) {
+    whereParts.push(`COALESCE(da."IS_DELETED", 'N') = 'N'`);
+  }
+
+  if (options?.pendingOnly) {
+    if (hasColumn(approvalColumns, 'STATUS')) {
+      whereParts.push(`da."STATUS" = 'Pending'`);
+    } else {
+      logger.warn(
+        {
+          schema: QUOTATION_DB_SCHEMA,
+          table: DISCOUNT_APPROVAL_TABLE,
+          requiredColumns: ['STATUS'],
+        },
+        'Cannot filter pending discount approvals because the status column is missing'
+      );
+      whereParts.push('1 = 0');
+    }
+  }
+
+  if (options && 'assignedTo' in options) {
+    if (options.assignedTo && hasColumn(approvalColumns, 'ASSIGNED_TO')) {
+      whereParts.push(`da."ASSIGNED_TO" = ?`);
+      params.push(options.assignedTo);
+    } else {
+      logger.warn(
+        {
+          schema: QUOTATION_DB_SCHEMA,
+          table: DISCOUNT_APPROVAL_TABLE,
+          requiredColumns: ['ASSIGNED_TO'],
+        },
+        'Cannot filter assigned discount approvals because the assigned-to column or user is missing'
+      );
+      whereParts.push('1 = 0');
+    }
+  }
+
+  if (filters?.status && hasColumn(approvalColumns, 'STATUS')) {
+    whereParts.push(`da."STATUS" = ?`);
+    params.push(filters.status);
+  }
+
+  if (filters?.assignedTo && hasColumn(approvalColumns, 'ASSIGNED_TO')) {
+    whereParts.push(`da."ASSIGNED_TO" = ?`);
+    params.push(filters.assignedTo);
+  }
+
+  if (filters?.requestedBySlpCode && hasColumn(approvalColumns, 'REQUESTED_BY_SLPCODE')) {
+    whereParts.push(`da."REQUESTED_BY_SLPCODE" = ?`);
+    params.push(filters.requestedBySlpCode);
+  }
+
+  if (filters?.dateFrom && hasColumn(approvalColumns, 'REQUESTED_DATE')) {
+    whereParts.push(`da."REQUESTED_DATE" >= ?`);
+    params.push(filters.dateFrom);
+  }
+
+  if (filters?.dateTo && hasColumn(approvalColumns, 'REQUESTED_DATE')) {
+    whereParts.push(`da."REQUESTED_DATE" <= ?`);
+    params.push(filters.dateTo);
+  }
+
+  const quotationSelects = [
+    selectOptionalColumn(quotationColumns, 'q', 'QUOTATION_NUMBER', canJoinQuotation),
+    selectOptionalColumn(quotationColumns, 'q', 'CUSTOMER_NAME', canJoinQuotation),
+    selectOptionalColumn(quotationColumns, 'q', 'VEHICLE_MAKE', canJoinQuotation),
+    selectOptionalColumn(quotationColumns, 'q', 'VEHICLE_MODEL', canJoinQuotation),
+  ];
+
+  const orderColumn = ['REQUESTED_DATE', 'CREATED_DATE', 'SLNO'].find((columnName) =>
+    hasColumn(approvalColumns, columnName)
+  );
+
+  let query = `
+    SELECT
+      da.*,
+      ${quotationSelects.join(',\n      ')}
+    FROM "${QUOTATION_DB_SCHEMA}"."${DISCOUNT_APPROVAL_TABLE}" da
+    ${canJoinQuotation ? `LEFT JOIN "${QUOTATION_DB_SCHEMA}"."${QUOTATION_TABLE}" q ON da."QUOTATION_SLNO" = q."SLNO"` : ''}
+    WHERE ${whereParts.length > 0 ? whereParts.join(' AND ') : '1 = 1'}
+  `;
+
+  if (orderColumn) {
+    query += ` ORDER BY da."${orderColumn}" DESC`;
+  }
+
+  return { query, params };
+}
+
 async function getNextDiscountApprovalId(): Promise<number> {
   const row = await db.queryOne<{ NEXT_SLNO: number }>(
     `SELECT COALESCE(MAX("SLNO"), 0) + 1 AS "NEXT_SLNO"
-     FROM "${QUOTATION_DB_SCHEMA}"."DMS_DISCOUNT_APPROVAL"`
+     FROM "${QUOTATION_DB_SCHEMA}"."${DISCOUNT_APPROVAL_TABLE}"`
   );
 
   return row?.NEXT_SLNO ?? 1;
@@ -1376,6 +1538,8 @@ class QuotationService {
     slpCode?: string;
     dateFrom?: string;
     dateTo?: string;
+    limit?: number;
+    offset?: number;
   }): Promise<Quotation[]> {
     try {
       let query = `
@@ -1406,6 +1570,8 @@ class QuotationService {
       }
 
       query += ` ORDER BY "CREATED_DATE" DESC`;
+
+      query = appendLimitOffset(query, filters);
 
       const quotations = await db.query<Quotation>(query, params);
       const hydratedTotals = await this.hydrateQuotationHeaderTotals(quotations);
@@ -2310,20 +2476,16 @@ class QuotationService {
    */
   async getPendingApprovals(assignedTo?: string): Promise<DiscountApproval[]> {
     try {
-      let query = `
-        SELECT * FROM "${QUOTATION_DB_SCHEMA}"."DMS_DISCOUNT_APPROVAL"
-        WHERE "STATUS" = 'Pending' AND "IS_DELETED" = 'N'
-      `;
-      const params: any[] = [];
+      const queryParts = await buildDiscountApprovalListQuery(undefined, {
+        pendingOnly: true,
+        ...(assignedTo ? { assignedTo } : {}),
+      });
 
-      if (assignedTo) {
-        query += ` AND "ASSIGNED_TO" = ?`;
-        params.push(assignedTo);
+      if (!queryParts) {
+        return [];
       }
 
-      query += ` ORDER BY "REQUESTED_DATE" DESC`;
-
-      return await db.query(query, params);
+      return await db.query(queryParts.query, queryParts.params);
     } catch (error: any) {
       logger.error('Error fetching pending approvals:', error);
       throw new Error('Failed to fetch pending approvals: ' + error.message);
@@ -2335,48 +2497,12 @@ class QuotationService {
    */
   async getAllDiscountApprovals(filters?: DiscountApprovalFilters): Promise<DiscountApproval[]> {
     try {
-      let query = `
-        SELECT
-          da.*,
-          q."QUOTATION_NUMBER",
-          q."CUSTOMER_NAME",
-          q."VEHICLE_MAKE",
-          q."VEHICLE_MODEL"
-        FROM "${QUOTATION_DB_SCHEMA}"."DMS_DISCOUNT_APPROVAL" da
-        LEFT JOIN "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION" q ON da."QUOTATION_SLNO" = q."SLNO"
-        WHERE da."IS_DELETED" = 'N'
-      `;
-
-      const params: any[] = [];
-
-      if (filters?.status) {
-        query += ` AND da."STATUS" = ?`;
-        params.push(filters.status);
+      const queryParts = await buildDiscountApprovalListQuery(filters);
+      if (!queryParts) {
+        return [];
       }
 
-      if (filters?.assignedTo) {
-        query += ` AND da."ASSIGNED_TO" = ?`;
-        params.push(filters.assignedTo);
-      }
-
-      if (filters?.requestedBySlpCode) {
-        query += ` AND da."REQUESTED_BY_SLPCODE" = ?`;
-        params.push(filters.requestedBySlpCode);
-      }
-
-      if (filters?.dateFrom) {
-        query += ` AND da."REQUESTED_DATE" >= ?`;
-        params.push(filters.dateFrom);
-      }
-
-      if (filters?.dateTo) {
-        query += ` AND da."REQUESTED_DATE" <= ?`;
-        params.push(filters.dateTo);
-      }
-
-      query += ` ORDER BY da."REQUESTED_DATE" DESC`;
-
-      const result = await db.query(query, params);
+      const result = await db.query(queryParts.query, queryParts.params);
       return result as DiscountApproval[];
     } catch (error: any) {
       logger.error('Error fetching discount approvals:', error);
@@ -2389,22 +2515,16 @@ class QuotationService {
    */
   async getPendingDiscountApprovals(assignedTo: string): Promise<DiscountApproval[]> {
     try {
-      const query = `
-        SELECT
-          da.*,
-          q."QUOTATION_NUMBER",
-          q."CUSTOMER_NAME",
-          q."VEHICLE_MAKE",
-          q."VEHICLE_MODEL"
-        FROM "${QUOTATION_DB_SCHEMA}"."DMS_DISCOUNT_APPROVAL" da
-        LEFT JOIN "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION" q ON da."QUOTATION_SLNO" = q."SLNO"
-        WHERE da."IS_DELETED" = 'N'
-          AND da."STATUS" = 'Pending'
-          AND da."ASSIGNED_TO" = ?
-        ORDER BY da."REQUESTED_DATE" DESC
-      `;
+      const queryParts = await buildDiscountApprovalListQuery(undefined, {
+        pendingOnly: true,
+        assignedTo,
+      });
 
-      const result = await db.query(query, [assignedTo]);
+      if (!queryParts) {
+        return [];
+      }
+
+      const result = await db.query(queryParts.query, queryParts.params);
       return result as DiscountApproval[];
     } catch (error: any) {
       logger.error('Error fetching pending discount approvals:', error);

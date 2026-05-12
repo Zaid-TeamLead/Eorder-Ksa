@@ -39,11 +39,15 @@ function getSessionUserId(session: ReturnType<typeof useSession>["data"]) {
   );
 }
 
-function buildPdiUrl(userId: string) {
-  const url = new URL("https://pp.neweast.cloud/pdis");
+function getConfiguredPdiLoTp() {
+  return process.env.NEXT_PUBLIC_PDI_LOTP || "90629";
+}
+
+function buildPdiUrl(userId: string, pdiLoTp: string) {
+  const url = new URL(process.env.NEXT_PUBLIC_PDI_URL || "https://pp.neweast.cloud/pdis");
   url.searchParams.set("uSrId", userId);
-  url.searchParams.set("LoTp", "40068");
-  url.searchParams.set("co", "BI_NEGT");
+  url.searchParams.set("LoTp", pdiLoTp);
+  url.searchParams.set("co", process.env.NEXT_PUBLIC_PDI_COMPANY || "BI_NEGT_KSAISUZU");
   return url.toString();
 }
 
@@ -56,6 +60,7 @@ export function NavMain({
   const pathname = usePathname();
   const { data: session } = useSession();
   const sessionUserId = getSessionUserId(session);
+  const pdiLoTp = getConfiguredPdiLoTp();
 
   return (
     <>
@@ -77,7 +82,7 @@ export function NavMain({
             {items.map((item) => {
               // For /dashboard, only match exactly. For other routes, match exactly or sub-routes
               const href = item.externalApp === "pdi"
-                ? buildPdiUrl(sessionUserId)
+                ? buildPdiUrl(sessionUserId, pdiLoTp)
                 : item.url;
               const isActive = item.external ? false : item.url === "/dashboard"
                 ? pathname === item.url

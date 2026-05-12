@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
 import { LoadingState } from "./loading-state";
+import { TableEmptyRow } from "./table-empty-row";
 
 // ============================================================================
 // Type Definitions
@@ -387,11 +388,9 @@ export function GenericDataTable<TData, TValue>({
                 </TableRow>
               ))
             ) : (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
-                  {emptyComponent || emptyMessage}
-                </TableCell>
-              </TableRow>
+              <TableEmptyRow colSpan={columns.length} message={emptyMessage}>
+                {emptyComponent}
+              </TableEmptyRow>
             )}
           </TableBody>
         </Table>

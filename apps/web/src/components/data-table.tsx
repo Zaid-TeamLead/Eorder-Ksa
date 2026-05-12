@@ -103,6 +103,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs"
+import { TableEmptyRow } from "@/components/shared/table-empty-row"
 
 export const schema = z.object({
   id: z.number(),
@@ -465,16 +466,7 @@ export function DataTable({
                     ))}
                   </SortableContext>
                 ) : (
-                  <TableRow>
-
-                    <TableCell
-                      colSpan={columns.length}
-                      className="h-24 text-center"
-                    >
-                      No results.
-                    </TableCell>
-
-                  </TableRow>
+                  <TableEmptyRow colSpan={columns.length} message="No results." />
                 )}
               </TableBody>
             </Table>

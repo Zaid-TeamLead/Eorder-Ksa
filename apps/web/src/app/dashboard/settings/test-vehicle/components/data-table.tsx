@@ -30,6 +30,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
+import { TableEmptyRow } from "@/components/shared/table-empty-row";
 import type { TestVehicle } from "@/services/vehicles";
 
 interface DataTableProps<TData, TValue> {
@@ -157,14 +158,7 @@ export function DataTable<TData, TValue>({
                                 </TableRow>
                             ))
                         ) : (
-                            <TableRow>
-                                <TableCell
-                                    colSpan={columns.length}
-                                    className="h-24 text-center"
-                                >
-                                    No results.
-                                </TableCell>
-                            </TableRow>
+                            <TableEmptyRow colSpan={columns.length} message="No results." />
                         )}
                     </TableBody>
                 </Table>
@@ -197,4 +191,3 @@ export function DataTable<TData, TValue>({
         </div>
     );
 }
-

@@ -18,6 +18,7 @@ import {
   findActiveVehicleReservation,
   isVehicleReservationActive,
 } from '../utils/vehicle-reservation.js';
+import { appendLimitOffset } from '../utils/pagination.js';
 
 const SALES_ORDER_DB_SCHEMA = (() => {
   const raw = process.env.SALES_ORDER_DB_SCHEMA || 'BI_NEGT_KSAISUZU';
@@ -827,6 +828,8 @@ class SalesOrderService {
       }
 
       query += ` ORDER BY SO."CREATED_DATE" DESC`;
+      query = appendLimitOffset(query, filters);
+
       const orders = await db.query<SalesOrder>(query, params);
       return await this.hydrateSalesOrderVehicleSummary(orders);
     } catch (error: any) {

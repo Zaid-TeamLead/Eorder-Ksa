@@ -10,14 +10,14 @@
  */
 
 import { queryKeys } from "@/lib/query-keys";
-import { getAllEnquiries } from "@/services/enquiry";
+import { getAllEnquiries, type EnquiryFilters } from "@/services/enquiry";
 import type { UseEnquiriesReturn } from "@/types/enquiry";
 import { useEntityQuery } from "@/hooks/shared/useEntityQuery";
 
-export function useEnquiries(): UseEnquiriesReturn {
+export function useEnquiries(filters?: EnquiryFilters): UseEnquiriesReturn {
   const { data: enquiries, isLoading, error, refetch } = useEntityQuery({
-    queryKey: queryKeys.enquiries.all,
-    queryFn: getAllEnquiries,
+    queryKey: filters ? queryKeys.enquiries.list(filters) : queryKeys.enquiries.all,
+    queryFn: () => getAllEnquiries(filters),
     defaultValue: [],
   });
 

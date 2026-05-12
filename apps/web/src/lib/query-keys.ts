@@ -13,6 +13,7 @@ export const queryKeys = {
   // Enquiries
   enquiries: {
     all: ["enquiries"] as const,
+    list: (filters?: unknown) => ["enquiries", filters ?? {}] as const,
     detail: (id: number) => ["enquiry", id] as const,
     dashboard: ["enquiries", "dashboard"] as const,
   },
@@ -76,6 +77,7 @@ export const queryKeys = {
   // Quotations
   quotations: {
     all: ["quotations"] as const,
+    list: (filters?: unknown) => ["quotations", filters ?? {}] as const,
     byEnquiry: (enquiryId: number) => ["quotations", "enquiry", enquiryId] as const,
     detail: (id: number) => ["quotation", id] as const,
     openDeposits: ["quotations", "open-deposits"] as const,

@@ -70,6 +70,8 @@ export const salesOrderFiltersSchema = z.object({
   quotationSlno: z.number().int().positive().optional(),
   enquirySlno: z.number().int().positive().optional(),
   orderNumber: z.string().max(50).optional(),
+  limit: z.number().int().positive().max(500).optional(),
+  offset: z.number().int().min(0).optional(),
 });
 
 export const getSalesOrderByIdSchema = z.object({
