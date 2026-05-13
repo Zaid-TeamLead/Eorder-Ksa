@@ -134,26 +134,7 @@ export const markSalesOrderPrinted = async (req: Request, res: Response) => {
 export const confirmSalesOrderToSalesOrder = async (req: Request, res: Response) => {
   const id = Number(req.params.id);
   const result = await salesOrderService.confirmToSalesOrder(id, getAuditUser(req));
-
-  let sapPosting: SalesOrderSapPosting | undefined;
-
-  try {
-    const postingResult = await sapOrderIntegrationService.postSalesOrderToSap(id, {
-      userId: req.user?.userId,
-      email: req.user?.email,
-      name: req.user?.name,
-      SlpCode: req.user?.SlpCode,
-    });
-
-    sapPosting = buildSapPostingSummary(postingResult);
-  } catch (error: any) {
-    sapPosting = {
-      status: 'Failed',
-      errorMessage: error?.message || 'Failed to push sales order to DMS queue',
-    };
-  }
-
-  sendSuccess(res, { ...result, sapPosting });
+  sendSuccess(res, result);
 };
 
 /**

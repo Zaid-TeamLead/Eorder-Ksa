@@ -299,7 +299,8 @@ class SalesOrderService {
     updatedDate: string
   ): Promise<void> {
     const sourceSapOrderNumber = this.normalizeText(quotation.SAPREFENTRY);
-    if (!sourceSapOrderNumber) {
+    const sourceSapStatus = this.normalizeText(quotation.SAPSTATUS).toLowerCase();
+    if (!sourceSapOrderNumber || sourceSapStatus !== 'success') {
       return;
     }
 
@@ -338,6 +339,40 @@ class SalesOrderService {
         updatedDate,
         salesOrderSlno,
       ]
+    );
+  }
+
+  private async getSalesOrderForConfirmation(id: number): Promise<{
+    SLNO: number;
+    QUOTATION_SLNO?: number | null;
+    CUSTOMER_CODE?: string | null;
+    SOURCE_CUSTOMER_CODE?: string | null;
+    SAPDOCENTRY?: string | null;
+    SAPDOCNUM?: string | null;
+    SAPREFENTRY?: string | null;
+    SAPSTATUS?: string | null;
+  } | null> {
+    return await db.queryOne(
+      `
+        SELECT
+          SO."SLNO",
+          SO."SOURCE_QUOTATION_SLNO" AS "QUOTATION_SLNO",
+          SO."CUSTOMER_CODE",
+          SQ."CUSTOMER_CODE" AS "SOURCE_CUSTOMER_CODE",
+          SO."SAPDOCENTRY",
+          SO."SAPDOCNUM",
+          SO."SAPREFENTRY",
+          SO."SAPSTATUS"
+        FROM "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION" SO
+        LEFT JOIN "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION" SQ
+          ON SQ."SLNO" = SO."SOURCE_QUOTATION_SLNO"
+         AND SQ."IS_DELETED" = 'N'
+         AND COALESCE(SQ."DOC_TYPE", '${QUOTATION_DOC_TYPE}') = '${QUOTATION_DOC_TYPE}'
+        WHERE SO."SLNO" = ?
+          AND SO."IS_DELETED" = 'N'
+          AND SO."DOC_TYPE" = '${SALES_ORDER_DOC_TYPE}'
+      `,
+      [id]
     );
   }
 
@@ -752,8 +787,10 @@ class SalesOrderService {
     status: string;
     errorCode: string;
     sapDocEntry?: string;
+    sapDocNum?: string;
   }> {
-    const salesOrder = await this.getSalesOrderById(salesOrderId);
+    const startedAt = Date.now();
+    const salesOrder = await this.getSalesOrderForConfirmation(salesOrderId);
     if (!salesOrder) {
       throw new AppError('Sales order not found', 404, 'NOT_FOUND');
     }
@@ -782,12 +819,12 @@ class SalesOrderService {
     const result = await quotationService.confirmToSalesOrder(salesOrder.QUOTATION_SLNO, actor);
     const targetDocumentNumber = this.normalizeText(result.targetDocumentNumber);
     const expectedCardCode = this.normalizeText(
-      salesOrder.CUSTOMER_CODE || salesOrder.quotation?.CUSTOMER_CODE
+      salesOrder.CUSTOMER_CODE || salesOrder.SOURCE_CUSTOMER_CODE
     );
-    const resolvedSapOrder = await this.resolveSapSalesOrderReference(
-      targetDocumentNumber,
-      expectedCardCode
-    );
+    const resolvedSapOrder =
+      result.sapDocEntry && result.sapDocNum
+        ? { sapDocEntry: result.sapDocEntry, sapDocNum: result.sapDocNum }
+        : await this.resolveSapSalesOrderReference(targetDocumentNumber, expectedCardCode);
     if (!resolvedSapOrder) {
       throw new AppError(
         `SAP sales order reference ${targetDocumentNumber} was not found for customer ${expectedCardCode || '(blank)'}.`,
@@ -820,9 +857,20 @@ class SalesOrderService {
       ]
     );
 
+    logger.info(
+      {
+        salesOrderId,
+        quotationSlno: salesOrder.QUOTATION_SLNO,
+        sapDocEntry: resolvedSapOrder.sapDocEntry,
+        durationMs: Date.now() - startedAt,
+      },
+      'Confirmed sales order via SAP Convert API'
+    );
+
     return {
       ...result,
       sapDocEntry: resolvedSapOrder.sapDocEntry,
+      sapDocNum: resolvedSapOrder.sapDocNum,
     };
   }
 

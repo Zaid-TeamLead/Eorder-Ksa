@@ -25,10 +25,17 @@ import type {
   UseQuotationsByEnquiryReturn,
 } from "@/types/quotation";
 
+interface UseQuotationsOptions {
+  enabled?: boolean;
+}
+
 /**
  * Fetch all quotations with optional filters
  */
-export function useQuotations(filters?: QuotationFilters): UseQuotationsReturn {
+export function useQuotations(
+  filters?: QuotationFilters,
+  options: UseQuotationsOptions = {}
+): UseQuotationsReturn {
   const {
     data: quotations,
     isLoading,
@@ -39,6 +46,7 @@ export function useQuotations(filters?: QuotationFilters): UseQuotationsReturn {
     queryKey: filters ? queryKeys.quotations.list(filters) : queryKeys.quotations.all,
     queryFn: () => getAllQuotations(filters),
     placeholderData: keepPreviousData,
+    enabled: options.enabled ?? true,
   });
 
   return {

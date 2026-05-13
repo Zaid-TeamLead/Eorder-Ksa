@@ -49,6 +49,10 @@ export interface VehicleInventory {
   RESERVED_NOTES?: string | null;
 }
 
+export interface VehicleInventoryOptions {
+  includeReservations?: boolean;
+}
+
 export interface VehicleChargeItem {
   ITMSGRPNAM?: string | null;
   ITEMCODE?: string | null;
@@ -118,10 +122,14 @@ export const updateTestVehicleStatus = async (
   return apiClient.patch<TestVehicle>(API_ENDPOINTS.TEST_VEHICLE_STATUS(id), { status });
 };
 
-export const getAllVehicleInventory = async (customerCode?: string): Promise<VehicleInventory[]> => {
+export const getAllVehicleInventory = async (
+  customerCode?: string,
+  options: VehicleInventoryOptions = {}
+): Promise<VehicleInventory[]> => {
   return apiClient.get<VehicleInventory[]>(API_ENDPOINTS.VEHICLE_INVENTORY, {
     params: {
       customerCode: customerCode || '',
+      includeReservations: options.includeReservations ?? true,
     },
   });
 };

@@ -48,6 +48,7 @@ export const confirmSalesOrderToSalesOrder = async (
   status: string;
   errorCode: string;
   sapDocEntry?: string;
+  sapDocNum?: string;
   sapPosting?: {
     status: 'Posted' | 'Queued' | 'Failed';
     integrationLogId?: number;

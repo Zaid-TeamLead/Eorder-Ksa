@@ -167,6 +167,38 @@ function extractVehicleInventoryVin(row: Record<string, unknown>): string {
   return vin !== undefined && vin !== null ? String(vin).trim() : '';
 }
 
+async function enrichVehicleInventoryReservations<T extends Record<string, unknown>>(
+  vehicles: T[]
+): Promise<T[]> {
+  const reservationMap = await findActiveVehicleReservations({
+    vinNumbers: vehicles.map(extractVehicleInventoryVin),
+    quotationSchema: QUOTATION_DB_SCHEMA,
+    salesOrderSchema: SALES_ORDER_DB_SCHEMA,
+  });
+
+  return vehicles.map((vehicle) => {
+    const vin = extractVehicleInventoryVin(vehicle);
+    const activeReservation = vin ? reservationMap.get(vin) : null;
+
+    if (!activeReservation) {
+      return vehicle;
+    }
+
+    return {
+      ...vehicle,
+      RESERVED_STATUS: 'Reserved',
+      RESERVED_SOURCE_TYPE: activeReservation.sourceType,
+      RESERVED_SOURCE_ID: activeReservation.sourceId,
+      RESERVED_SOURCE_NUMBER: activeReservation.sourceNumber,
+      RESERVED_BY: activeReservation.reservedBy,
+      RESERVED_ON: activeReservation.reservedOn,
+      RESERVED_FROM: activeReservation.reservedFrom,
+      RESERVED_TO: activeReservation.reservedTo,
+      RESERVED_NOTES: activeReservation.notes,
+    };
+  });
+}
+
 function coerceRowsFromProcedureResult(input: unknown): Record<string, unknown>[] {
   if (Array.isArray(input)) {
     return input as Record<string, unknown>[];
@@ -429,44 +461,26 @@ export const getAllTestVehicles = async () => {
   }
 };
 
-export const getAllVehicleInventory = async (customerCode?: string) => {
+export const getAllVehicleInventory = async (
+  customerCode?: string,
+  options: { includeReservations?: boolean } = {}
+) => {
   try {
     const normalizedCustomerCode = customerCode?.trim() || '';
+    const includeReservations = options.includeReservations !== false;
     const vehicles = await db.query<Record<string, unknown>>(
       getVehicleSpCallSql(VEHICLE_INVENTORY_SP, 1),
       [normalizedCustomerCode]
     );
     const dedupedVehicles = dedupeVehicleInventoryRows(vehicles);
-    const reservationMap = await findActiveVehicleReservations({
-      vinNumbers: dedupedVehicles.map(extractVehicleInventoryVin),
-      quotationSchema: QUOTATION_DB_SCHEMA,
-      salesOrderSchema: SALES_ORDER_DB_SCHEMA,
-    });
-    const enrichedVehicles = dedupedVehicles.map((vehicle) => {
-      const vin = extractVehicleInventoryVin(vehicle);
-      const activeReservation = vin ? reservationMap.get(vin) : null;
-
-      if (!activeReservation) {
-        return vehicle;
-      }
-
-      return {
-        ...vehicle,
-        RESERVED_STATUS: 'Reserved',
-        RESERVED_SOURCE_TYPE: activeReservation.sourceType,
-        RESERVED_SOURCE_ID: activeReservation.sourceId,
-        RESERVED_SOURCE_NUMBER: activeReservation.sourceNumber,
-        RESERVED_BY: activeReservation.reservedBy,
-        RESERVED_ON: activeReservation.reservedOn,
-        RESERVED_FROM: activeReservation.reservedFrom,
-        RESERVED_TO: activeReservation.reservedTo,
-        RESERVED_NOTES: activeReservation.notes,
-      };
-    });
+    const enrichedVehicles = includeReservations
+      ? await enrichVehicleInventoryReservations(dedupedVehicles)
+      : dedupedVehicles;
 
     logger.info(
       {
         customerCode: normalizedCustomerCode || '(empty)',
+        includeReservations,
         rows: vehicles.length,
         dedupedRows: dedupedVehicles.length,
         sample: enrichedVehicles[0]

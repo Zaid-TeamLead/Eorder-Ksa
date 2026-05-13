@@ -55,6 +55,11 @@ export function useQuotationFormSubmit({
             status,
           };
           const result = await createQuotation(quotationData);
+          toast.success(
+            result.quotationNumber
+              ? `Quotation ${result.quotationNumber} created successfully`
+              : 'Quotation created successfully'
+          );
           if (result.sapPosting?.status === 'Failed') {
             toast.warning(
               result.sapPosting.errorMessage || 'Quotation saved locally, but SAP posting failed'

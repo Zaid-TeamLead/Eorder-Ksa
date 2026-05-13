@@ -86,10 +86,14 @@ export default function SalesOrderPage() {
   );
 
   const { salesOrders, isLoading, isFetching, error, refetch } = useSalesOrders(salesOrderFilters);
-  const { salesOrders: salesOrdersForSelection } = useSalesOrders({ limit: DASHBOARD_LIST_LIMIT });
+  const shouldLoadCreateDialogData = createDialogOpen || Boolean(quotationIdParam);
+  const { salesOrders: salesOrdersForSelection } = useSalesOrders(
+    { limit: DASHBOARD_LIST_LIMIT },
+    { enabled: shouldLoadCreateDialogData }
+  );
   const { quotations, isLoading: isLoadingQuotations } = useQuotations({
     limit: DASHBOARD_LIST_LIMIT,
-  });
+  }, { enabled: shouldLoadCreateDialogData });
   const { createFromQuotation, isCreating } = useSalesOrderMutations();
   const visibleSalesOrders = salesOrders.slice(0, pageSize);
   const hasNextPage = salesOrders.length > pageSize;
@@ -127,6 +131,18 @@ export default function SalesOrderPage() {
     selectedQuotation?.QUOTATION_NUMBER ||
     quotationNumberParam ||
     '';
+  const selectedQuotationOptionLabel =
+    selectedQuotation
+      ? `${selectedQuotation.ROOT_QUOTATION_NUMBER || selectedQuotation.QUOTATION_NUMBER} - ${selectedQuotation.CUSTOMER_NAME || 'No customer'}${selectedQuotation.VERSION > 1 ? ` (V${selectedQuotation.VERSION})` : ''}`
+      : selectedQuotationNumber
+        ? `${selectedQuotationNumber} - Selected quotation`
+        : '';
+  const shouldRenderSelectedQuotationOption =
+    Number(selectedQuotationId) > 0 &&
+    Boolean(selectedQuotationOptionLabel) &&
+    !availableQuotations.some(
+      (quotation) => Number(quotation.SLNO) === Number(selectedQuotationId)
+    );
 
   useEffect(() => {
     if (!quotationIdParam || hasConsumedQuotationParam.current) return;
@@ -338,9 +354,14 @@ export default function SalesOrderPage() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
+                        {shouldRenderSelectedQuotationOption && (
+                          <SelectItem value={String(selectedQuotationId)}>
+                            {selectedQuotationOptionLabel}
+                          </SelectItem>
+                        )}
                         {availableQuotations.length === 0 ? (
                           <SelectItem value="no-quotations" disabled>
-                            No quotations available
+                            {isLoadingQuotations ? 'Loading quotations...' : 'No quotations available'}
                           </SelectItem>
                         ) : (
                           availableQuotations.map((quotation) => (

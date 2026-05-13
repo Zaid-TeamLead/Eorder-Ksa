@@ -94,6 +94,7 @@ router.get(
       customerCode: z.string().optional(),
       customerId: z.string().optional(),
       ccode: z.string().optional(),
+      includeReservations: z.string().optional(),
     }),
     'query'
   ),
@@ -102,7 +103,8 @@ router.get(
       (req.query.customerCode as string | undefined) ||
       (req.query.customerId as string | undefined) ||
       (req.query.ccode as string | undefined);
-    const vehicles = await getAllVehicleInventory(customerCode);
+    const includeReservations = req.query.includeReservations !== 'false';
+    const vehicles = await getAllVehicleInventory(customerCode, { includeReservations });
     return sendSuccess(res, vehicles);
   })
 );

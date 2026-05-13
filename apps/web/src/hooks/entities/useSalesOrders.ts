@@ -3,11 +3,19 @@ import { queryKeys } from '@/lib/query-keys';
 import { getAllSalesOrders, getSalesOrderById } from '@/services/salesOrder';
 import type { SalesOrderFilters } from '@/types/salesOrder';
 
-export function useSalesOrders(filters?: SalesOrderFilters) {
+interface UseSalesOrdersOptions {
+  enabled?: boolean;
+}
+
+export function useSalesOrders(
+  filters?: SalesOrderFilters,
+  options: UseSalesOrdersOptions = {}
+) {
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: queryKeys.salesOrders.list(filters),
     queryFn: () => getAllSalesOrders(filters),
     placeholderData: keepPreviousData,
+    enabled: options.enabled ?? true,
   });
 
   return {

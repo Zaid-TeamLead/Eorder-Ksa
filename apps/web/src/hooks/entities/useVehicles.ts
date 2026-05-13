@@ -10,7 +10,11 @@
  */
 
 import { queryKeys } from "@/lib/query-keys";
-import { getAllVehicleInventory, type VehicleInventory } from "@/services/vehicles";
+import {
+  getAllVehicleInventory,
+  type VehicleInventory,
+  type VehicleInventoryOptions,
+} from "@/services/vehicles";
 import { useEntityQuery } from "@/hooks/shared/useEntityQuery";
 
 export interface UseVehiclesReturn {
@@ -20,15 +24,33 @@ export interface UseVehiclesReturn {
   refetch: () => Promise<void>;
 }
 
-export function useVehicles(customerCode?: string, enabled = true): UseVehiclesReturn {
+interface UseVehiclesOptions extends VehicleInventoryOptions {
+  enabled?: boolean;
+}
+
+export function useVehicles(
+  customerCode?: string,
+  enabledOrOptions: boolean | UseVehiclesOptions = true
+): UseVehiclesReturn {
   const normalizedCustomerCode = (customerCode || "").trim();
+  const options =
+    typeof enabledOrOptions === "boolean"
+      ? { enabled: enabledOrOptions }
+      : enabledOrOptions;
+  const includeReservations = options.includeReservations ?? true;
   const { data: vehicles, isLoading, error, refetch } = useEntityQuery({
-    queryKey: normalizedCustomerCode
-      ? queryKeys.vehicles.byCustomer(normalizedCustomerCode)
-      : queryKeys.vehicles.all,
-    queryFn: () => getAllVehicleInventory(normalizedCustomerCode || undefined),
+    queryKey: [
+      ...(normalizedCustomerCode
+        ? queryKeys.vehicles.byCustomer(normalizedCustomerCode)
+        : queryKeys.vehicles.all),
+      { includeReservations },
+    ],
+    queryFn: () =>
+      getAllVehicleInventory(normalizedCustomerCode || undefined, { includeReservations }),
     defaultValue: [],
-    enabled,
+    enabled: options.enabled ?? true,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   return { vehicles, isLoading, error, refetch };

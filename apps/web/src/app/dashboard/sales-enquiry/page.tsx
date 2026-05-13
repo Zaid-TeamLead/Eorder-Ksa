@@ -152,7 +152,7 @@ export default function SalesEnquiry() {
   // Fetch vehicle inventory only when the selection modal is opened.
   const { vehicles, isLoading: isLoadingVehicles } = useVehicles(
     inventoryCustomerCode,
-    vehicleModalOpen
+    { enabled: vehicleModalOpen, includeReservations: false }
   );
   const { chargeItems, isLoading: isLoadingCharges, error: chargeItemsError } = useChargeItems(
     chargeCustomerCode,

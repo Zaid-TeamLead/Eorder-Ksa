@@ -1648,6 +1648,32 @@ class QuotationService {
     }
   }
 
+  private async getQuotationForSalesOrderConfirm(
+    id: number,
+    options?: { resolveLatest?: boolean }
+  ): Promise<(Quotation & { lineItems: QuotationLineItem[] }) | null> {
+    const targetId = options?.resolveLatest ? await this.resolveLatestQuotationId(id) : id;
+    const quotationQuery = `
+      SELECT * FROM "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION"
+      WHERE "SLNO" = ? AND "IS_DELETED" = 'N'
+        AND COALESCE("DOC_TYPE", 'SQ') = 'SQ'
+    `;
+
+    const lineItemsQuery = `
+      SELECT * FROM "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION_LINE_ITEMS"
+      WHERE "QUOTATION_SLNO" = ? AND "IS_DELETED" = 'N'
+      ORDER BY "LINE_NUMBER"
+    `;
+
+    const [quotation, lineItems] = await Promise.all([
+      db.queryOne<Quotation>(quotationQuery, [targetId]),
+      db.query<QuotationLineItem>(lineItemsQuery, [targetId]),
+    ]);
+
+    if (!quotation) return null;
+    return { ...quotation, lineItems };
+  }
+
   /**
    * Get all quotations for an enquiry
    */
@@ -1718,9 +1744,7 @@ class QuotationService {
       const quotations = await db.query<Quotation>(query, params);
       const hydratedTotals = await this.hydrateQuotationHeaderTotals(quotations);
       const hydratedVehicles = await this.hydrateQuotationVehicleSummary(hydratedTotals);
-      return await this.hydrateSapQuotationReferences(
-        await this.hydrateQuotationReferences(hydratedVehicles)
-      );
+      return await this.hydrateQuotationReferences(hydratedVehicles);
     } catch (error: any) {
       logger.error('Error fetching all quotations:', error);
       throw new Error('Failed to fetch quotations: ' + error.message);
@@ -2700,8 +2724,13 @@ class QuotationService {
     targetDocumentNumber: string;
     status: string;
     errorCode: string;
+    sapDocEntry?: string;
+    sapDocNum?: string;
   }> {
-    const quotation = await this.getQuotationById(quotationId, { resolveLatest: true });
+    const startedAt = Date.now();
+    const quotation = await this.getQuotationForSalesOrderConfirm(quotationId, {
+      resolveLatest: true,
+    });
     if (!quotation) throw new Error('Quotation not found');
 
     const isAlreadyConfirmed =
@@ -2774,11 +2803,13 @@ class QuotationService {
       throw new AppError('All quotation lines must have an item code before converting to sales order.', 400, 'MISSING_ITEM_CODE');
     }
 
+    const sapBaseStartedAt = Date.now();
     const sapBase = await this.resolveSapQuotationBase(
       env.CONVERT_SALES_DOC_COMPANY_DB,
       quotation,
       lines
     );
+    const sapBaseDurationMs = Date.now() - sapBaseStartedAt;
     await this.syncSapQuotationCustomerInfo({
       companyDb: sapBase.companyDb,
       sapReference: sapBase.baseEntry,
@@ -2814,6 +2845,8 @@ class QuotationService {
           targetDocumentNumber,
           status: 'Success',
           errorCode: '200',
+          sapDocEntry: String(existingSalesOrder.DocEntry),
+          sapDocNum: String(existingSalesOrder.DocNum),
         };
       }
     }
@@ -2843,11 +2876,13 @@ class QuotationService {
     const apiUrl = `${env.CONVERT_SALES_DOC_API_URL.replace(/\/+$/, '')}/api/negt/ConvertSalesDocument`;
     logger.info({ quotationId, apiUrl, payload }, 'Calling Convert Sales Documents API');
 
+    const convertStartedAt = Date.now();
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
+    const convertDurationMs = Date.now() - convertStartedAt;
 
     const text = await response.text();
     let data: Record<string, unknown>;
@@ -2881,6 +2916,8 @@ class QuotationService {
               targetDocumentNumber,
               status: 'Success',
               errorCode: '200',
+              sapDocEntry: String(existingSalesOrder.DocEntry),
+              sapDocNum: String(existingSalesOrder.DocNum),
             };
           }
         }
@@ -2934,10 +2971,23 @@ class QuotationService {
       ]
     );
 
+    logger.info(
+      {
+        quotationId,
+        sapBaseDurationMs,
+        convertDurationMs,
+        durationMs: Date.now() - startedAt,
+        targetDocumentNumber,
+      },
+      'Confirmed quotation to SAP sales order'
+    );
+
     return {
       targetDocumentNumber,
       status: String(data.Status || ''),
       errorCode: String(data.ErrorCode || ''),
+      sapDocEntry: String(targetSalesOrder.DocEntry),
+      sapDocNum: String(targetSalesOrder.DocNum),
     };
   }
 
