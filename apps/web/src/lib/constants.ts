@@ -68,13 +68,13 @@ export const SIDEBAR_MENU = {
       items: [
         {
           title: 'Initiate Job Card Request',
-          url: 'https://pp.neweast.cloud/pdis?uSrId=SAP30&LoTp=43330&co=BI_NEGT_KSA',
+          url: 'https://pp.neweast.cloud/pdis?uSrId=SAP30&LoTp=43330&co=BI_NEGT_KSAISUZU',
           icon: IconClipboardPlus,
           external: true,
         },
         {
           title: 'Inspection',
-          url: 'https://pp.neweast.cloud/inspections?uSrId=SAP30&LoTp=43330&co=BI_NEGT_KSA',
+          url: 'https://pp.neweast.cloud/inspections?uSrId=SAP30&LoTp=43330&co=BI_NEGT_KSAISUZU',
           icon: IconClipboardCheck,
           external: true,
         },
@@ -87,13 +87,13 @@ export const SIDEBAR_MENU = {
         },
         {
           title: 'Services History',
-          url: 'https://pp.neweast.cloud/services-history?uSrId=SAP30&LoTp=43330&co=BI_NEGT_KSA',
+          url: 'https://pp.neweast.cloud/services-history?uSrId=SAP30&LoTp=43330&co=BI_NEGT_KSAISUZU',
           icon: IconHistory,
           external: true,
         },
         {
           title: 'View/Update Job Card',
-          url: 'https://pp.neweast.cloud/job-cards?uSrId=SAP30&LoTp=43330&co=BI_NEGT_KSA',
+          url: 'https://pp.neweast.cloud/job-cards?uSrId=SAP30&LoTp=43330&co=BI_NEGT_KSAISUZU',
           icon: IconEye,
           external: true,
         },
