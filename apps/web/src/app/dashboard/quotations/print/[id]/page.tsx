@@ -34,7 +34,11 @@ export default function PrintQuotationPage({ params }: PrintQuotationPageProps) 
   const { quotation, isLoading, error } = useQuotationById(quotationId);
 
   const handlePrint = () => {
-    const reportReference = getReportReference(quotation?.SAPDOCENTRY);
+    const reportReference = getReportReference(
+      quotation?.SAPDOCENTRY,
+      quotation?.SAPDOCNUM,
+      quotation?.SAPREFENTRY
+    );
 
     if (reportReference) {
       window.open(
@@ -42,7 +46,6 @@ export default function PrintQuotationPage({ params }: PrintQuotationPageProps) 
           referenceNumber: reportReference,
           type: 'SalesQuote',
           fromDate: '2024-01-01',
-          toDate: '2022-02-30',
         }),
         '_blank',
         'noopener,noreferrer'

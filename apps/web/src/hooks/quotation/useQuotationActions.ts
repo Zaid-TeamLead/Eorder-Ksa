@@ -28,7 +28,6 @@ function openQuotationReport(referenceNumber: string): void {
       referenceNumber,
       type: 'SalesQuote',
       fromDate: '2024-01-01',
-      toDate: '2022-02-30',
     }),
     '_blank',
     'noopener,noreferrer'
@@ -36,7 +35,7 @@ function openQuotationReport(referenceNumber: string): void {
 }
 
 function getQuotationReportReference(quotation: Quotation): string {
-  return getReportReference(quotation.SAPDOCENTRY);
+  return getReportReference(quotation.SAPDOCENTRY, quotation.SAPDOCNUM, quotation.SAPREFENTRY);
 }
 
 /**

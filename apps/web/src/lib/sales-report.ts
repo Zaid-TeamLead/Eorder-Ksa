@@ -2,7 +2,8 @@
 
 type SalesReportType = 'SalesQuote' | 'SalesOrder';
 
-const SALES_REPORT_BASE_URL = 'https://bi.neweast.cloud/reportsisuzu.aspx';
+const SALES_REPORT_BASE_URL =
+  process.env.NEXT_PUBLIC_SO_SQ_REPORT_URL || 'https://bi.neweast.cloud/reportsisuzu.aspx';
 const SALES_REPORT_FROM_DATE = '2024-01-01';
 
 function getTodayDateString(): string {
