@@ -27,11 +27,37 @@ export interface AuthTokens {
   accessToken: string;
 }
 
+function getConfiguredSlpCodeOverride(userId: string): string {
+  const normalizedUserId = String(userId || "").trim();
+  if (!normalizedUserId) return "";
+
+  const overrides = String(process.env.AUTH_SLP_CODE_OVERRIDES || "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  for (const override of overrides) {
+    const [overrideUserId, overrideSlpCode] = override.split(":").map((part) => part.trim());
+    if (overrideUserId === normalizedUserId && overrideSlpCode) {
+      return overrideSlpCode;
+    }
+  }
+
+  return "";
+}
+
 async function getSlpCodeForUser(userId: string): Promise<string> {
+  const configuredOverride = getConfiguredSlpCodeOverride(userId);
+  if (configuredOverride) {
+    logger.info({ userId, slpCode: configuredOverride }, "Using configured SlpCode override");
+    return configuredOverride;
+  }
+
   try {
     const sql = `CALL "BI_NEGT_KSAISUZU".DMS_KSA_100001(?)`;
     const slpCode = await db.query(sql, [userId]);
-    return String(slpCode[0]?.SlpCode ?? "").trim();
+    const resolvedSlpCode = String(slpCode[0]?.SlpCode ?? "").trim();
+    return resolvedSlpCode || userId;
   } catch (error) {
     logger.warn({ error, userId }, "Failed to fetch SlpCode, using userId as fallback");
     return userId;
