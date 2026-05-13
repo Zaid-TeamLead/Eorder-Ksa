@@ -822,6 +822,7 @@ class SapOrderIntegrationService {
     userContext: IntegrationUserContext;
   }): Promise<unknown> {
     const queueUrl = new URL(resolveDmsEndpoint(params.orderType));
+    const queueReturnValue = '1';
 
     const jobData = {
       WebSoNo: /^\d+$/.test(params.webSoNo) ? Number(params.webSoNo) : params.webSoNo,
@@ -833,7 +834,9 @@ class SapOrderIntegrationService {
     const payload = {
       ...jobData,
       jobData,
-      returnValue: '1',
+      returnValue: queueReturnValue,
+      ReturnValue: queueReturnValue,
+      returnvalue: queueReturnValue,
     };
 
     for (const [key, value] of Object.entries(jobData)) {
@@ -841,7 +844,9 @@ class SapOrderIntegrationService {
     }
     queueUrl.searchParams.set('LoTp', env.SO_SQ_LOTP);
     queueUrl.searchParams.set('co', FIXED_DMS_QUEUE_COMPANY_CO);
-    queueUrl.searchParams.set('returnValue', payload.returnValue);
+    queueUrl.searchParams.set('returnValue', queueReturnValue);
+    queueUrl.searchParams.set('ReturnValue', queueReturnValue);
+    queueUrl.searchParams.set('returnvalue', queueReturnValue);
 
     logger.info(
       {
