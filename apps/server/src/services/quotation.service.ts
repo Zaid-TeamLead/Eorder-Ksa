@@ -468,6 +468,18 @@ function normalizeSapIdentifier(value: string, label: string): string {
   return normalized;
 }
 
+function isSapDuplicateJobReferenceError(data: Record<string, unknown>, text: string): boolean {
+  const combined = [
+    data.ErrorCode,
+    data.ErrorMessage,
+    data.Status,
+    text,
+  ].map((value) => normalizeText(value)).join(' ');
+
+  return combined.includes('20240919') ||
+    combined.toLowerCase().includes('job order web reference number already exists');
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   return value as Record<string, unknown>;
@@ -1297,12 +1309,25 @@ class QuotationService {
         [...candidates, ...candidates]
       );
 
+      const expectedCardCode = normalizeText(quotation.CUSTOMER_CODE);
+      const customerDocuments = expectedCardCode
+        ? documents.filter((row) => normalizeText(row.CardCode) === expectedCardCode)
+        : documents;
+
+      if (expectedCardCode && documents.length > 0 && customerDocuments.length === 0) {
+        throw new AppError(
+          `SAP Sales Quotation reference does not belong to customer ${expectedCardCode}. Checked DocEntry/DocNum: ${candidates.join(', ')}.`,
+          400,
+          'SAP_BASE_DOCUMENT_CUSTOMER_MISMATCH'
+        );
+      }
+
       const requestedDocEntry = Number(
         normalizeText(quotation.SAPDOCENTRY || (!isAlreadyConfirmed ? quotation.SAPREFENTRY : ''))
       );
       const document =
-        documents.find((row) => Number(row.DocEntry) === requestedDocEntry) ||
-        documents[0];
+        customerDocuments.find((row) => Number(row.DocEntry) === requestedDocEntry) ||
+        customerDocuments[0];
 
       if (!document) {
         throw new AppError(
@@ -1413,6 +1438,123 @@ class QuotationService {
         'SAP_BASE_DOCUMENT_LOOKUP_FAILED'
       );
     }
+  }
+
+  private async resolveSapSalesOrderForCustomer(
+    companyDb: string,
+    reference: unknown,
+    expectedCardCode: string
+  ): Promise<{ DocEntry: number; DocNum: number } | null> {
+    const normalizedReference = normalizeText(reference);
+    if (!/^\d+$/.test(normalizedReference)) return null;
+
+    const normalizedCardCode = normalizeText(expectedCardCode);
+    if (!normalizedCardCode) return null;
+
+    const numericReference = Number(normalizedReference);
+    const schema = normalizeSapIdentifier(companyDb, 'CompanyDB');
+
+    return await db.queryOne<{ DocEntry: number; DocNum: number }>(
+      `
+        SELECT "DocEntry", "DocNum"
+        FROM "${schema}"."ORDR"
+        WHERE ("DocEntry" = ? OR "DocNum" = ?)
+          AND "CardCode" = ?
+        ORDER BY "DocEntry" DESC
+        LIMIT 1
+      `,
+      [numericReference, numericReference, normalizedCardCode]
+    );
+  }
+
+  private async findSapSalesOrderByWebReference(
+    companyDb: string,
+    webReference: unknown,
+    expectedCardCode: string
+  ): Promise<{ DocEntry: number; DocNum: number } | null> {
+    const normalizedReference = normalizeText(webReference);
+    const normalizedCardCode = normalizeText(expectedCardCode);
+    if (!normalizedReference || !normalizedCardCode) return null;
+
+    const schema = normalizeSapIdentifier(companyDb, 'CompanyDB');
+
+    return await db.queryOne<{ DocEntry: number; DocNum: number }>(
+      `
+        SELECT "DocEntry", "DocNum"
+        FROM "${schema}"."ORDR"
+        WHERE TO_NVARCHAR("U_ECOMREFNUM") = ?
+          AND "CardCode" = ?
+          AND COALESCE("CANCELED", 'N') = 'N'
+        ORDER BY "DocEntry" DESC
+        LIMIT 1
+      `,
+      [normalizedReference, normalizedCardCode]
+    );
+  }
+
+  private async syncConvertedSalesOrderReference(
+    quotationSlno: number,
+    targetDocumentNumber: string,
+    status: string,
+    actor: string
+  ): Promise<void> {
+    await db.execute(
+      `
+        UPDATE "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION"
+        SET "SAPREFENTRY" = ?,
+            "SAPSTATUS" = ?,
+            "UPDATED_BY" = ?,
+            "UPDATED_DATE" = ?
+        WHERE "SLNO" = ?
+      `,
+      [
+        targetDocumentNumber,
+        status,
+        actor,
+        this.getCurrentDateTime(),
+        quotationSlno,
+      ]
+    );
+  }
+
+  private async syncSapQuotationCustomerInfo(params: {
+    companyDb: string;
+    sapReference: string;
+    customerName: string;
+    customerMobile: string;
+  }): Promise<void> {
+    const normalizedReference = normalizeText(params.sapReference);
+    if (!/^\d+$/.test(normalizedReference)) return;
+
+    const customerName = normalizeText(params.customerName);
+    const customerMobile = normalizeText(params.customerMobile);
+    if (!customerName && !customerMobile) return;
+
+    const schema = normalizeSapIdentifier(params.companyDb, 'CompanyDB');
+    const numericReference = Number(normalizedReference);
+
+    await db.execute(
+      `
+        UPDATE "${schema}"."OQUT"
+        SET "ReqName" = CASE
+              WHEN ? <> '' THEN ?
+              ELSE "ReqName"
+            END,
+            "U_CashCustGSM" = CASE
+              WHEN ? <> '' THEN ?
+              ELSE "U_CashCustGSM"
+            END
+        WHERE ("DocEntry" = ? OR "DocNum" = ?)
+      `,
+      [
+        customerName,
+        customerName,
+        customerMobile,
+        customerMobile,
+        numericReference,
+        numericReference,
+      ]
+    );
   }
 
   private async getQuotationOrThrow(
@@ -2637,6 +2779,44 @@ class QuotationService {
       quotation,
       lines
     );
+    await this.syncSapQuotationCustomerInfo({
+      companyDb: sapBase.companyDb,
+      sapReference: sapBase.baseEntry,
+      customerName: normalizeText(quotation.CUSTOMER_NAME),
+      customerMobile: normalizeText(quotation.CUSTOMER_MOBILE),
+    });
+
+    const webReferences = Array.from(
+      new Set(
+        [quotation.SLNO, quotation.ROOT_QUOTATION_SLNO]
+          .map((value) => normalizeText(value))
+          .filter(Boolean)
+      )
+    );
+
+    for (const webReference of webReferences) {
+      const existingSalesOrder = await this.findSapSalesOrderByWebReference(
+        sapBase.companyDb,
+        webReference,
+        cardCode
+      );
+
+      if (existingSalesOrder) {
+        const targetDocumentNumber = String(existingSalesOrder.DocEntry);
+        await this.syncConvertedSalesOrderReference(
+          quotation.SLNO,
+          targetDocumentNumber,
+          'Success',
+          actor
+        );
+
+        return {
+          targetDocumentNumber,
+          status: 'Success',
+          errorCode: '200',
+        };
+      }
+    }
 
     const payload = {
       CompanyDB: sapBase.companyDb,
@@ -2680,6 +2860,32 @@ class QuotationService {
     logger.info({ quotationId, response: data }, 'Convert Sales Documents API response');
 
     if (!response.ok || String(data.ErrorCode) !== '200') {
+      if (isSapDuplicateJobReferenceError(data, text)) {
+        for (const webReference of webReferences) {
+          const existingSalesOrder = await this.findSapSalesOrderByWebReference(
+            sapBase.companyDb,
+            webReference,
+            cardCode
+          );
+
+          if (existingSalesOrder) {
+            const targetDocumentNumber = String(existingSalesOrder.DocEntry);
+            await this.syncConvertedSalesOrderReference(
+              quotation.SLNO,
+              targetDocumentNumber,
+              'Success',
+              actor
+            );
+
+            return {
+              targetDocumentNumber,
+              status: 'Success',
+              errorCode: '200',
+            };
+          }
+        }
+      }
+
       throw new AppError(
         [
           `SAP Convert API failed (${data.ErrorCode || response.status}): ${data.ErrorMessage || data.Status || text}`,
@@ -2695,6 +2901,21 @@ class QuotationService {
       );
     }
 
+    const targetDocumentNumber = String(data.TargetDocumentNumber || '');
+    const targetSalesOrder = await this.resolveSapSalesOrderForCustomer(
+      sapBase.companyDb,
+      targetDocumentNumber,
+      cardCode
+    );
+
+    if (!targetSalesOrder) {
+      throw new AppError(
+        `SAP Convert API returned target document ${targetDocumentNumber}, but it was not found for customer ${cardCode}.`,
+        502,
+        'SAP_CONVERT_CUSTOMER_MISMATCH'
+      );
+    }
+
     await db.execute(
       `
         UPDATE "${QUOTATION_DB_SCHEMA}"."DMS_QUOTATION"
@@ -2705,7 +2926,7 @@ class QuotationService {
         WHERE "SLNO" = ?
       `,
       [
-        String(data.TargetDocumentNumber || ''),
+        targetDocumentNumber,
         String(data.Status || ''),
         actor,
         this.getCurrentDateTime(),
@@ -2714,7 +2935,7 @@ class QuotationService {
     );
 
     return {
-      targetDocumentNumber: String(data.TargetDocumentNumber || ''),
+      targetDocumentNumber,
       status: String(data.Status || ''),
       errorCode: String(data.ErrorCode || ''),
     };

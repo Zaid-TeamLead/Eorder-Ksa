@@ -76,6 +76,7 @@ export interface SalesOrder {
   VERSION: number;
   PARENT_ORDER_SLNO?: number | null;
   IS_LATEST_VERSION: 'Y' | 'N';
+  CUSTOMER_CODE?: string | null;
   CUSTOMER_NAME?: string | null;
   CUSTOMER_MOBILE?: string | null;
   CUSTOMER_EMAIL?: string | null;
@@ -232,7 +233,8 @@ class SalesOrderService {
   }
 
   private async resolveSapSalesOrderReference(
-    reference: unknown
+    reference: unknown,
+    expectedCardCode?: string | null
   ): Promise<{ sapDocEntry: string; sapDocNum: string } | null> {
     const normalizedReference = this.normalizeText(reference);
     if (!normalizedReference || !/^\d+$/.test(normalizedReference)) {
@@ -240,6 +242,7 @@ class SalesOrderService {
     }
 
     const numericReference = Number(normalizedReference);
+    const normalizedCardCode = this.normalizeText(expectedCardCode);
 
     try {
       const sapOrder = await db.queryOne<{
@@ -247,17 +250,22 @@ class SalesOrderService {
         SAP_DOC_NUM?: number;
         DocEntry?: number;
         DocNum?: number;
+        CardCode?: string;
       }>(
         `
           SELECT
             "DocEntry" AS "SAP_DOC_ENTRY",
-            "DocNum" AS "SAP_DOC_NUM"
+            "DocNum" AS "SAP_DOC_NUM",
+            "CardCode"
           FROM "${SAP_COMPANY_DB_SCHEMA}"."ORDR"
-          WHERE "DocNum" = ? OR "DocEntry" = ?
+          WHERE ("DocNum" = ? OR "DocEntry" = ?)
+            ${normalizedCardCode ? 'AND "CardCode" = ?' : ''}
           ORDER BY "DocEntry" DESC
           LIMIT 1
         `,
-        [numericReference, numericReference]
+        normalizedCardCode
+          ? [numericReference, numericReference, normalizedCardCode]
+          : [numericReference, numericReference]
       );
 
       if (!sapOrder) {
@@ -295,7 +303,19 @@ class SalesOrderService {
       return;
     }
 
-    const resolvedSapOrder = await this.resolveSapSalesOrderReference(sourceSapOrderNumber);
+    const expectedCardCode = this.normalizeText(quotation.CUSTOMER_CODE);
+    const resolvedSapOrder = await this.resolveSapSalesOrderReference(
+      sourceSapOrderNumber,
+      expectedCardCode
+    );
+
+    if (!resolvedSapOrder) {
+      logger.warn(
+        { salesOrderSlno, sourceSapOrderNumber, expectedCardCode },
+        'Skipping SAP sales order reference sync because the SAP order was not found for the expected customer'
+      );
+      return;
+    }
 
     await db.execute(
       `
@@ -310,8 +330,8 @@ class SalesOrderService {
           AND "DOC_TYPE" = '${SALES_ORDER_DOC_TYPE}'
       `,
       [
-        resolvedSapOrder?.sapDocEntry || null,
-        resolvedSapOrder?.sapDocNum || sourceSapOrderNumber,
+        resolvedSapOrder.sapDocEntry,
+        resolvedSapOrder.sapDocNum,
         sourceSapOrderNumber,
         quotation.SAPSTATUS || 'Success',
         updatedBy,
@@ -351,6 +371,7 @@ class SalesOrderService {
       ${alias}."VERSION" AS "VERSION",
       ${alias}."PARENT_QUOTATION_SLNO" AS "PARENT_ORDER_SLNO",
       ${alias}."IS_LATEST_VERSION" AS "IS_LATEST_VERSION",
+      ${alias}."CUSTOMER_CODE" AS "CUSTOMER_CODE",
       ${alias}."CUSTOMER_NAME" AS "CUSTOMER_NAME",
       ${alias}."CUSTOMER_MOBILE" AS "CUSTOMER_MOBILE",
       ${alias}."CUSTOMER_EMAIL" AS "CUSTOMER_EMAIL",
@@ -760,7 +781,20 @@ class SalesOrderService {
 
     const result = await quotationService.confirmToSalesOrder(salesOrder.QUOTATION_SLNO, actor);
     const targetDocumentNumber = this.normalizeText(result.targetDocumentNumber);
-    const resolvedSapOrder = await this.resolveSapSalesOrderReference(targetDocumentNumber);
+    const expectedCardCode = this.normalizeText(
+      salesOrder.CUSTOMER_CODE || salesOrder.quotation?.CUSTOMER_CODE
+    );
+    const resolvedSapOrder = await this.resolveSapSalesOrderReference(
+      targetDocumentNumber,
+      expectedCardCode
+    );
+    if (!resolvedSapOrder) {
+      throw new AppError(
+        `SAP sales order reference ${targetDocumentNumber} was not found for customer ${expectedCardCode || '(blank)'}.`,
+        502,
+        'SAP_REFERENCE_CUSTOMER_MISMATCH'
+      );
+    }
     const currentDateTime = this.getCurrentDateTime();
 
     await db.execute(
@@ -776,8 +810,8 @@ class SalesOrderService {
           AND "DOC_TYPE" = '${SALES_ORDER_DOC_TYPE}'
       `,
       [
-        resolvedSapOrder?.sapDocEntry || null,
-        resolvedSapOrder?.sapDocNum || targetDocumentNumber || null,
+        resolvedSapOrder.sapDocEntry,
+        resolvedSapOrder.sapDocNum,
         targetDocumentNumber || null,
         result.status,
         actor,
@@ -788,7 +822,7 @@ class SalesOrderService {
 
     return {
       ...result,
-      sapDocEntry: resolvedSapOrder?.sapDocEntry,
+      sapDocEntry: resolvedSapOrder.sapDocEntry,
     };
   }
 
@@ -904,7 +938,8 @@ class SalesOrderService {
         order.SAPDOCNUM ||
           order.SAPREFENTRY ||
           sourceQuotation?.SAPREFENTRY ||
-          order.SAPDOCENTRY
+          order.SAPDOCENTRY,
+        order.CUSTOMER_CODE || sourceQuotation?.CUSTOMER_CODE
       );
 
       const orderWithSapReferences: SalesOrder = {
