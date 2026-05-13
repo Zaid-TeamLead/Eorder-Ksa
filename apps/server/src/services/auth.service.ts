@@ -7,7 +7,7 @@ import { AuthenticationError, InternalServerError } from "../types/errors.js";
 import { db } from "./database.service.js";
 
 const EXTERNAL_AUTH_URL = "https://auth.neweast.cloud";
-const COMPANY_CODE = "BI_NEGT_KSA";
+const COMPANY_CODE = "the heck";
 const OTP_BYPASS_USER_ID = "104006";
 
 // Note: Removed sanitizeInput function - now using parameterized queries for SQL injection prevention

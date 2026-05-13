@@ -13,6 +13,9 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
 } from "@/components/ui/sidebar";
 import { useSession } from "@/lib/auth-client";
 import { IconCirclePlusFilled, type Icon } from "@tabler/icons-react";
@@ -26,6 +29,7 @@ type NavItem = {
   icon?: Icon;
   external?: boolean;
   externalApp?: "pdi";
+  items?: NavItem[];
 };
 
 function getSessionUserId(session: ReturnType<typeof useSession>["data"]) {
@@ -51,6 +55,20 @@ function buildPdiUrl(userId: string, pdiLoTp: string) {
   return url.toString();
 }
 
+function getNavHref(item: NavItem, userId: string, pdiLoTp: string) {
+  return item.externalApp === "pdi" ? buildPdiUrl(userId, pdiLoTp) : item.url;
+}
+
+function isNavItemActive(item: NavItem, pathname: string | null) {
+  if (item.external || item.url === "#") {
+    return false;
+  }
+
+  return item.url === "/dashboard"
+    ? pathname === item.url
+    : pathname === item.url || pathname?.startsWith(item.url + "/");
+}
+
 export function NavMain({
   items,
 }: {
@@ -61,6 +79,46 @@ export function NavMain({
   const { data: session } = useSession();
   const sessionUserId = getSessionUserId(session);
   const pdiLoTp = getConfiguredPdiLoTp();
+  const renderSubItems = (subItems: NavItem[], depth = 0) => (
+    <SidebarMenuSub className={depth > 0 ? "mx-0 ml-3 py-1" : undefined}>
+      {subItems.map((item) => {
+        const href = getNavHref(item, sessionUserId, pdiLoTp);
+        const hasChildren = Boolean(item.items?.length);
+        const content = (
+          <>
+            {item.icon && <item.icon />}
+            <span>{item.title}</span>
+          </>
+        );
+
+        return (
+          <SidebarMenuSubItem key={item.title}>
+            {item.external ? (
+              <SidebarMenuSubButton
+                asChild
+                isActive={isNavItemActive(item, pathname)}
+              >
+                <a href={href}>{content}</a>
+              </SidebarMenuSubButton>
+            ) : (
+              <SidebarMenuSubButton
+                asChild
+                isActive={isNavItemActive(item, pathname)}
+                className={hasChildren ? "font-medium" : undefined}
+              >
+                {item.url === "#" ? (
+                  <span>{content}</span>
+                ) : (
+                  <Link href={href as any}>{content}</Link>
+                )}
+              </SidebarMenuSubButton>
+            )}
+            {hasChildren && renderSubItems(item.items!, depth + 1)}
+          </SidebarMenuSubItem>
+        );
+      })}
+    </SidebarMenuSub>
+  );
 
   return (
     <>
@@ -81,12 +139,8 @@ export function NavMain({
           <SidebarMenu>
             {items.map((item) => {
               // For /dashboard, only match exactly. For other routes, match exactly or sub-routes
-              const href = item.externalApp === "pdi"
-                ? buildPdiUrl(sessionUserId, pdiLoTp)
-                : item.url;
-              const isActive = item.external ? false : item.url === "/dashboard"
-                ? pathname === item.url
-                : pathname === item.url || pathname?.startsWith(item.url + "/");
+              const href = getNavHref(item, sessionUserId, pdiLoTp);
+              const isActive = isNavItemActive(item, pathname);
               const content = (
                 <>
                   {item.icon && <item.icon />}
@@ -103,10 +157,13 @@ export function NavMain({
                   >
                     {item.external ? (
                       <a href={href}>{content}</a>
+                    ) : item.url === "#" ? (
+                      <span>{content}</span>
                     ) : (
                       <Link href={href as any}>{content}</Link>
                     )}
                   </SidebarMenuButton>
+                  {item.items?.length ? renderSubItems(item.items) : null}
                 </SidebarMenuItem>
               );
             })}
